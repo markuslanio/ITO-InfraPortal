@@ -1,0 +1,607 @@
+{% extends "base.html" %}
+{% block title %}Network - Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/infraportal/static/tableutils.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+
+.section { background-color: var(--bg2); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .section h2 { color: var(--accent); margin-top: 0; }
+        .btn-secondary { background-color: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .btn-secondary:hover { background-color: var(--surface); color: var(--text); }
+
+        /* ── Stat bar ── */
+        .stat-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+        .stat-card { background-color: var(--bg3); border-radius: 8px; padding: 12px 18px; min-width: 110px; border-left: 4px solid var(--accent); }
+        .stat-val { font-size: 22px; font-weight: bold; display: block; color: var(--text); }
+        .stat-lbl { font-size: 11px; color: var(--text4); display: block; margin-top: 2px; }
+        .stat-val.green { color: #22cc66; }
+        .stat-val.amber { color: #ffaa00; }
+        .stat-val.red   { color: #ff4444; }
+        .stat-val.blue  { color: #4488ff; }
+
+        /* ── Tabs ── */
+        .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--surface); margin-bottom: 20px; }
+        .tab-btn { font-size: 14px; padding: 10px 20px; border: none; background: none; cursor: pointer; color: var(--text3); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s; }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; margin-top: 20px; }
+
+        /* ── Section label ── */
+        .section-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text4); margin-bottom: 10px; padding-left: 2px; }
+
+        /* ── Site cards ── */
+        .site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .site-card { background-color: var(--bg3); border: 0.5px solid var(--surface); border-radius: 8px; padding: 13px 15px; cursor: pointer; transition: border-color 0.15s; }
+        .site-card:hover { border-color: var(--accent); }
+        .site-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+        .site-name { font-size: 13px; font-weight: bold; color: var(--text); }
+        .site-org  { font-size: 11px; color: var(--text4); margin-top: 2px; }
+        .health-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+        .health-dot.online   { background: #22cc66; box-shadow: 0 0 0 3px rgba(34,204,102,0.2); }
+        .health-dot.degraded { background: #ffaa00; box-shadow: 0 0 0 3px rgba(255,170,0,0.2); }
+        .health-dot.offline  { background: #ff4444; box-shadow: 0 0 0 3px rgba(255,68,68,0.2); }
+        .health-dot.unknown  { background: #555555; }
+        .site-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+        .site-meta-item { font-size: 11px; color: var(--text4); }
+        .site-meta-item strong { color: var(--text2); font-weight: 500; }
+        .site-types { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 7px; }
+        .type-chip { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--surface); color: var(--text4); border: 0.5px solid var(--border); }
+
+        /* ── Uplink rows ── */
+        .uplink-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; color: var(--text4); }
+        .uplink-status { font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 8px; }
+        .uplink-status.active        { background: #1a4a2a; color: #22cc66; }
+        .uplink-status.ready         { background: #1a2a4a; color: #4488ff; }
+        .uplink-status.failed        { background: #4a1a1a; color: #ff4444; }
+        .uplink-status.not-connected { background: var(--surface); color: var(--text4); }
+
+        /* ── Table ── */
+        .table-wrap { background-color: var(--bg3); border: 0.5px solid var(--surface); border-radius: 8px; overflow: hidden; }
+        .table-toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 0.5px solid var(--surface); flex-wrap: wrap; }
+        .search-input { font-size: 13px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 220px; outline: none; }
+        .search-input:focus { border-color: var(--accent); }
+        .filter-select { font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); outline: none; cursor: pointer; }
+        .table-count { font-size: 12px; color: var(--text4); margin-left: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text4); padding: 8px 14px; text-align: left; background: var(--bg2); border-bottom: 0.5px solid var(--surface); white-space: nowrap; }
+        td { font-size: 12px; padding: 8px 14px; border-bottom: 0.5px solid var(--bg); color: var(--text3); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--bg2); }
+        td.bold { font-weight: 500; color: var(--text); }
+        .mono { font-family: "Consolas", monospace; font-size: 11px; }
+        .badge-org { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 8px; background: #1a2a4a; color: #4488ff; border: 0.5px solid #2a3a5a; white-space: nowrap; }
+        .badge-type { font-size: 10px; padding: 2px 6px; border-radius: 8px; background: var(--surface); color: var(--text4); border: 0.5px solid var(--border); }
+
+        /* ── Endpoint lookup ── */
+        .lookup-wrap { background-color: var(--bg3); border: 0.5px solid var(--surface); border-radius: 8px; overflow: hidden; }
+        .lookup-bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 0.5px solid var(--surface); }
+        .lookup-input { flex: 1; font-size: 14px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); outline: none; }
+        .lookup-input:focus { border-color: var(--accent); }
+        .lookup-btn { font-size: 13px; font-weight: 500; padding: 8px 18px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+        .lookup-btn:hover { background: var(--accent-dark); }
+        .lookup-results { padding: 16px; }
+        .lookup-empty { font-size: 13px; color: var(--text4); text-align: center; padding: 2rem 0; }
+        .result-section { margin-bottom: 20px; }
+        .result-section-title { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text4); margin-bottom: 8px; }
+        .result-card { background: var(--bg2); border: 0.5px solid var(--surface); border-radius: 8px; padding: 12px 14px; margin-bottom: 7px; }
+        .result-card-title { font-size: 13px; font-weight: bold; color: var(--text); margin-bottom: 6px; }
+        .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+        .result-field { font-size: 12px; }
+        .result-field .lbl { color: var(--text4); font-size: 11px; display: block; }
+        .result-field .val { color: var(--text); font-weight: 500; }
+        .conn-badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 8px; margin-left: 6px; }
+        .conn-badge.wireless { background: #1a2a4a; color: #4488ff; }
+        .conn-badge.wired    { background: #1a4a2a; color: #22cc66; }
+
+        /* ── Placeholder ── */
+        .placeholder-panel { background: var(--bg3); border: 0.5px dashed var(--border); border-radius: 8px; padding: 2.5rem 2rem; text-align: center; color: var(--text4); }
+        .placeholder-panel .ph-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .placeholder-panel .ph-title { font-size: 14px; font-weight: bold; color: var(--text2); margin-bottom: 0.25rem; }
+        .placeholder-panel .ph-sub   { font-size: 12px; }
+
+        /* ── Loading / error ── */
+        .loading { text-align: center; padding: 3rem; color: var(--text4); font-size: 13px; }
+        .error-msg { background: #4a1a1a; color: #ffaaaa; border: 0.5px solid #cc2222; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 10px; }
+        .cache-note { font-size: 12px; color: var(--text4); }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+        <div class="section">
+            <h2>🌐 Network</h2>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+                <span style="font-size:13px;color:var(--text3)">Meraki · Checkpoint · Zscaler</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span class="cache-note" id="cacheNote"></span>
+                    <button class="btn" onclick="refreshAll()">↻ Refresh</button>
+                </div>
+            </div>
+
+  <!-- Stat bar -->
+  <div class="stat-bar" id="statBar">
+    <div class="stat-card"><span class="stat-val" id="statNetworks">—</span><span class="stat-lbl">Networks</span></div>
+    <div class="stat-card"><span class="stat-val" id="statDevices">—</span><span class="stat-lbl">Devices</span></div>
+    <div class="stat-card"><span class="stat-val green" id="statUplinks">—</span><span class="stat-lbl">Uplinks Active</span></div>
+    <div class="stat-card"><span class="stat-val blue" id="statClients">—</span><span class="stat-lbl">Recent Clients</span></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('sites',this)">Sites</button>
+    <button class="tab-btn" onclick="switchTab('devices',this)">Devices</button>
+    <button class="tab-btn" onclick="switchTab('uplinks',this)">WAN Uplinks</button>
+    <button class="tab-btn" onclick="switchTab('lookup',this)">Endpoint Lookup</button>
+    <button class="tab-btn" onclick="switchTab('checkpoint',this)">Checkpoint 🔒</button>
+    <button class="tab-btn" onclick="switchTab('zscaler',this)">Zscaler 🔒</button>
+  </div>
+
+  <!-- ── SITES TAB ─────────────────────────────────────────── -->
+  <div class="tab-pane active" id="tab-sites">
+    <div class="section-label">SE2 — Zinnia</div>
+    <div class="site-grid" id="siteGridSE2"><div class="loading">Loading…</div></div>
+    <div class="section-label">Policygenius</div>
+    <div class="site-grid" id="siteGridPG"></div>
+  </div>
+
+  <!-- ── DEVICES TAB ───────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-devices">
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <input class="search-input" id="deviceSearch" placeholder="Search name, IP, MAC, serial…" oninput="filterDevices()">
+        <select class="filter-select" id="deviceOrg" onchange="filterDevices()">
+          <option value="">All Orgs</option>
+          <option value="SE2">SE2</option>
+          <option value="Policygenius">Policygenius</option>
+        </select>
+        <select class="filter-select" id="deviceType" onchange="filterDevices()">
+          <option value="">All Types</option>
+          <option value="MX">Appliances (MX)</option>
+          <option value="MS">Switches (MS)</option>
+          <option value="MR">Access Points (MR)</option>
+          <option value="MV">Cameras (MV)</option>
+          <option value="MT">Sensors (MT)</option>
+          <option value="MG">Cellular (MG)</option>
+        </select>
+        <select class="filter-select" id="deviceNetwork" onchange="filterDevices()">
+          <option value="">All Networks</option>
+        </select>
+        <span class="table-count" id="deviceCount"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Model</th>
+              <th>Network</th>
+              <th>Org</th>
+              <th>LAN IP</th>
+              <th>MAC</th>
+              <th>Serial</th>
+              <th>Firmware</th>
+            </tr>
+          </thead>
+          <tbody id="deviceTbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── UPLINKS TAB ───────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-uplinks">
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <input class="search-input" id="uplinkSearch" placeholder="Search site…" oninput="filterUplinks()">
+        <select class="filter-select" id="uplinkOrg" onchange="filterUplinks()">
+          <option value="">All Orgs</option>
+          <option value="SE2">SE2</option>
+          <option value="Policygenius">Policygenius</option>
+        </select>
+        <span class="table-count" id="uplinkCount"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Org</th>
+              <th>Interface</th>
+              <th>Status</th>
+              <th>IP</th>
+              <th>Public IP</th>
+              <th>ISP</th>
+              <th>Type</th>
+              <th>Gateway</th>
+            </tr>
+          </thead>
+          <tbody id="uplinkTbody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ENDPOINT LOOKUP TAB ──────────────────────────────── -->
+  <div class="tab-pane" id="tab-lookup">
+    <div class="lookup-wrap">
+      <div class="lookup-bar">
+        <input class="lookup-input" id="lookupInput"
+          placeholder="Enter IP address, MAC, hostname, or username…"
+          onkeydown="if(event.key==='Enter') doLookup()">
+        <button class="lookup-btn" onclick="doLookup()">Look Up</button>
+      </div>
+      <div class="lookup-results" id="lookupResults">
+        <div class="lookup-empty">Enter an IP, MAC address, hostname, or username to find where a device or user is connected.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHECKPOINT TAB ───────────────────────────────────── -->
+  <div class="tab-pane" id="tab-checkpoint">
+    <div class="placeholder-panel">
+      <div class="ph-icon">🔥</div>
+      <div class="ph-title">Checkpoint Firewall — Coming Monday</div>
+      <div class="ph-sub">API credentials being set up. Will show policy status, VPN tunnels, threat events, and blocked connections.</div>
+    </div>
+  </div>
+
+  <!-- ── ZSCALER TAB ──────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-zscaler">
+    <div class="placeholder-panel">
+      <div class="ph-icon">☁️</div>
+      <div class="ph-title">Zscaler — Coming Monday</div>
+      <div class="ph-sub">API credentials being set up. Will show user policy groups, blocked categories, bandwidth usage, and location tunneling status.</div>
+    </div>
+  </div><!-- /tab-zscaler -->
+
+        </div><!-- /section -->
+    </div><!-- /container -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let allNetworks = [];
+let allDevices  = [];
+let allUplinks  = [];
+
+// ── Init ───────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadSummary();
+  loadSites();
+  loadDevices();
+  loadUplinks();
+});
+
+// ── Tabs ───────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Refresh ────────────────────────────────────────────────────
+function refreshAll() {
+  fetch('/infraportal/api/meraki/refresh', { method: 'POST' })
+    .then(() => {
+      loadSummary();
+      loadSites();
+      loadDevices();
+      loadUplinks();
+    })
+    .catch(err => console.error('Refresh failed:', err));
+}
+
+// ── Summary / stat bar ─────────────────────────────────────────
+function loadSummary() {
+  fetch('/infraportal/api/meraki/summary')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('statNetworks').textContent = d.total_networks ?? '—';
+      document.getElementById('statDevices').textContent  = d.total_devices  ?? '—';
+      document.getElementById('statUplinks').textContent  =
+        d.uplinks_total ? `${d.uplinks_active}/${d.uplinks_total}` : '—';
+
+      if (d.cache_age_sec != null) {
+        const mins = Math.floor(d.cache_age_sec / 60);
+        document.getElementById('cacheNote').textContent =
+          mins < 1 ? 'Updated just now' : `Updated ${mins}m ago`;
+      }
+    })
+    .catch(() => {});
+}
+
+// Load client count separately (can be slow)
+function loadClientCount() {
+  fetch('/infraportal/api/meraki/clients?limit=1')
+    .then(r => r.json())
+    .then(d => {
+      if (Array.isArray(d)) {
+        fetch('/infraportal/api/meraki/clients?limit=5000')
+          .then(r2 => r2.json())
+          .then(d2 => {
+            document.getElementById('statClients').textContent = Array.isArray(d2) ? d2.length : '—';
+          });
+      }
+    })
+    .catch(() => {});
+}
+
+// ── Sites ──────────────────────────────────────────────────────
+function loadSites() {
+  fetch('/infraportal/api/meraki/networks')
+    .then(r => r.json())
+    .then(networks => {
+      allNetworks = networks;
+      populateNetworkFilter(networks);
+      renderSiteGrid(networks.filter(n => n.org_name === 'SE2'),    'siteGridSE2');
+      renderSiteGrid(networks.filter(n => n.org_name === 'Policygenius'), 'siteGridPG');
+    })
+    .catch(err => {
+      document.getElementById('siteGridSE2').innerHTML =
+        `<div class="error-msg">Failed to load networks: ${err}</div>`;
+    });
+}
+
+function renderSiteGrid(networks, containerId) {
+  const el = document.getElementById(containerId);
+  if (!networks.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3)">No networks</div>'; return; }
+
+  el.innerHTML = networks.map(n => {
+    const typeLabels = (n.product_types || []).map(t => `<span class="type-chip">${t}</span>`).join('');
+    const uplinkHtml = (n.uplinks || []).map(u => `
+      <div class="uplink-row">
+        <span class="uplink-status ${(u.status||'').replace(' ','-')}">${u.status || 'unknown'}</span>
+        <span>${u.interface || ''}</span>
+        ${u.public_ip ? `<span class="mono">${u.public_ip}</span>` : ''}
+        ${u.isp ? `<span>· ${u.isp}</span>` : ''}
+      </div>
+    `).join('');
+
+    return `
+      <div class="site-card" onclick="drillNetwork('${n.id}')">
+        <div class="site-card-top">
+          <div>
+            <div class="site-name">${n.name}</div>
+            <div class="site-org">${n.org_name}</div>
+          </div>
+          <div class="health-dot ${n.health}" title="${n.health}"></div>
+        </div>
+        <div class="site-meta">
+          <div class="site-meta-item"><strong>${n.device_count}</strong> devices</div>
+          <div class="site-meta-item health-label">${healthLabel(n.health)}</div>
+        </div>
+        <div class="site-types">${typeLabels}</div>
+        ${uplinkHtml}
+      </div>`;
+  }).join('');
+}
+
+function healthLabel(h) {
+  if (h === 'online')   return '<span style="color:#22cc66">● Online</span>';
+  if (h === 'degraded') return '<span style="color:#ffaa00">◐ Degraded</span>';
+  if (h === 'offline')  return '<span style="color:#ff4444">○ Offline</span>';
+  return '<span style="color:var(--text4)">? Unknown</span>';
+}
+
+function drillNetwork(netId) {
+  // Switch to devices tab and filter by network
+  document.getElementById('deviceNetwork').value = netId;
+  switchTab('devices', document.querySelectorAll('.tab-btn')[1]);
+  filterDevices();
+}
+
+// ── Devices ────────────────────────────────────────────────────
+function loadDevices() {
+  fetch('/infraportal/api/meraki/devices')
+    .then(r => r.json())
+    .then(devices => {
+      allDevices = devices;
+      renderDeviceTable(devices);
+    })
+    .catch(err => {
+      document.getElementById('deviceTbody').innerHTML =
+        `<tr><td colspan="8" class="error-msg">Failed to load devices: ${err}</td></tr>`;
+    });
+}
+
+function populateNetworkFilter(networks) {
+  const sel = document.getElementById('deviceNetwork');
+  // Clear existing options except first
+  while (sel.options.length > 1) sel.remove(1);
+  networks.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n.id;
+    opt.textContent = `${n.name} (${n.org_name})`;
+    sel.appendChild(opt);
+  });
+}
+
+function filterDevices() {
+  const q       = document.getElementById('deviceSearch').value.trim().toLowerCase();
+  const org     = document.getElementById('deviceOrg').value;
+  const type    = document.getElementById('deviceType').value;
+  const network = document.getElementById('deviceNetwork').value;
+
+  const filtered = allDevices.filter(d => {
+    if (org     && d.org_name   !== org)    return false;
+    if (type    && !d.model.startsWith(type)) return false;
+    if (network && d.network_id !== network) return false;
+    if (q) {
+      const hay = `${d.name} ${d.lan_ip} ${d.mac} ${d.serial} ${d.network_name}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  renderDeviceTable(filtered);
+}
+
+function renderDeviceTable(devices) {
+  const tbody = document.getElementById('deviceTbody');
+  document.getElementById('deviceCount').textContent = `${devices.length} device${devices.length !== 1 ? 's' : ''}`;
+
+  if (!devices.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:2rem">No devices match filters</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = devices.map(d => `
+    <tr>
+      <td class="bold">${d.name || '—'}</td>
+      <td><span class="badge-type">${d.model || '—'}</span></td>
+      <td>${d.network_name || '—'}</td>
+      <td><span class="badge-org">${d.org_name}</span></td>
+      <td class="mono">${d.lan_ip || '—'}</td>
+      <td class="mono">${d.mac || '—'}</td>
+      <td class="mono">${d.serial || '—'}</td>
+      <td class="mono" style="font-size:11px;color:var(--text3)">${d.firmware || '—'}</td>
+    </tr>
+  `).join('');
+}
+
+// ── Uplinks ────────────────────────────────────────────────────
+function loadUplinks() {
+  fetch('/infraportal/api/meraki/uplinks')
+    .then(r => r.json())
+    .then(uplinks => {
+      allUplinks = uplinks;
+      renderUplinkTable(uplinks);
+    })
+    .catch(err => {
+      document.getElementById('uplinkTbody').innerHTML =
+        `<tr><td colspan="9" class="error-msg">Failed to load uplinks: ${err}</td></tr>`;
+    });
+}
+
+function filterUplinks() {
+  const q   = document.getElementById('uplinkSearch').value.trim().toLowerCase();
+  const org = document.getElementById('uplinkOrg').value;
+  const filtered = allUplinks.filter(u => {
+    if (org && u.org_name !== org) return false;
+    if (q && !u.network_name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  renderUplinkTable(filtered);
+}
+
+function renderUplinkTable(uplinks) {
+  const tbody = document.getElementById('uplinkTbody');
+  // Flatten: one row per uplink interface
+  const rows = [];
+  uplinks.forEach(u => {
+    if (!u.uplinks || !u.uplinks.length) {
+      rows.push({ ...u, uplink: null });
+    } else {
+      u.uplinks.forEach(ul => rows.push({ ...u, uplink: ul }));
+    }
+  });
+
+  document.getElementById('uplinkCount').textContent = `${uplinks.length} site${uplinks.length !== 1 ? 's' : ''}`;
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:2rem">No uplink data available</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const ul = r.uplink || {};
+    const status = ul.status || 'unknown';
+    return `
+      <tr>
+        <td class="bold">${r.network_name || '—'}</td>
+        <td><span class="badge-org">${r.org_name}</span></td>
+        <td class="mono">${ul.interface || '—'}</td>
+        <td><span class="uplink-status ${status.replace(' ','-')}">${status}</span></td>
+        <td class="mono">${ul.ip || '—'}</td>
+        <td class="mono">${ul.public_ip || '—'}</td>
+        <td>${ul.isp || '—'}</td>
+        <td>${ul.connection || '—'}</td>
+        <td class="mono">${ul.gateway || '—'}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Endpoint Lookup ────────────────────────────────────────────
+function doLookup() {
+  const q = document.getElementById('lookupInput').value.trim();
+  if (!q) return;
+
+  const resultsEl = document.getElementById('lookupResults');
+  resultsEl.innerHTML = '<div class="lookup-empty">Searching…</div>';
+
+  fetch(`/infraportal/api/meraki/lookup?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(data => renderLookupResults(data))
+    .catch(err => {
+      resultsEl.innerHTML = `<div class="error-msg">Lookup failed: ${err}</div>`;
+    });
+}
+
+function renderLookupResults(data) {
+  const el = document.getElementById('lookupResults');
+  const clients = data.clients || [];
+  const devices = data.devices || [];
+
+  if (!clients.length && !devices.length) {
+    el.innerHTML = `<div class="lookup-empty">No results found for "<strong>${data.query}</strong>".<br>Try a different IP, MAC, or hostname.</div>`;
+    return;
+  }
+
+  let html = '';
+
+  if (clients.length) {
+    html += `<div class="result-section">
+      <div class="result-section-title">Clients (${clients.length})</div>`;
+    clients.forEach(c => {
+      const connBadge = `<span class="conn-badge ${c.connection_type}">${c.connection_type}</span>`;
+      html += `<div class="result-card">
+        <div class="result-card-title">
+          ${c.description || c.mac || '(unnamed)'}${connBadge}
+        </div>
+        <div class="result-grid">
+          <div class="result-field"><span class="lbl">IP Address</span><span class="val mono">${c.ip || '—'}</span></div>
+          <div class="result-field"><span class="lbl">MAC</span><span class="val mono">${c.mac || '—'}</span></div>
+          <div class="result-field"><span class="lbl">VLAN</span><span class="val">${c.vlan || '—'}</span></div>
+          ${c.switchport ? `<div class="result-field"><span class="lbl">Switch Port</span><span class="val mono">${c.switchport}</span></div>` : ''}
+          ${c.ssid ? `<div class="result-field"><span class="lbl">SSID</span><span class="val">${c.ssid}</span></div>` : ''}
+          ${c.ap_name ? `<div class="result-field"><span class="lbl">Access Point</span><span class="val">${c.ap_name}</span></div>` : ''}
+          ${c.user ? `<div class="result-field"><span class="lbl">User</span><span class="val">${c.user}</span></div>` : ''}
+          ${c.os ? `<div class="result-field"><span class="lbl">OS</span><span class="val">${c.os}</span></div>` : ''}
+          <div class="result-field"><span class="lbl">Network</span><span class="val">${c.network_name || '—'}</span></div>
+          <div class="result-field"><span class="lbl">Org</span><span class="val">${c.org_name || '—'}</span></div>
+          <div class="result-field"><span class="lbl">Last Seen</span><span class="val">${c.last_seen ? new Date(c.last_seen).toLocaleString() : '—'}</span></div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  if (devices.length) {
+    html += `<div class="result-section">
+      <div class="result-section-title">Infrastructure Devices (${devices.length})</div>`;
+    devices.forEach(d => {
+      html += `<div class="result-card">
+        <div class="result-card-title">${d.name || d.mac}</div>
+        <div class="result-grid">
+          <div class="result-field"><span class="lbl">Model</span><span class="val">${d.model || '—'}</span></div>
+          <div class="result-field"><span class="lbl">LAN IP</span><span class="val mono">${d.lan_ip || '—'}</span></div>
+          <div class="result-field"><span class="lbl">MAC</span><span class="val mono">${d.mac || '—'}</span></div>
+          <div class="result-field"><span class="lbl">Serial</span><span class="val mono">${d.serial || '—'}</span></div>
+          <div class="result-field"><span class="lbl">Network</span><span class="val">${d.network_name || '—'}</span></div>
+          <div class="result-field"><span class="lbl">Org</span><span class="val">${d.org_name || '—'}</span></div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+}
+</script>
+{% endblock %}

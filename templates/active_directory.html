@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+{% block title %}Active Directory - Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/infraportal/static/tableutils.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+
+.section { background-color: var(--bg2); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .section h2 { color: var(--accent); margin-top: 0; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .summary-card { background-color: var(--bg3); border-radius: 8px; padding: 15px; text-align: center; border-left: 4px solid var(--accent); cursor: pointer; transition: background-color 0.2s; }
+        .summary-card:hover { background-color: var(--bg); }
+        .summary-card h3 { margin: 0 0 8px 0; font-size: 11px; color: var(--text3); text-transform: uppercase; }
+        .summary-card p { margin: 0; font-size: 30px; font-weight: bold; }
+        .summary-card span { font-size: 11px; color: #666666; }
+        .card-warning { border-left-color: #ffaa00; } .card-warning p { color: #ffaa00; }
+        .card-danger  { border-left-color: #ff2222; } .card-danger p  { color: #ff2222; }
+        .card-ok      { border-left-color: #22cc66; } .card-ok p      { color: #22cc66; }
+        .card-info    { border-left-color: #4488ff; } .card-info p    { color: #4488ff; }
+        .policy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .policy-card { background-color: var(--bg3); border-radius: 8px; padding: 15px; border-left: 4px solid var(--accent); }
+        .policy-card h3 { margin: 0 0 5px 0; font-size: 12px; color: var(--text3); text-transform: uppercase; }
+        .policy-card p { margin: 0; font-size: 24px; font-weight: bold; color: var(--text); }
+        .policy-card span { font-size: 11px; color: #666666; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .badge-danger  { background-color: #7a1a1a; color: #ffaaaa; }
+        .badge-warning { background-color: #7a5a1a; color: #ffddaa; }
+        .badge-ok      { background-color: #1a4a2a; color: #aaffaa; }
+        .badge-info    { background-color: #1a2a4a; color: #aaaaff; }
+        .badge-purple  { background-color: #3a1a5a; color: #ddaaff; }
+        .rec-box { background: var(--bg3); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; }
+        .rec-warning { border-left: 3px solid #ffaa00; }
+        .rec-info    { border-left: 3px solid #4488ff; }
+        .gpo-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .gpo-stat { background: var(--bg3); border-radius: 8px; padding: 12px; text-align: center; border-left: 4px solid var(--accent); }
+        .gpo-stat h3 { margin: 0 0 6px 0; font-size: 11px; color: #aaa; text-transform: uppercase; }
+        .gpo-stat p { margin: 0; font-size: 26px; font-weight: bold; }
+        .ai-grade-banner { display:flex; align-items:center; gap:20px; background:var(--bg3); border-radius:10px; padding:16px 20px; margin-bottom:20px; }
+        .ai-grade-letter { font-size:52px; font-weight:900; line-height:1; min-width:60px; text-align:center; }
+        .grade-A { color:#22cc66; } .grade-B { color:#88cc22; } .grade-C { color:#ffaa00; }
+        .grade-D { color:#ff6600; } .grade-F { color:#ff2222; }
+        .ai-grade-meta { flex:1; }
+        .ai-grade-meta h3 { margin:0 0 4px 0; font-size:16px; color:var(--text); }
+        .ai-grade-meta p  { margin:0; font-size:13px; color:var(--text3); }
+        .ai-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:20px; }
+        .ai-chart-card { background:var(--bg3); border-radius:8px; padding:14px; }
+        .ai-chart-card h4 { margin:0 0 12px 0; font-size:12px; color:var(--text3); text-transform:uppercase; }
+        .bar-row { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:12px; }
+        .bar-label { width:130px; flex-shrink:0; color:var(--text3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .bar-track { flex:1; background:var(--bg); border-radius:3px; height:8px; }
+        .bar-fill  { height:8px; border-radius:3px; background:var(--accent); transition:width 0.4s; }
+        .bar-val   { width:36px; text-align:right; color:var(--text); font-weight:bold; flex-shrink:0; }
+        .ai-patterns { margin-bottom:20px; }
+        .ai-patterns h4 { font-size:13px; color:var(--accent); margin:0 0 10px 0; }
+        .pattern-item { background:var(--bg3); border-radius:6px; padding:10px 14px; margin-bottom:8px; border-left:3px solid #555; }
+        .pattern-item.critical { border-left-color:#ff4444; }
+        .pattern-item.warning  { border-left-color:#ffaa00; }
+        .pattern-item.info     { border-left-color:#4488ff; }
+        .pattern-title  { font-size:13px; font-weight:bold; color:var(--text); margin-bottom:3px; }
+        .pattern-detail { font-size:12px; color:var(--text3); }
+        .ai-recs h4 { font-size:13px; color:var(--accent); margin:0 0 10px 0; }
+        .rec-row { display:flex; gap:10px; align-items:flex-start; padding:9px 12px; border-radius:6px; margin-bottom:7px; font-size:13px; }
+        .rec-row.high   { background:rgba(255,68,68,0.1);  border-left:3px solid #ff4444; }
+        .rec-row.medium { background:rgba(255,170,0,0.1);  border-left:3px solid #ffaa00; }
+        .rec-row.low    { background:rgba(68,136,255,0.1); border-left:3px solid #4488ff; }
+        .ai-run-bar { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+        .ai-run-bar .btn { margin:0; }
+        .ai-ts { font-size:12px; color:var(--text4); }
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+        <div class="section">
+            <h2>🏢 Active Directory Health</h2>
+            <div id="summary-area">
+                <p class="loading"><span class="loading-spinner"></span> Loading AD summary...</p>
+            </div>
+        </div>
+        <div class="section">
+            <h2>📋 Group Policy Analysis</h2>
+            <div id="gpo-summary-area">
+                <p class="loading"><span class="loading-spinner"></span> Loading GPO analysis...</p>
+            </div>
+            <div id="gpo-results"></div>
+        </div>
+        <div class="section">
+            <h2>AD Reports</h2>
+            <button class="btn" onclick="loadReport('stale-users')">👤 Stale Users</button>
+            <button class="btn" onclick="loadReport('pwd-never-expires')">🔑 Password Never Expires</button>
+            <button class="btn" onclick="loadReport('domain-admins')">👑 Domain &amp; Enterprise Admins</button>
+            <button class="btn" onclick="loadReport('empty-groups')">👥 Empty Groups</button>
+            <button class="btn" onclick="loadReport('stale-computers')">🖥️ Stale Computers</button>
+            <div id="results">
+                <p class="loading">Click a button above to load AD data...</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🧠 AI Insights</h2>
+            <div class="ai-run-bar">
+                <button class="btn" id="ad-ai-btn" onclick="runAdAi(false)">▶ Run Analysis</button>
+                <span class="ai-ts" id="ad-ai-ts"></span>
+            </div>
+            <div id="ad-ai-content">
+                <p class="loading">Click Run Analysis to generate an AI assessment of Active Directory health.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/infraportal/static/tableutils.js"></script>
+    <script>
+        const BASE = '/infraportal';
+
+        function norm(r) { return r === true || r === 'true' || r === 1; }
+
+        function timestampBar(timestamp, refreshFn) {
+            return '<div class="timestamp">Last updated: ' + timestamp +
+                   '<button class="btn-refresh" onclick="' + refreshFn + '(true)">↻ Refresh</button></div>';
+        }
+
+        function badge(text, type) {
+            return '<span class="badge badge-' + type + '">' + text + '</span>';
+        }
+
+        function card(title, value, cls, subtitle, onclick) {
+            return '<div class="summary-card card-' + cls + '"' +
+                   (onclick ? ' onclick="' + onclick + '"' : '') + '>' +
+                   '<h3>' + title + '</h3><p>' + (value ?? '—') + '</p>' +
+                   (subtitle ? '<span>' + subtitle + '</span>' : '') + '</div>';
+        }
+
+        async function loadSummary(refresh) {
+            refresh = norm(refresh);
+            const res  = await fetch(BASE + '/api/ad/summary?refresh=' + refresh);
+            const data = await res.json();
+            if (data.status === 'error') {
+                document.getElementById('summary-area').innerHTML = '<div class="error-box">Error: ' + data.message + '</div>';
+                return;
+            }
+            const d = data.data, pp = d.pwd_policy || {}, gs = d.gpo_summary || {};
+            let html = timestampBar(data.timestamp, 'loadSummary');
+            html += '<div class="summary-grid">';
+            html += card('Total Users',       d.total_users,        'ok',      d.disabled_users + ' disabled',    "loadReport('stale-users')");
+            html += card('Active Users',      d.active_users,       'ok',      'Enabled accounts',                "loadReport('stale-users')");
+            html += card('Stale Users (90d)', d.stale_users,        d.stale_users > 50 ? 'warning' : 'ok',       'Active, no login 90d', "loadReport('stale-users')");
+            html += card('Pwd Never Expires', d.pwd_never_expires,  d.pwd_never_expires > 20 ? 'warning' : 'ok', 'Active accounts only', "loadReport('pwd-never-expires')");
+            html += card('Domain Admins',     d.domain_admin_count, d.domain_admin_count > 10 ? 'warning' : 'ok','Click to audit',       "loadReport('domain-admins')");
+            html += card('Enterprise Admins', d.enterprise_admin_count, d.enterprise_admin_count > 5 ? 'danger' : 'ok', 'Highest privilege', "loadReport('domain-admins')");
+            html += card('Total Groups',      d.total_groups,       'ok',      d.empty_groups + ' empty',         "loadReport('empty-groups')");
+            html += card('Stale Computers',   d.stale_computers,    d.stale_computers > 100 ? 'warning' : 'ok',  'No login 90+ days',   "loadReport('stale-computers')");
+            html += card('Total GPOs',        gs.total,             'info',    gs.stale_2yr + ' stale 2yr',       'loadGPOSummary(true)');
+            html += '</div>';
+            html += '<h3 style="color:var(--accent);margin:15px 0 10px 0;font-size:13px;">Password Policy</h3>';
+            html += '<div class="policy-grid">';
+            html += '<div class="policy-card"><h3>Min Length</h3><p>' + pp.min_length + '</p><span>' + (pp.min_length >= 12 ? '✅ Good' : '⚠️ Too short') + '</span></div>';
+            html += '<div class="policy-card"><h3>History</h3><p>' + pp.history + '</p><span>' + (pp.history >= 10 ? '✅ Good' : '⚠️ Low') + '</span></div>';
+            html += '<div class="policy-card"><h3>Lockout Threshold</h3><p>' + pp.lockout_threshold + '</p><span>' + (pp.lockout_threshold > 0 && pp.lockout_threshold <= 10 ? '✅ Good' : '⚠️ Review') + '</span></div>';
+            html += '</div>';
+            document.getElementById('summary-area').innerHTML = html;
+        }
+
+        async function loadGPOSummary(refresh) {
+            refresh = norm(refresh);
+            const res  = await fetch(BASE + '/api/ad/gpo-analysis?refresh=' + refresh);
+            const data = await res.json();
+            if (data.status === 'error') {
+                document.getElementById('gpo-summary-area').innerHTML = '<div class="error-box">Error: ' + data.message + '</div>';
+                return;
+            }
+            const d = data.data;
+            let html = timestampBar(data.timestamp, 'loadGPOSummary');
+            html += '<div class="gpo-stat-grid">';
+            html += gpoStat('Total GPOs',      d.total_gpos,            'var(--accent)');
+            html += gpoStat('Linked',          d.linked_gpos,           '#22cc66');
+            html += gpoStat('Orphaned',        d.orphaned_count,        d.orphaned_count  > 0 ? '#ffaa00' : '#22cc66');
+            html += gpoStat('Disabled',        d.disabled_count,        d.disabled_count  > 0 ? '#ffaa00' : '#22cc66');
+            html += gpoStat('Stale (2yr+)',    d.stale_count,           d.stale_count     > 5 ? '#ffaa00' : '#22cc66');
+            html += gpoStat('Linked+Disabled', d.linked_disabled_count, d.linked_disabled_count > 0 ? '#ff6600' : '#22cc66');
+            html += gpoStat('Duplicate Names', d.duplicate_groups,      d.duplicate_groups > 0 ? '#ffaa00' : '#22cc66');
+            html += '</div>';
+            if (d.recommendations && d.recommendations.length > 0) {
+                html += '<h3 style="color:var(--accent);font-size:13px;margin:0 0 10px 0">Recommendations</h3>';
+                d.recommendations.forEach(r => {
+                    html += '<div class="rec-box rec-' + r.severity + '"><span>' + (r.severity === 'warning' ? '⚠️' : 'ℹ️') + '</span><span>' + r.text + '</span></div>';
+                });
+            }
+            if (d.ou_complexity && d.ou_complexity.length > 0) {
+                html += '<h3 style="color:var(--accent);font-size:13px;margin:15px 0 10px 0">OU Complexity Hotspots</h3>';
+                html += '<div id="ou-complexity-table"></div>';
+            }
+            html += '<div style="margin-top:15px;">';
+            html += '<button class="btn" onclick="loadGPODetail(\'orphaned\')">🔍 Orphaned GPOs</button>';
+            html += '<button class="btn" onclick="loadGPODetail(\'stale\')">🕐 Stale GPOs</button>';
+            html += '<button class="btn" onclick="loadGPODetail(\'linked-disabled\')">⚠️ Linked but Disabled</button>';
+            html += '<button class="btn" onclick="loadGPODetail(\'duplicates\')">📋 Duplicate Names</button>';
+            html += '</div>';
+            document.getElementById('gpo-summary-area').innerHTML = html;
+            if (d.ou_complexity && d.ou_complexity.length > 0) {
+                new SmartTable('ou-complexity-table', { filename: 'zinnia-ou-gpo-complexity', title: 'OU GPO Complexity' })
+                    .setData(['OU','GPO Count'], d.ou_complexity.map(o => [
+                        '<span style="font-size:11px;font-family:monospace">' + o.ou + '</span>',
+                        '<strong style="color:' + (o.gpo_count >= 10 ? '#ffaa00' : '#22cc66') + '">' + o.gpo_count + '</strong>'
+                    ]));
+            }
+            window._gpoData = d;
+        }
+
+        function gpoStat(title, value, color) {
+            return '<div class="gpo-stat" style="border-left-color:' + color + '"><h3>' + title + '</h3><p style="color:' + color + '">' + (value ?? '—') + '</p></div>';
+        }
+        function filterStaleComputers(filter) {
+    const all = window._staleComputersData || [];
+
+    // Update button styles
+    ['all','citrix','regular'].forEach(f => {
+        const btn = document.getElementById('sc-filter-' + f);
+        if (!btn) return;
+        btn.style.background = f === filter ? 'var(--accent)' : '';
+        btn.style.color      = f === filter ? '#fff'    : '';
+    });
+
+    let rows;
+    if (filter === 'citrix') {
+        rows = all.filter(c => c.citrix_managed);
+    } else if (filter === 'regular') {
+        rows = all.filter(c => !c.citrix_managed);
+    } else {
+        rows = all;
+    }
+
+    new SmartTable('ad-table-container', {
+        filename: 'zinnia-stale-computers',
+        title:    'Stale Computers'
+    }).setData(
+        ['Computer Name', 'Last Login', 'Days Inactive', 'OS', 'Citrix Managed', 'Catalog', 'Reg State'],
+        rows.map(c => {
+            // Citrix Managed badge
+            let ctxBadge;
+            if (c.citrix_managed) {
+                ctxBadge = c.citrix_is_vdi
+                    ? badge('VDI', 'purple')
+                    : badge('XenApp', 'info');
+            } else {
+                ctxBadge = badge('No', 'ok');
+            }
+
+            // Reg state badge
+            let regBadge = '—';
+            if (c.citrix_reg_state) {
+                regBadge = c.citrix_reg_state === 'Registered'
+                    ? badge('Registered',   'ok')
+                    : badge('Unregistered', 'danger');
+            }
+
+            return [
+                c.name,
+                c.last_login,
+                c.days_inactive,
+                c.os || '—',
+                ctxBadge,
+                c.citrix_catalog || '—',
+                regBadge,
+            ];
+        })
+    );
+}
+        function loadGPODetail(type) {
+            const d = window._gpoData;
+            if (!d) { loadGPOSummary(); return; }
+            let cols, rows, filename, title;
+            if (type === 'orphaned') {
+                cols = ['GPO Name','Last Modified','Created','Flags'];
+                rows = (d.orphaned||[]).map(g => [g.name, g.last_modified, g.created,
+                    g.all_disabled ? badge('All Disabled','danger') : g.user_disabled ? badge('User Disabled','warning') : g.computer_disabled ? badge('Computer Disabled','warning') : badge('Enabled','ok')]);
+                filename = 'zinnia-orphaned-gpos'; title = 'Orphaned GPOs';
+            } else if (type === 'stale') {
+                cols = ['GPO Name','Last Modified','Created','Linked To'];
+                rows = (d.stale||[]).map(g => [g.name, g.last_modified, g.created,
+                    g.link_count > 0 ? '<span style="color:#22cc66">' + g.link_count + ' OU(s)</span>' : '<span style="color:#ffaa00">Orphaned</span>']);
+                filename = 'zinnia-stale-gpos'; title = 'Stale GPOs (2yr+)';
+            } else if (type === 'linked-disabled') {
+                cols = ['GPO Name','Last Modified','Linked To (count)','Status'];
+                rows = (d.linked_disabled||[]).map(g => [g.name, g.last_modified, g.link_count,
+                    g.all_disabled ? badge('All Disabled','danger') : g.user_disabled ? badge('User Disabled','warning') : badge('Computer Disabled','warning')]);
+                filename = 'zinnia-linked-disabled-gpos'; title = 'Linked but Disabled GPOs';
+            } else if (type === 'duplicates') {
+                cols = ['Pattern','GPO Names','Count'];
+                rows = (d.duplicate_names||[]).map(g => [
+                    '<span style="color:#aaa;font-style:italic">' + g.pattern + '</span>',
+                    g.gpo_names.join('<br>'), g.count]);
+                filename = 'zinnia-duplicate-gpos'; title = 'Duplicate GPO Names';
+            }
+            if (!cols) return;
+            document.getElementById('gpo-results').innerHTML =
+                '<h3 style="color:var(--accent);font-size:13px;margin:15px 0 10px 0">' + title + '</h3><div id="gpo-detail-table"></div>';
+            new SmartTable('gpo-detail-table', { filename, title }).setData(cols, rows);
+        }
+
+        async function loadReport(type, refresh) {
+            refresh = norm(refresh);
+            document.getElementById('results').innerHTML = '<p class="loading"><span class="loading-spinner"></span> Loading...</p>';
+            const endpoints = {
+                'stale-users':       BASE + '/api/ad/stale-users',
+                'pwd-never-expires': BASE + '/api/ad/pwd-never-expires',
+                'domain-admins':     BASE + '/api/ad/domain-admins',
+                'empty-groups':      BASE + '/api/ad/empty-groups',
+                'stale-computers':   BASE + '/api/ad/stale-computers',
+            };
+            const res  = await fetch(endpoints[type] + '?refresh=' + refresh);
+            const data = await res.json();
+            if (data.status === 'error') {
+                document.getElementById('results').innerHTML = '<div class="error-box">Error: ' + data.message + '</div>';
+                return;
+            }
+            // timestampBar for reports — pass type so button refreshes the right report
+            const tsHtml = '<div class="timestamp">Last updated: ' + data.timestamp +
+                           '<button class="btn-refresh" onclick="loadReport(\'' + type + '\', true)">↻ Refresh</button></div>';
+            let html = tsHtml;
+            if (type === 'stale-users') {
+                html += '<p>Stale Users: <strong>' + data.count + '</strong></p><div id="ad-table-container"></div>';
+                document.getElementById('results').innerHTML = html;
+                new SmartTable('ad-table-container', { filename: 'zinnia-stale-users', title: 'Stale Users' })
+                    .setData(['Name','Username','Last Login','Days Inactive','Department','Title'],
+                             data.users.map(u => [u.name, u.username, u.last_login, u.days_inactive, u.department, u.title]));
+            } else if (type === 'pwd-never-expires') {
+                html += '<p>Accounts with Password Never Expires: <strong>' + data.count + '</strong></p><div id="ad-table-container"></div>';
+                document.getElementById('results').innerHTML = html;
+                new SmartTable('ad-table-container', { filename: 'zinnia-pwd-never-expires', title: 'Password Never Expires' })
+                    .setData(['Name','Username','Last Login','Department','Title'],
+                             data.users.map(u => [u.name, u.username, u.last_login, u.department, u.title]));
+            } else if (type === 'domain-admins') {
+                html += '<p>Domain &amp; Enterprise Admins: <strong>' + data.count + '</strong></p><div id="ad-table-container"></div>';
+                document.getElementById('results').innerHTML = html;
+                new SmartTable('ad-table-container', { filename: 'zinnia-domain-admins', title: 'Domain & Enterprise Admins' })
+                    .setData(['Name','Username','Group(s)','Last Login','Title','Department','Service Acct','Disabled'],
+                             data.admins.map(a => {
+                                 const groups = a.groups || [a.group];
+                                 const groupBadges = groups.map(g => g === 'Enterprise Admins' ? badge('Enterprise Admin','danger') : badge('Domain Admin','warning')).join(' ');
+                                 return [a.name, a.username, groupBadges, a.last_login, a.title, a.department,
+                                         a.is_service_account ? badge('Yes','warning') : badge('No','ok'),
+                                         a.is_disabled        ? badge('Yes','danger')  : badge('No','ok')];
+                             }));
+            } else if (type === 'empty-groups') {
+                html += '<p>Empty Groups: <strong>' + data.count + '</strong></p><div id="ad-table-container"></div>';
+                document.getElementById('results').innerHTML = html;
+                new SmartTable('ad-table-container', { filename: 'zinnia-empty-groups', title: 'Empty Groups' })
+                    .setData(['Group Name','Description','Created'],
+                             data.groups.map(g => [g.name, g.description, g.created]));
+            } else if (type === 'stale-computers') {
+    const citrixCount = data.computers.filter(c => c.citrix_managed).length;
+    const regularCount = data.computers.length - citrixCount;
+
+    html += '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:10px;">'
+          + '<p style="margin:0">Stale Computers: <strong>' + data.count + '</strong>'
+          + ' &nbsp;|&nbsp; <span style="color:#00a3e0">Citrix: ' + citrixCount + '</span>'
+          + ' &nbsp;|&nbsp; <span style="color:var(--text3)">Regular: ' + regularCount + '</span></p>'
+          + '<div style="display:flex;gap:6px;">'
+          + '<button class="btn-refresh" id="sc-filter-all"     onclick="filterStaleComputers(\'all\')"     style="background:var(--accent);color:#fff">All</button>'
+          + '<button class="btn-refresh" id="sc-filter-citrix"  onclick="filterStaleComputers(\'citrix\')"  >Citrix Only</button>'
+          + '<button class="btn-refresh" id="sc-filter-regular" onclick="filterStaleComputers(\'regular\')" >Non-Citrix</button>'
+          + '</div></div>'
+          + '<div id="ad-table-container"></div>';
+
+    document.getElementById('results').innerHTML = html;
+
+    // Store the full dataset so filters can re-render without a new fetch
+    window._staleComputersData = data.computers;
+
+    filterStaleComputers('all');
+}
+        }
+
+        loadSummary();
+        loadGPOSummary();
+
+        // ── AD AI Lens ────────────────────────────────────────────────────────
+        let _adAiPoller = null;
+
+        async function runAdAi(refresh) {
+            document.getElementById('ad-ai-btn').textContent = '⏳ Running...';
+            document.getElementById('ad-ai-btn').disabled = true;
+            document.getElementById('ad-ai-content').innerHTML = '<p class="loading"><span class="loading-spinner"></span> Analysing Active Directory — this takes ~15 seconds...</p>';
+            const res  = await fetch(BASE + '/api/ad/ai-analysis', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({refresh: !!refresh}) });
+            const data = await res.json();
+            if (data.status === 'ok') { paintAdAi(data.result, data.timestamp, data.cached); resetAdAiBtn(); return; }
+            if (data.status === 'running') { _adAiPoller = setInterval(pollAdAi, 3000); }
+        }
+
+        async function pollAdAi() {
+            const res  = await fetch(BASE + '/api/ad/ai-analysis/status');
+            const data = await res.json();
+            if (data.status === 'ok')    { clearInterval(_adAiPoller); paintAdAi(data.result, data.timestamp, data.cached); resetAdAiBtn(); }
+            if (data.status === 'error') { clearInterval(_adAiPoller); document.getElementById('ad-ai-content').innerHTML = '<p style="color:#ff8888">Error: ' + data.message + '</p>'; resetAdAiBtn(); }
+        }
+
+        function resetAdAiBtn() {
+            document.getElementById('ad-ai-btn').textContent = '↻ Refresh Analysis';
+            document.getElementById('ad-ai-btn').disabled = false;
+            document.getElementById('ad-ai-btn').onclick = () => runAdAi(true);
+        }
+
+        function paintAdAi(r, ts, cached) {
+            document.getElementById('ad-ai-ts').textContent = (cached ? 'Cached · ' : '') + (ts || '');
+            const gradeClass = 'grade-' + (r.grade || '?');
+            let html = '<div class="ai-grade-banner">';
+            html += '<div class="ai-grade-letter ' + gradeClass + '">' + (r.grade || '?') + '</div>';
+            html += '<div class="ai-grade-meta"><h3>' + escHtml(r.grade_note || '') + '</h3><p>' + escHtml(r.summary || '') + '</p></div></div>';
+
+            // Charts
+            html += '<div class="ai-charts">';
+            html += aiBarChart('👤 User Health', r.chart_users || {});
+            html += aiBarChart('👑 Privileged Accounts', r.chart_privileged || {});
+            html += aiBarChart('📋 Group Policy', r.chart_gpo || {});
+            html += '</div>';
+
+            // Patterns
+            if ((r.patterns || []).length) {
+                html += '<div class="ai-patterns"><h4>🔍 Detected Patterns</h4>';
+                for (const p of r.patterns) {
+                    html += '<div class="pattern-item ' + (p.severity || 'info') + '"><div class="pattern-title">' + escHtml(p.title || '') + '</div><div class="pattern-detail">' + escHtml(p.detail || '') + '</div></div>';
+                }
+                html += '</div>';
+            }
+
+            // Recommendations
+            if ((r.recommendations || []).length) {
+                html += '<div class="ai-recs"><h4>✅ Recommendations</h4>';
+                const icons = {high:'🔴', medium:'🟡', low:'ℹ️'};
+                for (const rec of r.recommendations) {
+                    html += '<div class="rec-row ' + (rec.priority || 'low') + '">';
+                    html += '<span>' + (icons[rec.priority] || 'ℹ️') + '</span>';
+                    html += '<div><div>' + escHtml(rec.action || '') + '</div>';
+                    if (rec.devices) html += '<div style="font-size:11px;color:var(--text4);margin-top:3px">' + escHtml(rec.devices) + '</div>';
+                    html += '</div></div>';
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('ad-ai-content').innerHTML = html;
+        }
+
+        function aiBarChart(title, data) {
+            const entries = Object.entries(data).filter(([,v]) => v > 0);
+            if (!entries.length) return '';
+            const max = Math.max(...entries.map(([,v]) => v), 1);
+            let html = '<div class="ai-chart-card"><h4>' + title + '</h4>';
+            for (const [label, val] of entries) {
+                const pct = Math.round((val / max) * 100);
+                html += '<div class="bar-row"><span class="bar-label" title="' + label + '">' + label + '</span>';
+                html += '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>';
+                html += '<span class="bar-val">' + val + '</span></div>';
+            }
+            return html + '</div>';
+        }
+
+        function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        // Auto-load if cached
+        (async () => {
+            const res  = await fetch(BASE + '/api/ad/ai-analysis/status');
+            const data = await res.json();
+            if (data.status === 'ok') { paintAdAi(data.result, data.timestamp, true); resetAdAiBtn(); }
+        })();
+
+    </script>
+{% endblock %}

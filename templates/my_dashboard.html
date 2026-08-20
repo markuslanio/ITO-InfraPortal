@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<style>
+/* ── Layout ── */
+.mdb-header   { display:flex; align-items:center; justify-content:space-between;
+                margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+.mdb-title    { font-size:22px; font-weight:700; color:var(--text); margin:0; }
+.mdb-subtitle { font-size:13px; color:var(--text4); margin-top:3px; }
+.mdb-actions  { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+/* ── Widget grid ── */
+.mdb-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap:16px;
+}
+.mdb-grid.edit-mode .widget-card { cursor:grab; }
+.mdb-grid.edit-mode .widget-card:active { cursor:grabbing; }
+
+/* ── Widget card ── */
+.widget-card  { background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+                overflow:hidden; display:flex; flex-direction:column;
+                transition:box-shadow .15s, transform .1s; }
+.widget-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.18); }
+.mdb-grid.edit-mode .widget-card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+.widget-card.wide { grid-column: span 2; }
+.widget-card.sortable-ghost { opacity:.35; }
+
+.widget-head  { display:flex; align-items:center; gap:8px; padding:12px 16px;
+                border-bottom:1px solid var(--border); background:var(--bg3); }
+.widget-icon  { font-size:16px; line-height:1; }
+.widget-name  { font-size:13px; font-weight:600; color:var(--text2); flex:1; }
+.widget-badge { font-size:10px; padding:2px 6px; border-radius:8px;
+                background:rgba(15,155,142,.1); color:var(--accent);
+                border:1px solid rgba(15,155,142,.25); }
+.widget-head-actions { display:flex; gap:4px; margin-left:auto; }
+.w-btn { background:none; border:none; cursor:pointer; padding:3px 6px;
+         color:var(--text4); font-size:12px; border-radius:4px; }
+.w-btn:hover { background:var(--surface); color:var(--text); }
+.remove-btn   { display:none; color:var(--danger); }
+.remove-btn:hover { background:rgba(255,68,68,.1); }
+.edit-mode .remove-btn { display:inline-block; }
+
+.widget-body  { padding:16px; flex:1; min-height:90px;
+                display:flex; flex-direction:column; justify-content:center; }
+.widget-foot  { padding:8px 16px; border-top:1px solid var(--border);
+                display:flex; align-items:center; justify-content:space-between; }
+.widget-ts    { font-size:10px; color:var(--text4); }
+.widget-link  { font-size:11px; color:var(--accent); text-decoration:none; }
+.widget-link:hover { text-decoration:underline; }
+
+/* Loading / error states */
+.w-loading    { color:var(--text4); font-size:12px; font-style:italic;
+                display:flex; align-items:center; gap:8px; }
+.w-error      { color:var(--danger); font-size:12px; }
+.spin-xs      { width:12px; height:12px; border:2px solid var(--accent);
+                border-top-color:transparent; border-radius:50%;
+                animation:spin .7s linear infinite; display:inline-block; flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Stat widget */
+.w-stat-grid  { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.w-stat       { text-align:center; padding:8px; background:var(--bg3);
+                border-radius:6px; border:1px solid var(--border); }
+.w-stat-val   { font-size:24px; font-weight:700; line-height:1.1; }
+.w-stat-lbl   { font-size:10px; color:var(--text4); margin-top:3px; }
+.w-big        { font-size:36px; font-weight:800; color:var(--accent); line-height:1;
+                text-align:center; margin-bottom:6px; }
+.w-big-lbl    { font-size:12px; color:var(--text3); text-align:center; }
+.v-ok   { color:var(--success); }
+.v-warn { color:var(--warning); }
+.v-err  { color:var(--danger); }
+.v-mute { color:var(--text4); }
+.v-info { color:var(--accent); }
+
+/* Mini list widget */
+.w-list       { list-style:none; margin:0; padding:0; }
+.w-list li    { display:flex; align-items:flex-start; gap:8px; padding:6px 0;
+                border-bottom:1px solid var(--border); font-size:12px; color:var(--text2); }
+.w-list li:last-child { border-bottom:none; }
+.w-list .sev  { flex-shrink:0; width:6px; height:6px; border-radius:50%; margin-top:4px; }
+.sev-1 { background:var(--danger); }
+.sev-2 { background:var(--warning); }
+.sev-3 { background:#8888ff; }
+
+/* Health score widget */
+.w-grade      { font-size:52px; font-weight:800; text-align:center; line-height:1; }
+.w-grade-lbl  { font-size:12px; color:var(--text3); text-align:center; margin-top:4px; }
+.grade-A { color:var(--success); } .grade-B { color:#66cc44; }
+.grade-C { color:var(--warning); } .grade-D { color:#ff8800; }
+.grade-F { color:var(--danger); }
+
+/* Progress bar */
+.w-bar-row    { display:flex; align-items:center; gap:8px; font-size:12px; margin-top:6px; }
+.w-bar-label  { flex:1; color:var(--text3); }
+.w-bar-track  { width:80px; height:6px; background:var(--bg3); border-radius:3px; overflow:hidden;
+                flex-shrink:0; }
+.w-bar-fill   { height:100%; border-radius:3px; background:var(--accent); }
+.w-bar-val    { width:32px; text-align:right; color:var(--text4); font-size:11px; }
+
+/* Empty state */
+.mdb-empty    { text-align:center; padding:60px 20px; color:var(--text4); grid-column:1/-1; }
+.mdb-empty h3 { color:var(--text3); font-size:18px; margin-bottom:8px; }
+.mdb-empty p  { font-size:13px; max-width:360px; margin:0 auto; }
+
+/* ── Catalog modal ── */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+                 z-index:2000; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box     { background:var(--bg2); border:1px solid var(--border); border-radius:12px;
+                 width:min(720px, 95vw); max-height:85vh; display:flex; flex-direction:column;
+                 overflow:hidden; box-shadow:0 16px 48px rgba(0,0,0,.4); }
+.modal-head    { display:flex; align-items:center; padding:16px 20px;
+                 border-bottom:1px solid var(--border); }
+.modal-title   { font-size:16px; font-weight:700; color:var(--text); flex:1; }
+.modal-close   { background:none; border:none; color:var(--text4); font-size:18px;
+                 cursor:pointer; padding:4px 8px; border-radius:4px; }
+.modal-close:hover { color:var(--text); background:var(--surface); }
+.catalog-grid  { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+                 gap:12px; padding:20px; overflow-y:auto; }
+.cat-item      { border:2px solid var(--border); border-radius:8px; padding:14px;
+                 cursor:pointer; transition:border-color .15s, background .15s; }
+.cat-item:hover { border-color:var(--accent); background:rgba(15,155,142,.05); }
+.cat-item.active { border-color:var(--accent); background:rgba(15,155,142,.1); }
+.cat-item.active .cat-check { color:var(--accent); }
+.cat-icon      { font-size:24px; margin-bottom:6px; }
+.cat-name      { font-size:13px; font-weight:600; color:var(--text); }
+.cat-desc      { font-size:11px; color:var(--text4); margin-top:3px; }
+.cat-check     { float:right; color:transparent; font-size:14px; }
+.modal-foot    { display:flex; justify-content:flex-end; gap:10px; padding:14px 20px;
+                 border-top:1px solid var(--border); }
+
+/* Edit mode indicator */
+.edit-banner   { display:none; background:rgba(255,170,0,.12); border:1px solid rgba(255,170,0,.3);
+                 border-radius:8px; padding:10px 16px; margin-bottom:16px;
+                 font-size:13px; color:var(--warning); align-items:center; gap:10px; }
+.edit-banner.show { display:flex; }
+
+/* Buttons */
+.mdb-btn       { padding:7px 16px; border-radius:6px; font-size:13px; cursor:pointer;
+                 border:1px solid var(--border); background:var(--surface); color:var(--text3);
+                 transition:background .15s, color .15s; }
+.mdb-btn:hover { background:var(--bg3); color:var(--text); }
+.mdb-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.mdb-btn.primary:hover { background:var(--accent-dark); }
+.mdb-btn.active  { background:rgba(255,170,0,.15); border-color:rgba(255,170,0,.4); color:var(--warning); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="mdb-header">
+    <div>
+      <h1 class="mdb-title">My Dashboard</h1>
+      <div class="mdb-subtitle">Personalize your infrastructure overview</div>
+    </div>
+    <div class="mdb-actions">
+      <button class="mdb-btn" id="editBtn" onclick="toggleEditMode()">✎ Customize</button>
+      <button class="mdb-btn primary" onclick="openCatalog()">+ Add Widget</button>
+    </div>
+  </div>
+
+  <div class="edit-banner" id="editBanner">
+    <span>✎</span>
+    <span>Edit mode — drag to reorder, click × to remove. Changes save automatically.</span>
+    <button class="mdb-btn" style="margin-left:auto;padding:4px 12px;font-size:12px" onclick="toggleEditMode()">Done</button>
+  </div>
+
+  <div class="mdb-grid" id="widgetGrid">
+    <!-- Widgets rendered by JS -->
+    <div class="mdb-empty" id="emptyState" style="display:none">
+      <h3>No widgets yet</h3>
+      <p>Click <strong>+ Add Widget</strong> to build your personal infrastructure dashboard.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Catalog modal -->
+<div class="modal-overlay" id="catalogModal" onclick="if(event.target===this)closeCatalog()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">Widget Catalog</span>
+      <button class="modal-close" onclick="closeCatalog()">✕</button>
+    </div>
+    <div class="catalog-grid" id="catalogGrid"></div>
+    <div class="modal-foot">
+      <button class="mdb-btn" onclick="closeCatalog()">Cancel</button>
+      <button class="mdb-btn primary" onclick="applyCatalog()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Server-provided saved state ───────────────────────────────────────────────
+const SAVED_WIDGET_IDS = {{ saved_widget_ids | safe }};
+
+// ── Widget catalog definition ─────────────────────────────────────────────────
+const CATALOG = [
+  {
+    id: 'infra_score',
+    name: 'Infrastructure Score',
+    icon: '🏆',
+    desc: 'Overall health grade from findings engine',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/scheduler-status').then(r=>r.json()),
+    render: renderInfraScore,
+    link: '/infraportal/',
+    linkLabel: 'Dashboard →',
+  },
+  {
+    id: 'active_alerts',
+    name: 'Active Alerts',
+    icon: '🚨',
+    desc: 'Critical and warning alerts by severity',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/alerts').then(r=>r.json()),
+    render: renderAlerts,
+    link: '/infraportal/alerts',
+    linkLabel: 'Alerts →',
+  },
+  {
+    id: 'open_incidents',
+    name: 'Open Incidents',
+    icon: '🎫',
+    desc: 'ITSD open tickets by severity',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/jira/itsd-stats').then(r=>r.json()),
+    render: renderIncidents,
+    link: '/infraportal/alerts?tab=jira',
+    linkLabel: 'Jira →',
+  },
+  {
+    id: 'vm_summary',
+    name: 'VM Summary',
+    icon: '🖥',
+    desc: 'Virtual machines across all environments',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/vms').then(r=>r.json()),
+    render: renderVMs,
+    link: '/infraportal/vmware',
+    linkLabel: 'VMware →',
+  },
+  {
+    id: 'citrix_sessions',
+    name: 'Citrix Sessions',
+    icon: '🖱',
+    desc: 'Active and disconnected VDI sessions',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/citrix/summary').then(r=>r.json()),
+    render: renderCitrix,
+    link: '/infraportal/citrix',
+    linkLabel: 'Citrix →',
+  },
+  {
+    id: 'expiring_certs',
+    name: 'Expiring Certs',
+    icon: '🔒',
+    desc: 'Certificates expiring within 30 days',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/ca/expiring').then(r=>r.json()),
+    render: renderCerts,
+    link: '/infraportal/certificates',
+    linkLabel: 'Certs →',
+  },
+  {
+    id: 'ad_risk',
+    name: 'AD Risk',
+    icon: '👤',
+    desc: 'Stale users and password policy issues',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/ad/summary').then(r=>r.json()),
+    render: renderAD,
+    link: '/infraportal/active-directory',
+    linkLabel: 'Active Directory →',
+  },
+  {
+    id: 'asset_health',
+    name: 'Asset Health',
+    icon: '💻',
+    desc: 'Lansweeper asset coverage and staleness',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/lansweeper/summary').then(r=>r.json()),
+    render: renderAssets,
+    link: '/infraportal/assets',
+    linkLabel: 'Assets →',
+  },
+  {
+    id: 'entra_security',
+    name: 'Entra Security',
+    icon: '🛡',
+    desc: 'Risky users and expiring app credentials',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/entra/summary').then(r=>r.json()).catch(()=>null),
+    render: renderEntra,
+    link: '/infraportal/entra',
+    linkLabel: 'Entra →',
+  },
+  {
+    id: 'network_status',
+    name: 'Network Status',
+    icon: '🌐',
+    desc: 'Meraki device health and uplinks',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/meraki/summary').then(r=>r.json()),
+    render: renderNetwork,
+    link: '/infraportal/network',
+    linkLabel: 'Network →',
+  },
+  {
+    id: 'scheduler_health',
+    name: 'Scheduler Health',
+    icon: '⚙',
+    desc: 'Background job status overview',
+    wide: false,
+    fetch: () => fetch('/infraportal/api/scheduler-status').then(r=>r.json()),
+    render: renderScheduler,
+    link: '/infraportal/scheduler',
+    linkLabel: 'Scheduler →',
+  },
+  {
+    id: 'recent_findings',
+    name: 'Recent Findings',
+    icon: '📋',
+    desc: 'Top actionable findings across all systems',
+    wide: true,
+    fetch: () => fetch('/infraportal/api/dashboard/findings').then(r=>r.json()).catch(()=>null),
+    render: renderFindings,
+    link: '/infraportal/',
+    linkLabel: 'Dashboard →',
+  },
+];
+const CATALOG_MAP = Object.fromEntries(CATALOG.map(w => [w.id, w]));
+
+const DEFAULT_IDS = [
+  'active_alerts','open_incidents','vm_summary','citrix_sessions',
+  'expiring_certs','ad_risk','scheduler_health','recent_findings'
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeWidgetIds = SAVED_WIDGET_IDS ? [...SAVED_WIDGET_IDS] : [...DEFAULT_IDS];
+let isEditMode = false;
+let sortable = null;
+
+// ── Render helpers ────────────────────────────────────────────────────────────
+function statGrid(items) {
+  return `<div class="w-stat-grid">${items.map(([v,l,cls]) =>
+    `<div class="w-stat"><div class="w-stat-val ${cls||''}">${v}</div><div class="w-stat-lbl">${l}</div></div>`
+  ).join('')}</div>`;
+}
+
+function renderInfraScore(el, data) {
+  const jobs = data?.jobs || [];
+  const errs  = jobs.filter(j => j.last_status === 'error').length;
+  const total = jobs.length || 1;
+  const pct   = Math.round(((total - errs) / total) * 100);
+  const grade = pct >= 95 ? 'A' : pct >= 85 ? 'B' : pct >= 70 ? 'C' : pct >= 55 ? 'D' : 'F';
+  el.innerHTML = `<div class="w-grade grade-${grade}">${grade}</div>
+    <div class="w-grade-lbl">${pct}% jobs nominal · ${errs} error${errs!==1?'s':''}</div>`;
+}
+
+function renderAlerts(el, data) {
+  const alerts = Array.isArray(data) ? data : (data?.alarms || []);
+  const active = alerts.filter(a => a.severity !== 'Clear');
+  const sev1 = active.filter(a => (a.severity_num||5) === 1).length;
+  const sev2 = active.filter(a => (a.severity_num||5) === 2).length;
+  const warn = active.filter(a => (a.severity_num||5) === 3).length;
+  el.innerHTML = statGrid([
+    [active.length, 'Active', active.length > 0 ? 'v-warn' : 'v-ok'],
+    [sev1, 'Critical', sev1 > 0 ? 'v-err' : 'v-mute'],
+    [sev2, 'Major', sev2 > 0 ? 'v-warn' : 'v-mute'],
+    [warn, 'Minor', 'v-mute'],
+  ]);
+}
+
+function renderIncidents(el, data) {
+  if (!data || data.status === 'error') {
+    el.innerHTML = '<div class="w-error">No Jira data available</div>'; return;
+  }
+  const open = data.open || 0;
+  const s1 = data.sev1 || 0;
+  const s2 = data.sev2 || 0;
+  el.innerHTML = statGrid([
+    [open, 'Open', open > 5 ? 'v-warn' : 'v-ok'],
+    [s1, 'Sev-1', s1 > 0 ? 'v-err' : 'v-mute'],
+    [s2, 'Sev-2', s2 > 0 ? 'v-warn' : 'v-mute'],
+    [data.overdue || 0, '>24h Open', data.overdue > 0 ? 'v-warn' : 'v-mute'],
+  ]);
+}
+
+function renderVMs(el, data) {
+  const vms = Array.isArray(data) ? data : (data?.vms || []);
+  const on  = vms.filter(v => v.power_state === 'POWERED_ON').length;
+  const off = vms.filter(v => v.power_state === 'POWERED_OFF').length;
+  el.innerHTML = statGrid([
+    [vms.length, 'Total VMs', 'v-info'],
+    [on,         'Powered On', 'v-ok'],
+    [off,        'Powered Off', off > 10 ? 'v-warn' : 'v-mute'],
+    [vms.filter(v=>v.tools_upgrade_needed).length, 'Tools Outdated', 'v-mute'],
+  ]);
+}
+
+function renderCitrix(el, data) {
+  const d = data?.data || data || {};
+  const sessions = d.active_sessions || 0;
+  const unreg = d.unregistered || 0;
+  const fault = d.with_faults || 0;
+  el.innerHTML = statGrid([
+    [sessions, 'Active Sessions', 'v-info'],
+    [d.total_machines || 0, 'Total VDAs', 'v-mute'],
+    [unreg, 'Unregistered', unreg > 0 ? 'v-warn' : 'v-ok'],
+    [fault, 'Faulted', fault > 0 ? 'v-err' : 'v-mute'],
+  ]);
+}
+
+function renderCerts(el, data) {
+  const certs = Array.isArray(data) ? data : (data?.certs || []);
+  const lt14 = certs.filter(c => (c.days_remaining||999) > 0 && (c.days_remaining||999) <= 14).length;
+  const lt30 = certs.filter(c => (c.days_remaining||999) > 14 && (c.days_remaining||999) <= 30).length;
+  const expired = certs.filter(c => (c.days_remaining||1) <= 0).length;
+  el.innerHTML = statGrid([
+    [lt14, '< 14 Days', lt14 > 0 ? 'v-err' : 'v-ok'],
+    [lt30, '14–30 Days', lt30 > 0 ? 'v-warn' : 'v-ok'],
+    [expired, 'Expired', expired > 0 ? 'v-err' : 'v-mute'],
+    [certs.length, 'Total Expiring', 'v-mute'],
+  ]);
+}
+
+function renderAD(el, data) {
+  const d = data?.data || data || {};
+  el.innerHTML = statGrid([
+    [d.total_users || 0, 'Total Users', 'v-mute'],
+    [d.stale_users || 0, 'Stale (90d)', (d.stale_users||0) > 0 ? 'v-warn' : 'v-ok'],
+    [d.pwd_never_expires || 0, 'Pwd Never Exp.', (d.pwd_never_expires||0) > 50 ? 'v-warn' : 'v-mute'],
+    [d.disabled_users || 0, 'Disabled', 'v-mute'],
+  ]);
+}
+
+function renderAssets(el, data) {
+  const d = data?.data || data || {};
+  const notSeen = d.not_seen_30d || 0;
+  el.innerHTML = statGrid([
+    [d.total_assets || 0, 'Total Assets', 'v-mute'],
+    [notSeen, 'Not Seen 30d', notSeen > 0 ? 'v-warn' : 'v-ok'],
+    [d.eol_count || 0, 'EOL OS', (d.eol_count||0) > 0 ? 'v-warn' : 'v-mute'],
+    [d.workstation_count || 0, 'Workstations', 'v-mute'],
+  ]);
+}
+
+function renderEntra(el, data) {
+  if (!data || data.status === 'error') {
+    el.innerHTML = '<div class="w-error">Entra data not available</div>'; return;
+  }
+  const d = data?.data || data || {};
+  const risky = d.risky_users || 0;
+  const appExp = d.app_creds_expiring_30d || 0;
+  el.innerHTML = statGrid([
+    [d.licensed_users || 0, 'Licensed', 'v-mute'],
+    [d.stale_90d || 0, 'Stale 90d', (d.stale_90d||0) > 0 ? 'v-warn' : 'v-ok'],
+    [risky, 'Risky Users', risky > 0 ? 'v-err' : 'v-mute'],
+    [appExp, 'App Creds Exp.', appExp > 0 ? 'v-warn' : 'v-mute'],
+  ]);
+}
+
+function renderNetwork(el, data) {
+  const d = data?.data || data || {};
+  const online = d.devices_online || 0;
+  const offline = d.devices_offline || 0;
+  const total = online + offline;
+  el.innerHTML = statGrid([
+    [total, 'Devices', 'v-mute'],
+    [online, 'Online', 'v-ok'],
+    [offline, 'Offline', offline > 0 ? 'v-err' : 'v-mute'],
+    [d.networks || 0, 'Networks', 'v-mute'],
+  ]);
+}
+
+function renderScheduler(el, data) {
+  const jobs = data?.jobs || [];
+  const ok  = jobs.filter(j => j.last_status === 'ok').length;
+  const err = jobs.filter(j => j.last_status === 'error').length;
+  const nev = jobs.filter(j => !j.last_run).length;
+  el.innerHTML = statGrid([
+    [jobs.length, 'Total Jobs', 'v-mute'],
+    [ok, 'OK', ok > 0 ? 'v-ok' : 'v-mute'],
+    [err, 'Errors', err > 0 ? 'v-err' : 'v-ok'],
+    [nev, 'Never Run', 'v-mute'],
+  ]);
+}
+
+function renderFindings(el, data) {
+  const findings = Array.isArray(data) ? data : (data?.findings || []);
+  if (!findings.length) {
+    el.innerHTML = '<div style="color:var(--text4);font-size:12px">No findings — all systems OK</div>';
+    return;
+  }
+  const top5 = findings.slice(0, 5);
+  const sevClass = s => s <= 1 ? 'sev-1' : s === 2 ? 'sev-2' : 'sev-3';
+  el.innerHTML = `<ul class="w-list">${top5.map(f =>
+    `<li><span class="sev ${sevClass(f.severity)}"></span>
+     <span><strong style="color:var(--text)">${f.system}</strong> — ${f.title}</span></li>`
+  ).join('')}</ul>`;
+}
+
+// ── Widget construction ───────────────────────────────────────────────────────
+function buildWidget(def) {
+  const card = document.createElement('div');
+  card.className = 'widget-card' + (def.wide ? ' wide' : '');
+  card.dataset.widgetId = def.id;
+  card.innerHTML = `
+    <div class="widget-head">
+      <span class="widget-icon">${def.icon}</span>
+      <span class="widget-name">${def.name}</span>
+      <div class="widget-head-actions">
+        <button class="w-btn" onclick="refreshWidget('${def.id}')" title="Refresh">↻</button>
+        <button class="w-btn remove-btn" onclick="removeWidget('${def.id}')" title="Remove">✕</button>
+      </div>
+    </div>
+    <div class="widget-body" id="wb-${def.id}">
+      <div class="w-loading"><span class="spin-xs"></span> Loading…</div>
+    </div>
+    <div class="widget-foot">
+      <span class="widget-ts" id="wts-${def.id}"></span>
+      ${def.link ? `<a class="widget-link" href="${def.link}">${def.linkLabel || 'View →'}</a>` : ''}
+    </div>
+  `;
+  return card;
+}
+
+async function loadWidget(def) {
+  const el = document.getElementById('wb-' + def.id);
+  if (!el) return;
+  try {
+    const data = await def.fetch();
+    def.render(el, data);
+    const ts = document.getElementById('wts-' + def.id);
+    if (ts) ts.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    el.innerHTML = `<div class="w-error">Error: ${e.message}</div>`;
+  }
+}
+
+function refreshWidget(widgetId) {
+  const def = CATALOG_MAP[widgetId];
+  if (!def) return;
+  const el = document.getElementById('wb-' + widgetId);
+  if (el) el.innerHTML = '<div class="w-loading"><span class="spin-xs"></span> Refreshing…</div>';
+  loadWidget(def);
+}
+
+// ── Grid management ───────────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('widgetGrid');
+  const empty = document.getElementById('emptyState');
+  // Remove all widget cards (keep emptyState)
+  [...grid.querySelectorAll('.widget-card')].forEach(c => c.remove());
+
+  if (!activeWidgetIds.length) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  activeWidgetIds.forEach(id => {
+    const def = CATALOG_MAP[id];
+    if (!def) return;
+    const card = buildWidget(def);
+    grid.appendChild(card);
+    loadWidget(def);
+  });
+
+  if (sortable) { sortable.destroy(); sortable = null; }
+  sortable = new Sortable(grid, {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    filter: '.mdb-empty',
+    onEnd: () => {
+      activeWidgetIds = [...grid.querySelectorAll('.widget-card')].map(c => c.dataset.widgetId);
+      saveLayout();
+    }
+  });
+}
+
+function removeWidget(widgetId) {
+  activeWidgetIds = activeWidgetIds.filter(id => id !== widgetId);
+  renderGrid();
+  saveLayout();
+}
+
+async function saveLayout() {
+  try {
+    await fetch('/infraportal/api/my-dashboard/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({widget_ids: activeWidgetIds})
+    });
+  } catch(e) { /* non-critical */ }
+}
+
+// ── Edit mode ─────────────────────────────────────────────────────────────────
+function toggleEditMode() {
+  isEditMode = !isEditMode;
+  const grid = document.getElementById('widgetGrid');
+  const btn  = document.getElementById('editBtn');
+  const banner = document.getElementById('editBanner');
+  grid.classList.toggle('edit-mode', isEditMode);
+  btn.classList.toggle('active', isEditMode);
+  btn.textContent = isEditMode ? '✓ Done' : '✎ Customize';
+  banner.classList.toggle('show', isEditMode);
+}
+
+// ── Catalog modal ─────────────────────────────────────────────────────────────
+let catalogSelection = [];
+
+function openCatalog() {
+  catalogSelection = [...activeWidgetIds];
+  const grid = document.getElementById('catalogGrid');
+  grid.innerHTML = CATALOG.map(def => `
+    <div class="cat-item ${catalogSelection.includes(def.id) ? 'active' : ''}"
+         id="cat-${def.id}" onclick="toggleCatalogItem('${def.id}')">
+      <span class="cat-check">✓</span>
+      <div class="cat-icon">${def.icon}</div>
+      <div class="cat-name">${def.name}</div>
+      <div class="cat-desc">${def.desc}</div>
+    </div>
+  `).join('');
+  document.getElementById('catalogModal').classList.add('open');
+}
+
+function closeCatalog() {
+  document.getElementById('catalogModal').classList.remove('open');
+}
+
+function toggleCatalogItem(id) {
+  const el = document.getElementById('cat-' + id);
+  if (catalogSelection.includes(id)) {
+    catalogSelection = catalogSelection.filter(i => i !== id);
+    el.classList.remove('active');
+  } else {
+    catalogSelection.push(id);
+    el.classList.add('active');
+  }
+}
+
+function applyCatalog() {
+  const added = catalogSelection.filter(id => !activeWidgetIds.includes(id));
+  const removed = activeWidgetIds.filter(id => !catalogSelection.includes(id));
+  // Keep existing order for retained widgets, append new ones at end
+  activeWidgetIds = [
+    ...activeWidgetIds.filter(id => catalogSelection.includes(id)),
+    ...added
+  ];
+  closeCatalog();
+  renderGrid();
+  saveLayout();
+}
+
+// ── Auto-refresh every 5 minutes ──────────────────────────────────────────────
+setInterval(() => {
+  activeWidgetIds.forEach(id => {
+    const def = CATALOG_MAP[id];
+    if (def) loadWidget(def);
+  });
+}, 5 * 60 * 1000);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderGrid();
+});
+</script>
+{% endblock %}

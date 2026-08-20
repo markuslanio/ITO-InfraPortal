@@ -1,0 +1,2726 @@
+{% extends "base.html" %}
+{% block title %}Criticality Registry — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Dep/Location config tabs ───────────────────────────────────────────────── */
+.dep-item {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:6px; padding:8px 10px; border-radius:5px; background:var(--bg3);
+    font-size:11px; border:1px solid var(--border);
+}
+.dep-item-text { flex:1; min-width:0; }
+.dep-item-from { color:var(--text3); font-size:11px; }
+.dep-item-to   { color:var(--accent); font-weight:600; }
+.dep-item-type {
+    font-size:9px; padding:1px 5px; border-radius:3px; white-space:nowrap;
+    font-weight:600; text-transform:uppercase;
+}
+.dep-type-geographic    { background:rgba(15,155,142,.15); color:var(--accent); }
+.dep-type-application   { background:rgba(255,170,0,.12);  color:var(--warning); }
+.dep-type-infrastructure{ background:rgba(255,68,68,.12);  color:var(--danger);  }
+.dep-type-service       { background:rgba(136,136,255,.15);color:#8888ff; }
+.dep-del-btn {
+    background:none; border:none; color:var(--text4); cursor:pointer;
+    font-size:13px; padding:0 4px; line-height:1; transition:color .12s;
+}
+.dep-del-btn:hover { color:var(--danger); }
+.dep-ai-bar {
+    display:flex; gap:8px; align-items:center; margin-bottom:12px;
+    padding:8px 12px; background:rgba(15,155,142,.06);
+    border:1px solid rgba(15,155,142,.25); border-radius:6px;
+}
+.dep-ai-status { flex:1; font-size:11px; color:var(--text3); }
+
+/* OPM Groups tab */
+.opm-group-row { display:flex; align-items:center; gap:10px; padding:8px 0;
+    border-bottom:1px solid var(--border); font-size:12px; }
+.opm-group-row:last-child { border-bottom:none; }
+.opm-group-name { flex:1; font-weight:600; color:var(--text); min-width:0; }
+.opm-group-count { color:var(--text4); font-size:11px; white-space:nowrap; }
+.opm-group-loc { font-size:10px; padding:2px 6px; border-radius:3px;
+    background:var(--bg3); color:var(--text3); white-space:nowrap; cursor:pointer; }
+.opm-group-loc:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Locations tab */
+.loc-card {
+    background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+    padding:14px 16px; display:grid;
+    grid-template-columns:1fr auto; gap:4px 12px; align-items:start;
+}
+.loc-name { font-size:13px; font-weight:700; color:var(--text); }
+.loc-coords { font-size:11px; color:var(--text4); font-family:Consolas,'SF Mono',monospace; }
+.loc-desc { font-size:11px; color:var(--text3); grid-column:1; }
+.loc-groups { font-size:10px; color:var(--text4); grid-column:1; margin-top:2px; }
+.loc-actions { grid-column:2; grid-row:1/3; display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+.cr-config-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
+.cr-section-title {
+    font-size:11px; font-weight:700; color:var(--text4);
+    text-transform:uppercase; letter-spacing:.07em; margin-bottom:10px;
+}
+.cr-form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+
+.cr-tier-p1   { background:rgba(255,68,68,.12);   color:var(--danger);  border:1px solid rgba(255,68,68,.3);  }
+.cr-tier-p2   { background:rgba(255,170,0,.12);   color:var(--warning); border:1px solid rgba(255,170,0,.3); }
+.cr-tier-p3   { background:rgba(34,204,102,.12);  color:var(--success); border:1px solid rgba(34,204,102,.3);}
+.cr-tier-info { background:var(--bg3);             color:var(--text4);   border:1px solid var(--border);       }
+
+.cr-tier-badge {
+    font-family: Consolas, 'SF Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 3px;
+    white-space: nowrap; display: inline-block;
+}
+
+.cr-singleton-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--danger); display: inline-block;
+    margin-right: 4px; vertical-align: middle;
+    box-shadow: 0 0 0 2px rgba(255,68,68,.2);
+}
+
+.cr-table { width:100%; border-collapse:collapse; font-size:12px; }
+.cr-table th {
+    background: var(--bg3); color: var(--text4);
+    font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+    font-weight: 600; padding: 7px 10px; text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+.cr-table td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+    color: var(--text2); vertical-align: top;
+}
+.cr-table tr:last-child td { border-bottom: none; }
+.cr-table tr:hover td { background: var(--surface); }
+.cr-table td.device-name {
+    font-family: Consolas, 'SF Mono', monospace;
+    font-size: 12px; color: var(--text); font-weight: 600;
+}
+.cr-table td.desc-cell { max-width: 260px; color: var(--text3); font-size: 11px; line-height: 1.5; }
+.cr-table td.blast-cell { max-width: 220px; color: var(--text3); font-size: 11px; line-height: 1.5; }
+
+.cr-action-btn {
+    background: none; border: 1px solid var(--border); color: var(--text4);
+    padding: 3px 8px; border-radius: 3px; font-size: 10px;
+    cursor: pointer; transition: all .12s; font-family: inherit; margin-right: 4px;
+}
+.cr-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cr-action-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Inventory source badge */
+.inv-src-badge {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    white-space: nowrap; display: inline-block; margin: 1px 2px 1px 0;
+}
+
+/* Group members panel */
+.gm-row { display:flex; align-items:center; gap:6px; padding:3px 0; font-size:11px; }
+.gm-row.gm-registered { opacity:.45; }
+.gm-row.gm-excluded   { text-decoration:line-through; opacity:.55; }
+.gm-source { font-size:9px; padding:1px 5px; border-radius:2px;
+             background:var(--bg3); color:var(--text4); white-space:nowrap; }
+
+/* Modal */
+.cr-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.5); z-index: 900;
+    align-items: center; justify-content: center;
+}
+.cr-modal-overlay.open { display: flex; }
+.cr-modal {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; width: 560px; max-width: 96vw; max-height: 90vh;
+    overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.cr-modal-head {
+    padding: 16px 20px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.cr-modal-title { font-size: 14px; font-weight: 600; }
+.cr-modal-close {
+    background: none; border: none; color: var(--text4); cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 2px 5px; transition: color .1s;
+}
+.cr-modal-close:hover { color: var(--text); }
+.cr-modal-body { padding: 18px 20px; }
+.cr-modal-footer {
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; justify-content: flex-end;
+}
+
+.cr-field { margin-bottom: 14px; }
+.cr-label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--text3); margin-bottom: 5px;
+    text-transform: uppercase; letter-spacing: .05em;
+}
+.cr-input, .cr-select, .cr-textarea {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 5px; padding: 7px 10px; font-size: 12px;
+    color: var(--text); outline: none; font-family: inherit;
+    transition: border-color .1s;
+}
+.cr-input:focus, .cr-select:focus, .cr-textarea:focus {
+    border-color: var(--accent);
+}
+.cr-textarea { resize: vertical; min-height: 64px; line-height: 1.5; }
+.cr-select option { background: var(--bg2); }
+
+.cr-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cr-checkbox-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text2); cursor: pointer;
+}
+.cr-checkbox-row input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+.cr-tier-grid {
+    display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-top: 4px;
+}
+.cr-tier-option {
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 6px;
+    cursor: pointer; text-align: center; transition: all .12s; user-select: none;
+}
+.cr-tier-option:hover { border-color: var(--text3); }
+.cr-tier-option.selected-P1  { border-color: var(--danger);  background: rgba(255,68,68,.08); }
+.cr-tier-option.selected-P2  { border-color: var(--warning); background: rgba(255,170,0,.08); }
+.cr-tier-option.selected-P3  { border-color: var(--success); background: rgba(34,204,102,.08); }
+.cr-tier-option.selected-INFO{ border-color: var(--text4);   background: var(--bg3); }
+.cr-tier-label { font-family: Consolas,'SF Mono',monospace; font-size: 13px; font-weight: 700; }
+.cr-tier-desc  { font-size: 9px; color: var(--text4); margin-top: 3px; line-height: 1.4; }
+
+.cr-ai-suggest-btn {
+    background: rgba(15,155,142,.1); border: 1px solid rgba(15,155,142,.4);
+    color: var(--accent); padding: 5px 12px; border-radius: 4px; font-size: 11px;
+    cursor: pointer; font-family: inherit; transition: all .12s;
+    display: flex; align-items: center; gap: 6px;
+}
+.cr-ai-suggest-btn:hover { background: rgba(15,155,142,.18); }
+.cr-ai-suggest-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.cr-empty { text-align:center; padding: 40px 20px; color: var(--text4); font-size:13px; }
+
+/* OPM-linked group badges */
+.opm-link-badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    background: rgba(15,155,142,.12); color: var(--accent);
+    border: 1px solid rgba(15,155,142,.3); white-space: nowrap;
+}
+.dgm-count-badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    background: var(--bg3); color: var(--text4);
+    border: 1px solid var(--border); white-space: nowrap;
+}
+
+/* Device member list */
+.dgm-list { max-height: 260px; overflow-y: auto; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 4px; }
+.dgm-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    border-bottom: 1px solid var(--border); font-size: 11px; }
+.dgm-row:last-child { border-bottom: none; }
+.dgm-device-name { flex: 1; font-family: Consolas,'SF Mono',monospace; color: var(--text); }
+.dgm-src-badge { font-size: 9px; padding: 1px 5px; border-radius: 2px;
+    white-space: nowrap; }
+.dgm-src-opm    { background: rgba(34,204,102,.12); color: var(--success); }
+.dgm-src-manual { background: rgba(136,136,255,.12); color: #8888ff; }
+.dgm-remove-btn { background: none; border: none; color: var(--text4); cursor: pointer;
+    font-size: 12px; padding: 0 3px; line-height: 1; }
+.dgm-remove-btn:hover { color: var(--danger); }
+.dgm-add-row { display: flex; gap: 6px; margin-top: 8px; }
+.dgm-add-row .cr-input { flex: 1; padding: 5px 8px; font-size: 11px; }
+
+/* Dependency graph */
+.dep-graph-wrap {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    position: relative; overflow: hidden; margin-bottom: 16px;
+}
+.dep-graph-header {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+}
+#depGraphSvg { width: 100%; height: 560px; display: block; }
+.dep-graph-tip {
+    position: absolute; pointer-events: none;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px 10px; font-size: 11px; color: var(--text);
+    opacity: 0; transition: opacity .1s; max-width: 200px; z-index: 10;
+    white-space: pre-line;
+}
+.dep-graph-hint {
+    font-size: 10px; color: var(--text4); position: absolute;
+    bottom: 8px; left: 12px; pointer-events: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- V2 page header -->
+  <div class="v2-page-header">
+    <div>
+      <div class="v2-page-title">Service Criticality Configuration</div>
+      <div class="v2-page-meta">OPM groups · Dependencies · Geographic locations · Inventory · Critical asset registry</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="v2-btn" onclick="openAddModal()">+ Add Device</button>
+    </div>
+  </div>
+
+  <!-- Stat strip -->
+  <div class="v2-stat-strip" id="statStrip">
+    <div class="v2-stat"><div class="v2-sv" id="statTotal">—</div><div class="v2-sl">Registered</div></div>
+    <div class="v2-stat"><div class="v2-sv v2-err" id="statP1">—</div><div class="v2-sl">P1 Critical</div></div>
+    <div class="v2-stat"><div class="v2-sv v2-warn" id="statP2">—</div><div class="v2-sl">P2 High</div></div>
+    <div class="v2-stat"><div class="v2-sv v2-ok" id="statP3">—</div><div class="v2-sl">P3 Normal</div></div>
+    <div class="v2-stat"><div class="v2-sv v2-acc" id="statSingleton">—</div><div class="v2-sl">Singletons</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="v2-tab-bar">
+    <button class="v2-tab active" onclick="switchTab('opm-groups', this)">
+      OPM Groups <span class="v2-tab-count" id="tabCountOpmGroups">0</span>
+    </button>
+    <button class="v2-tab" onclick="switchTab('dependencies', this)">
+      Dependencies <span class="v2-tab-count" id="tabCountDeps">0</span>
+    </button>
+    <button class="v2-tab" onclick="switchTab('locations', this)">
+      Locations <span class="v2-tab-count" id="tabCountLocations">0</span>
+    </button>
+    <button class="v2-tab" onclick="switchTab('registry', this)">
+      Registry <span class="v2-tab-count" id="tabCountRegistry">0</span>
+    </button>
+    <button class="v2-tab" onclick="switchTab('inventory', this)">
+      Inventory <span class="v2-tab-count" id="tabCountInventory">0</span>
+    </button>
+    <button class="v2-tab" onclick="switchTab('groups', this)">
+      Device Groups <span class="v2-tab-count" id="tabCountGroups">0</span>
+    </button>
+  </div>
+
+  <!-- ── OPM Groups tab ────────────────────────────────────────────────────── -->
+  <div class="v2-tab-panel active" id="tab-opm-groups">
+    <div class="v2-table-wrap">
+      <div class="v2-toolbar">
+        <input class="v2-search" id="opmGroupSearch" placeholder="Search groups…"
+               oninput="filterOpmGroups()">
+        <span class="v2-toolbar-spacer"></span>
+        <button class="v2-ghost-btn" onclick="openAddGroupModal()" style="color:var(--accent);">+ Add Group</button>
+        <button class="v2-ghost-btn" onclick="loadOpmGroups(true)">↻ Refresh</button>
+      </div>
+      <div id="opmGroupsWrap">
+        <div class="cr-empty">Loading OpManager groups…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Group modal -->
+  <div id="addGroupModal" style="display:none;position:fixed;inset:0;z-index:9000;
+       background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+                padding:24px;width:340px;max-width:95vw;">
+      <h3 style="margin:0 0 16px;font-size:14px;color:var(--text);">Add OpManager Group</h3>
+      <p style="font-size:11px;color:var(--text3);margin:0 0 12px;">
+        Add a group name that may not yet have appeared in alarm history (e.g. a group that is always Clear).
+      </p>
+      <input id="addGroupName" type="text" placeholder="Group name (exact match to OPM)"
+             style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;
+                    border:1px solid var(--border);background:var(--bg3);color:var(--text);
+                    font-size:12px;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="v2-ghost-btn" onclick="closeAddGroupModal()">Cancel</button>
+        <button class="cr-ai-suggest-btn" onclick="saveAddGroup()"
+                style="background:var(--accent);color:#fff;border:none;padding:6px 16px;
+                       border-radius:5px;cursor:pointer;font-size:12px;">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dependencies tab ──────────────────────────────────────────────────── -->
+  <div class="v2-tab-panel" id="tab-dependencies">
+    <div class="v2-table-wrap" style="padding:16px;">
+
+      <div class="dep-ai-bar">
+        <div class="dep-ai-status" id="depAiStatus">Click a node to select it as source, then click another to add a dependency. Click an edge to delete it.</div>
+        <button class="cr-ai-suggest-btn" id="btnDepSuggest" onclick="runDepSuggest()">
+          <span>✨</span> AI Suggest
+        </button>
+      </div>
+
+      <!-- Graphical dependency editor -->
+      <div class="dep-graph-wrap">
+        <div class="dep-graph-header">
+          <span style="font-size:11px;font-weight:600;color:var(--text3);">Dependency Graph</span>
+          <span style="font-size:10px;color:var(--text4);flex:1;margin-left:6px;">drag nodes · click node → click another to link · click edge to delete</span>
+          <button onclick="fitDepGraph()" class="v2-ghost-btn" style="font-size:10px;padding:2px 8px;margin-right:8px;">⤢ Fit</button>
+          <div style="display:flex;gap:10px;font-size:10px;">
+            <span style="color:var(--accent)">■ Geographic</span>
+            <span style="color:var(--warning)">■ Application</span>
+            <span style="color:var(--danger)">■ Infrastructure</span>
+            <span style="color:#8888ff">■ Service</span>
+          </div>
+        </div>
+        <svg id="depGraphSvg"></svg>
+        <div class="dep-graph-tip" id="depGraphTip"></div>
+        <div class="dep-graph-hint" id="depGraphHint">No groups defined yet</div>
+      </div>
+
+      <!-- Edge type picker (hidden, shown after selecting two nodes) -->
+      <div id="depEdgePicker" style="display:none;margin-bottom:12px;padding:12px 14px;
+           background:rgba(15,155,142,.06);border:1px solid rgba(15,155,142,.3);border-radius:6px;">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:8px;">
+          Create edge: <span id="depPickerFrom" style="color:var(--accent)"></span>
+          <span style="color:var(--text4)"> → </span>
+          <span id="depPickerTo" style="color:var(--warning)"></span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <select class="cr-select" id="depPickerType" style="flex:1;min-width:140px;font-size:11px;">
+            <option value="application">Application</option>
+            <option value="geographic">Geographic</option>
+            <option value="infrastructure">Infrastructure</option>
+            <option value="service">Service</option>
+          </select>
+          <select class="cr-select" id="depPickerConf" style="width:110px;font-size:11px;">
+            <option value="high">High confidence</option>
+            <option value="medium" selected>Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button class="v2-btn" style="padding:5px 14px;font-size:11px;" onclick="confirmDepEdge()">Add Edge</button>
+          <button class="v2-ghost-btn" style="padding:5px 10px;font-size:11px;" onclick="cancelDepEdge()">Cancel</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;">
+
+        <!-- Edge list -->
+        <div>
+          <div class="cr-section-title">Defined Edges <span id="depEdgeCount" style="color:var(--text4);font-weight:400;text-transform:none;"></span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;" id="depList">
+            <div class="cr-empty">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Add form -->
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+          <div class="cr-section-title">Add Dependency (Manual)</div>
+          <div class="cr-field">
+            <label class="cr-label">From (dependent group)</label>
+            <input class="cr-input" id="depFrom" list="groupNameList" placeholder="Group that depends on another" style="font-size:11px;">
+          </div>
+          <div class="cr-field">
+            <label class="cr-label">To (root cause group)</label>
+            <input class="cr-input" id="depTo" list="groupNameList" placeholder="Group being depended upon" style="font-size:11px;">
+          </div>
+          <div class="cr-form-row">
+            <div class="cr-field" style="margin-bottom:0;">
+              <label class="cr-label">Type</label>
+              <select class="cr-select" id="depType" style="font-size:11px;">
+                <option value="application">Application</option>
+                <option value="geographic">Geographic</option>
+                <option value="infrastructure">Infrastructure</option>
+                <option value="service">Service</option>
+              </select>
+            </div>
+            <div class="cr-field" style="margin-bottom:0;">
+              <label class="cr-label">Confidence</label>
+              <select class="cr-select" id="depConf" style="font-size:11px;">
+                <option value="high">High</option>
+                <option value="medium" selected>Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+          <div class="cr-field" style="margin-top:10px;">
+            <label class="cr-label">Notes (optional)</label>
+            <input class="cr-input" id="depNotes" placeholder="Why this dependency?" style="font-size:11px;">
+          </div>
+          <button class="v2-btn" style="width:100%;margin-top:4px;" onclick="addDependency()">Add Edge</button>
+        </div>
+
+      </div>
+      <datalist id="groupNameList"></datalist>
+    </div>
+  </div>
+
+  <!-- ── Locations tab ─────────────────────────────────────────────────────── -->
+  <div class="v2-tab-panel" id="tab-locations">
+    <div class="v2-table-wrap" style="padding:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:12px;color:var(--text4);">
+          Define real-world sites. Each location appears as a pin on the NOC world map.
+        </div>
+        <button class="v2-btn" onclick="openLocModal()">+ Add Location</button>
+      </div>
+      <div class="cr-config-grid" id="locGrid">
+        <div class="cr-empty">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registry tab -->
+  <div class="v2-tab-panel" id="tab-registry">
+    <div class="v2-table-wrap">
+      <div class="v2-toolbar">
+        <input class="v2-search" id="regSearch" placeholder="Search device…" oninput="filterRegistry()">
+        <button class="v2-filter-btn active" data-filter="all"   onclick="setTierFilter('all',this)">All</button>
+        <button class="v2-filter-btn"        data-filter="P1"    onclick="setTierFilter('P1',this)">P1</button>
+        <button class="v2-filter-btn"        data-filter="P2"    onclick="setTierFilter('P2',this)">P2</button>
+        <button class="v2-filter-btn"        data-filter="P3"    onclick="setTierFilter('P3',this)">P3</button>
+        <button class="v2-filter-btn"        data-filter="INFO"  onclick="setTierFilter('INFO',this)">INFO</button>
+        <span class="v2-toolbar-spacer"></span>
+        <button id="bulkRemoveBtn" class="cr-action-btn del" style="display:none;padding:4px 12px;font-size:11px;"
+                onclick="openBulkDeleteModal()">Remove selected (<span id="bulkRemoveCount">0</span>)</button>
+        <select class="cr-select" style="width:140px;padding:4px 8px;" id="teamFilter" onchange="filterRegistry()">
+          <option value="">All teams</option>
+          <option>Wintel</option><option>Citrix</option><option>VMware</option>
+          <option>Network</option><option>Linux</option><option>DBA</option>
+          <option>O365 / Entra</option><option>Security</option><option>AWS</option>
+          <option>Storage</option><option>Other</option>
+        </select>
+      </div>
+      <div id="registryTableWrap">
+        <div class="cr-empty">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory tab -->
+  <div class="v2-tab-panel" id="tab-inventory">
+    <div class="v2-table-wrap">
+      <div class="v2-toolbar">
+        <input class="v2-search" id="invSearch" placeholder="Search device, OS, OU…" oninput="filterInventory()" style="min-width:180px;">
+        <select class="cr-select" id="invSrcFilter" onchange="filterInventory()" style="width:130px;padding:4px 8px;font-size:11px;">
+          <option value="">All sources</option>
+          <option value="OpManager">OpManager</option>
+          <option value="Lansweeper">Lansweeper</option>
+          <option value="VMware">VMware</option>
+          <option value="AD">Active Directory</option>
+        </select>
+        <select class="cr-select" id="invEnvFilter" onchange="filterInventory()" style="width:130px;padding:4px 8px;font-size:11px;">
+          <option value="">All environments</option>
+          <option value="Production">Production</option>
+          <option value="QA">QA</option>
+          <option value="Staging">Staging</option>
+          <option value="Dev">Dev</option>
+          <option value="Test">Test</option>
+          <option value="Unknown">Unknown</option>
+        </select>
+        <span class="v2-toolbar-spacer"></span>
+        <button class="v2-ghost-btn" onclick="loadInventoryMerged(true)">↻ Refresh</button>
+      </div>
+      <div id="inventoryTableWrap">
+        <div class="cr-empty">Click the Inventory tab to load…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groups tab -->
+  <div class="v2-tab-panel" id="tab-groups">
+    <div class="v2-table-wrap">
+      <div class="v2-toolbar">
+        <input class="v2-search" id="groupSearch" placeholder="Search groups…" oninput="filterGroups()">
+        <span class="v2-toolbar-spacer"></span>
+        <button class="v2-ghost-btn" id="btnSyncAllOpm" onclick="syncAllFromOpm()" title="Re-sync device membership for all OPM-linked groups">↻ Sync All from OPM</button>
+        <button class="v2-ghost-btn" id="btnAutoCreateOpm" onclick="autoCreateFromOpm()" title="Create one device group per OPM group">Auto-create from OPM</button>
+        <button class="v2-btn" onclick="openGroupModal()">+ Add Group</button>
+      </div>
+      <div id="groupsTableWrap">
+        <div class="cr-empty">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Location Modal ────────────────────────────────────────────────────── -->
+<div class="cr-modal-overlay" id="locModal">
+  <div class="cr-modal" style="width:480px;">
+    <div class="cr-modal-head">
+      <div class="cr-modal-title" id="locModalTitle">Add Location</div>
+      <button class="cr-modal-close" onclick="closeLocModal()">✕</button>
+    </div>
+    <div class="cr-modal-body">
+      <input type="hidden" id="locId">
+      <input type="hidden" id="locLat">
+      <input type="hidden" id="locLng">
+
+      <div class="cr-field">
+        <label class="cr-label">Location Name *</label>
+        <input class="cr-input" id="locName" placeholder="e.g. Topeka HQ, Candor India, VMC / AWS">
+      </div>
+
+      <div class="cr-field">
+        <label class="cr-label">City / Address</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input class="cr-input" id="locAddress" placeholder="e.g. Topeka, KS  or  Hyderabad, India"
+                 style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();geocodeLookup();}">
+          <button class="cr-ai-suggest-btn" id="btnGeocode" onclick="geocodeLookup()"
+                  style="white-space:nowrap;flex-shrink:0;">🔍 Look up</button>
+        </div>
+        <!-- result picker shown after lookup -->
+        <div id="geocodeResults" style="display:none;margin-top:8px;border:1px solid var(--border);
+             border-radius:5px;overflow:hidden;"></div>
+        <!-- resolved coords display -->
+        <div id="geocodeConfirm" style="display:none;margin-top:6px;font-size:11px;
+             color:var(--success);padding:4px 8px;background:rgba(34,204,102,.06);
+             border:1px solid rgba(34,204,102,.2);border-radius:4px;"></div>
+      </div>
+
+      <div class="cr-field">
+        <label class="cr-label">Description</label>
+        <input class="cr-input" id="locDesc" placeholder="Brief description of this site">
+      </div>
+      <div class="cr-field">
+        <label class="cr-label">OpManager Groups (one per line)</label>
+        <textarea class="cr-textarea" id="locGroups"
+                  placeholder="Paste group names, one per line — must match exactly as they appear in OpManager"></textarea>
+      </div>
+    </div>
+    <div class="cr-modal-footer">
+      <button class="v2-ghost-btn" onclick="closeLocModal()">Cancel</button>
+      <button class="v2-btn" id="btnSaveLoc" onclick="saveLocation()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / Edit Modal ──────────────────────────────────────────────────── -->
+<div class="cr-modal-overlay" id="editModal">
+  <div class="cr-modal">
+    <div class="cr-modal-head">
+      <div class="cr-modal-title" id="modalTitle">Add Device</div>
+      <button class="cr-modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="cr-modal-body">
+
+      <!-- Device name + AI suggest row -->
+      <div class="cr-field">
+        <label class="cr-label">Device Name *</label>
+        <div style="display:flex;gap:8px;">
+          <input class="cr-input" id="fDeviceName" placeholder="e.g. TOPRDPLIC01P" autocomplete="off">
+          <button class="cr-ai-suggest-btn" id="btnAiSuggest" onclick="runAiSuggest()" title="Let AI suggest tier and description based on the device name">
+            <span id="aiSpinner"></span> ✨ AI Draft
+          </button>
+        </div>
+        <div id="aiConfidence" style="font-size:10px;color:var(--text4);margin-top:4px;display:none;"></div>
+      </div>
+
+      <!-- Tier selector -->
+      <div class="cr-field">
+        <label class="cr-label">Criticality Tier *</label>
+        <div class="cr-tier-grid">
+          <div class="cr-tier-option" id="tierP1" onclick="selectTier('P1')">
+            <div class="cr-tier-label" style="color:var(--danger)">P1</div>
+            <div class="cr-tier-desc">Critical singleton — wide blast radius</div>
+          </div>
+          <div class="cr-tier-option" id="tierP2" onclick="selectTier('P2')">
+            <div class="cr-tier-label" style="color:var(--warning)">P2</div>
+            <div class="cr-tier-desc">Important — some redundancy or limited scope</div>
+          </div>
+          <div class="cr-tier-option" id="tierP3" onclick="selectTier('P3')">
+            <div class="cr-tier-label" style="color:var(--success)">P3</div>
+            <div class="cr-tier-desc">Normal — limited impact if down</div>
+          </div>
+          <div class="cr-tier-option" id="tierINFO" onclick="selectTier('INFO')">
+            <div class="cr-tier-label" style="color:var(--text4)">INFO</div>
+            <div class="cr-tier-desc">Dev / test / monitoring only</div>
+          </div>
+        </div>
+        <input type="hidden" id="fTier" value="P3">
+      </div>
+
+      <!-- Two-col: Team + Singleton -->
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Owner Team</label>
+          <select class="cr-select" id="fOwnerTeam">
+            <option value="">— select team —</option>
+            <option>Wintel</option><option>Citrix</option><option>VMware</option>
+            <option>Network</option><option>Linux</option><option>DBA</option>
+            <option>O365 / Entra</option><option>Security</option><option>AWS</option>
+            <option>Storage</option><option>Other</option>
+          </select>
+        </div>
+        <div class="cr-field" style="display:flex;align-items:flex-end;padding-bottom:2px;">
+          <label class="cr-checkbox-row">
+            <input type="checkbox" id="fSingleton">
+            <span>Singleton service <span style="color:var(--text4)">(no failover)</span></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Service description -->
+      <div class="cr-field">
+        <label class="cr-label">Service Description</label>
+        <textarea class="cr-textarea" id="fServiceDesc" placeholder="What does this server do? (e.g. 'Serves RDP session licenses for all Citrix XenApp, VDI, and jump box connections')"></textarea>
+      </div>
+
+      <!-- Blast radius -->
+      <div class="cr-field">
+        <label class="cr-label">Blast Radius</label>
+        <textarea class="cr-textarea" id="fBlastRadius" placeholder="What breaks or who is affected if this goes down? (e.g. 'All ~300 Citrix XenApp sessions and VDI connections fail immediately — no graceful degradation')"></textarea>
+      </div>
+
+      <!-- Two-col: Slack + Email -->
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Escalation Slack Channel</label>
+          <input class="cr-input" id="fEscalationSlack" placeholder="e.g. #wintel-ops">
+        </div>
+        <div class="cr-field">
+          <label class="cr-label">Escalation Email</label>
+          <input class="cr-input" id="fEscalationEmail" placeholder="e.g. wintel-team@zinnia.com">
+        </div>
+      </div>
+
+      <!-- Dependencies -->
+      <div class="cr-field">
+        <label class="cr-label">Depends On <span style="font-weight:400;color:var(--text4)">(comma-separated device names)</span></label>
+        <input class="cr-input" id="fDependencies" placeholder="e.g. TOPDC01P, TOPSQL01P">
+      </div>
+
+      <!-- Notes -->
+      <div class="cr-field" style="margin-bottom:0">
+        <label class="cr-label">Notes</label>
+        <input class="cr-input" id="fNotes" placeholder="Any additional context for the NOC or monitoring team">
+      </div>
+
+    </div>
+    <div class="cr-modal-footer">
+      <button class="v2-ghost-btn" onclick="closeModal()">Cancel</button>
+      <button class="v2-btn" id="btnSave" onclick="saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Group modal ───────────────────────────────────────────────────────── -->
+<div class="cr-modal-overlay" id="groupModal">
+  <div class="cr-modal">
+    <div class="cr-modal-head">
+      <div class="cr-modal-title" id="groupModalTitle">Add Device Group</div>
+      <button class="cr-modal-close" onclick="closeGroupModal()">✕</button>
+    </div>
+    <div class="cr-modal-body">
+      <input type="hidden" id="gId">
+
+      <!-- OPM Group link -->
+      <div class="cr-field">
+        <label class="cr-label">OpManager Group <span style="font-weight:400;color:var(--text4)">(optional — links this device group to an OPM group)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="cr-select" id="gOpmGroup" onchange="onOpmGroupSelected()" style="flex:1;">
+            <option value="">— None (manual group) —</option>
+          </select>
+          <button class="cr-action-btn" id="btnSyncOpm" onclick="syncGroupFromOpm()" style="white-space:nowrap;padding:5px 10px;" title="Re-sync devices from the linked OPM group">↻ Sync</button>
+        </div>
+        <div id="gSyncStatus" style="font-size:10px;color:var(--text4);margin-top:4px;display:none;"></div>
+      </div>
+
+      <!-- Group name + AI suggest -->
+      <div class="cr-field">
+        <label class="cr-label">Group Name *</label>
+        <div style="display:flex;gap:8px;">
+          <input class="cr-input" id="gName" placeholder="e.g. Citrix VDI Pool">
+          <button class="cr-ai-suggest-btn" id="btnGroupAiSuggest" onclick="runGroupAiSuggest()" title="Let AI suggest tier, team and descriptions based on the pattern">
+            <span id="gAiSpinner"></span> ✨ AI Draft
+          </button>
+        </div>
+        <div id="gAiConfidence" style="font-size:10px;color:var(--text4);margin-top:4px;display:none;"></div>
+      </div>
+
+      <!-- AI device preview -->
+      <div id="gAiPreview" style="display:none;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">
+            Matched Devices <span id="gAiPreviewCount" style="color:var(--accent);font-weight:normal;text-transform:none;letter-spacing:0;"></span>
+          </span>
+          <button onclick="toggleAiPreview()" id="gAiPreviewToggle"
+                  style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;padding:0;">Hide ▲</button>
+        </div>
+        <div id="gAiPreviewList"
+             style="max-height:160px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font-family:Consolas,'SF Mono',monospace;font-size:11px;line-height:1.8;">
+        </div>
+      </div>
+
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Category *</label>
+          <select class="cr-select" id="gCategory" onchange="onGroupCategoryChanged()">
+            <option value="App">App — Application group</option>
+            <option value="Technology">Technology — Platform / infrastructure service</option>
+            <option value="Geographic">Geographic — Site or location</option>
+          </select>
+        </div>
+        <div class="cr-field">
+          <label class="cr-label">Environment</label>
+          <select class="cr-select" id="gEnvironment">
+            <option value="Prod">Prod</option>
+            <option value="QA">QA</option>
+            <option value="Dev">Dev</option>
+            <option value="Test">Test</option>
+            <option value="UAT">UAT</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Location</label>
+          <select class="cr-select" id="gLocation">
+            <option value="">— None —</option>
+          </select>
+        </div>
+        <div class="cr-field">
+          <label class="cr-label">Default Tier *</label>
+          <select class="cr-select" id="gTier">
+            <option value="P1">P1 — Critical</option>
+            <option value="P2">P2 — High</option>
+            <option value="P3" selected>P3 — Normal</option>
+            <option value="INFO">INFO</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Match Type</label>
+          <select class="cr-select" id="gMatchType">
+            <option value="prefix">Starts with (prefix)</option>
+            <option value="suffix">Ends with (suffix)</option>
+            <option value="contains">Contains</option>
+            <option value="exact">Exact match</option>
+          </select>
+        </div>
+        <div class="cr-field">
+          <label class="cr-label">Match Value <span style="font-weight:400;color:var(--text4)">(case-insensitive)</span></label>
+          <input class="cr-input" id="gMatchValue" placeholder="AI can suggest — or enter manually">
+        </div>
+      </div>
+
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Owner Team</label>
+          <select class="cr-select" id="gOwnerTeam">
+            <option value="">— select team —</option>
+            <option>Wintel</option><option>Citrix</option><option>VMware</option>
+            <option>Network</option><option>Linux</option><option>DBA</option>
+            <option>O365 / Entra</option><option>Security</option><option>AWS</option>
+            <option>Storage</option><option>Other</option>
+          </select>
+        </div>
+        <div class="cr-field" style="display:flex;align-items:flex-end;padding-bottom:2px;">
+          <label class="cr-checkbox-row">
+            <input type="checkbox" id="gSingleton">
+            <span>Singleton <span style="color:var(--text4)">(no failover)</span></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="cr-two-col">
+        <div class="cr-field">
+          <label class="cr-label">Escalation Slack</label>
+          <input class="cr-input" id="gEscalationSlack" placeholder="#channel">
+        </div>
+        <div class="cr-field">
+          <label class="cr-label">Escalation Email</label>
+          <input class="cr-input" id="gEscalationEmail" placeholder="team@zinnia.com">
+        </div>
+      </div>
+
+      <div class="cr-field">
+        <label class="cr-label">Service Description <span style="font-weight:400;color:var(--text4)">(applied to all registered devices)</span></label>
+        <textarea class="cr-textarea" id="gServiceDesc" placeholder="What do these servers do?"></textarea>
+      </div>
+      <div class="cr-field">
+        <label class="cr-label">Blast Radius <span style="font-weight:400;color:var(--text4)">(manual notes)</span></label>
+        <textarea class="cr-textarea" id="gBlastRadius" placeholder="What breaks if one of these goes down?"></textarea>
+      </div>
+      <div class="cr-field" id="gComputedBlastPanel" style="display:none;">
+        <label class="cr-label">Derived Blast Radius <span style="font-weight:400;color:var(--text4)">(from dependency graph)</span></label>
+        <div id="gComputedBlast" style="font-size:12px;color:var(--text2);line-height:1.7;padding:8px 10px;
+             background:var(--bg3);border-radius:4px;border:1px solid var(--border);"></div>
+      </div>
+      <div class="cr-field" style="margin-bottom:0">
+        <label class="cr-label">Notes</label>
+        <input class="cr-input" id="gNotes" placeholder="Any context for the NOC team">
+      </div>
+
+      <!-- Device membership panel — visible when editing an existing group -->
+      <div id="gMembersPanel" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">
+            Devices <span id="gMembersCount" style="color:var(--text4);font-weight:400;font-size:10px;text-transform:none;"></span>
+          </span>
+          <button id="btnLoadMembers" onclick="loadGroupDevices()"
+                  style="background:none;border:1px solid var(--border);color:var(--accent);font-size:11px;
+                         padding:3px 10px;border-radius:3px;cursor:pointer;">
+            Load
+          </button>
+        </div>
+        <div id="gMembersHelp" style="font-size:11px;color:var(--text4);margin-bottom:6px;">
+          Devices explicitly assigned to this group. Use "↻ Sync" above to import from OPM, or add/remove manually.
+        </div>
+        <div id="gMembersList" style="display:none;">
+          <div class="dgm-list" id="dgmList"></div>
+          <div class="dgm-add-row">
+            <input class="cr-input" id="dgmAddInput" placeholder="Add device name…" list="inventoryNameList"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();dgmAddDevice();}">
+            <button class="v2-btn" style="padding:5px 12px;font-size:11px;" onclick="dgmAddDevice()">Add</button>
+          </div>
+          <datalist id="inventoryNameList"></datalist>
+        </div>
+      </div>
+    </div>
+    <div class="cr-modal-footer">
+      <button class="v2-ghost-btn" onclick="closeGroupModal()">Cancel</button>
+      <button class="v2-btn" id="btnGroupSave" onclick="saveGroup()">Save Group</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete confirmation modal ─────────────────────────────────────────── -->
+<div class="cr-modal-overlay" id="deleteModal">
+  <div class="cr-modal" style="max-width:380px;">
+    <div class="cr-modal-head">
+      <div class="cr-modal-title">Remove Entry</div>
+      <button class="cr-modal-close" onclick="closeDeleteModal()">✕</button>
+    </div>
+    <div class="cr-modal-body">
+      <p style="font-size:13px;color:var(--text2);margin:0 0 8px;">Remove criticality registration for:</p>
+      <p id="deleteDeviceName" style="font-family:Consolas,'SF Mono',monospace;font-size:14px;font-weight:700;color:var(--danger);margin:0;"></p>
+      <p style="font-size:12px;color:var(--text4);margin:10px 0 0;">Alerts for this device will no longer show a criticality badge.</p>
+    </div>
+    <div class="cr-modal-footer">
+      <button class="v2-ghost-btn" onclick="closeDeleteModal()">Cancel</button>
+      <button class="v2-btn" style="background:var(--danger);" onclick="confirmDelete()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="cr-modal-overlay" id="bulkDeleteModal">
+  <div class="cr-modal" style="max-width:440px;">
+    <div class="cr-modal-head">
+      <div class="cr-modal-title">Remove Selected Entries</div>
+      <button class="cr-modal-close" onclick="closeBulkDeleteModal()">✕</button>
+    </div>
+    <div class="cr-modal-body">
+      <p style="font-size:13px;color:var(--text2);margin:0 0 10px;">
+        Permanently remove <strong id="bulkDeleteCount" style="color:var(--danger)">0</strong> devices from the criticality registry?
+      </p>
+      <div id="bulkDeleteList" style="max-height:200px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-family:Consolas,'SF Mono',monospace;font-size:11px;color:var(--text2);line-height:1.8;"></div>
+      <p style="font-size:11px;color:var(--text4);margin:10px 0 0;">Criticality badges will be removed from alerts for these devices.</p>
+    </div>
+    <div class="cr-modal-footer">
+      <button class="v2-ghost-btn" onclick="closeBulkDeleteModal()">Cancel</button>
+      <button id="bulkDeleteConfirmBtn" class="v2-btn" style="background:var(--danger);" onclick="confirmBulkDelete()">Remove All</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script>
+const BASE = '/infraportal';
+
+function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let _entries = [];
+let _tierFilter = 'all';
+let _editingDevice = null;
+let _deleteTarget = null;
+let _selectedDevices = new Set();
+let _groups = [];      // cached device groups
+let _invDevices = [];  // merged inventory cache
+let _invFiltered = [];
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+async function loadRegistry() {
+    try {
+        const r = await fetch(`${BASE}/api/criticality`);
+        const d = await r.json();
+        _entries = d.entries || [];
+        _selectedDevices.clear();
+        updateStats();
+        renderRegistry();
+        document.getElementById('tabCountRegistry').textContent = _entries.length;
+    } catch(e) {
+        document.getElementById('registryTableWrap').innerHTML = '<div class="cr-empty" style="color:var(--danger)">Failed to load registry</div>';
+    }
+}
+
+// ── Merged Inventory (OPM + Lansweeper + VMware + AD) ────────────────────────
+
+const SRC_COLORS = {
+    OpManager:  'rgba(255,140,0,.15)',
+    Lansweeper: 'rgba(15,155,142,.12)',
+    VMware:     'rgba(100,130,255,.12)',
+    AD:         'rgba(170,170,255,.12)',
+};
+const ENV_COLORS = {
+    Production: 'var(--danger)',
+    QA:         'var(--warning)',
+    Staging:    '#ff8c00',
+    Dev:        'var(--accent)',
+    Test:       '#88cc00',
+    Unknown:    'var(--text4)',
+};
+
+async function loadInventoryMerged(force = false) {
+    const wrap = document.getElementById('inventoryTableWrap');
+    wrap.innerHTML = '<div class="cr-empty">Loading merged inventory from OPM, Lansweeper, VMware, Active Directory…</div>';
+    try {
+        const url = `${BASE}/api/criticality/inventory/merged` + (force ? '?refresh=1' : '');
+        const [invRes, grpRes] = await Promise.all([
+            fetch(url),
+            fetch(`${BASE}/api/criticality/groups`),
+        ]);
+        const invData = await invRes.json();
+        _groups = (await grpRes.json()).groups || [];
+        _invDevices = invData.devices || [];
+        document.getElementById('tabCountInventory').textContent = _invDevices.length;
+        filterInventory();
+    } catch(e) {
+        wrap.innerHTML = `<div class="cr-empty" style="color:var(--danger)">Failed to load inventory: ${esc(String(e))}</div>`;
+    }
+}
+
+function filterInventory() {
+    const search = (document.getElementById('invSearch')?.value || '').toLowerCase();
+    const src    = document.getElementById('invSrcFilter')?.value || '';
+    const env    = document.getElementById('invEnvFilter')?.value || '';
+    _invFiltered = _invDevices.filter(d => {
+        if (src && !(d.sources || []).includes(src)) return false;
+        if (env && d.environment !== env)             return false;
+        if (search) {
+            const hay = [d.name, d.os, d.environment, d.ou_path, d.group].join(' ').toLowerCase();
+            if (!hay.includes(search)) return false;
+        }
+        return true;
+    });
+    renderInventoryMerged();
+}
+
+function _matchingGroup(deviceName) {
+    const n = deviceName.toUpperCase();
+    for (const g of _groups) {
+        const v = (g.match_value || '').toUpperCase();
+        if (g.match_type === 'prefix'   && n.startsWith(v)) return g;
+        if (g.match_type === 'suffix'   && n.endsWith(v))   return g;
+        if (g.match_type === 'contains' && n.includes(v))   return g;
+        if (g.match_type === 'exact'    && n === v)         return g;
+    }
+    return null;
+}
+
+function renderInventoryMerged() {
+    const wrap = document.getElementById('inventoryTableWrap');
+    const data = _invFiltered;
+    if (!data.length) {
+        wrap.innerHTML = '<div class="cr-empty">No devices match the current filters.</div>';
+        return;
+    }
+    const header = `<table class="cr-table"><thead><tr>
+      <th>Device</th><th>Sources</th><th>OS</th><th>Environment</th>
+      <th>OU Path</th><th>Matched Group</th><th>Action</th>
+    </tr></thead><tbody>`;
+
+    const rows = data.map(d => {
+        const srcBadges = (d.sources || []).map(s => {
+            const bg = SRC_COLORS[s] || 'rgba(170,170,170,.15)';
+            return `<span class="inv-src-badge" style="background:${bg};color:var(--text3);">${esc(s)}</span>`;
+        }).join('');
+        const envColor = ENV_COLORS[d.environment] || 'var(--text4)';
+        const envBadge = d.environment
+            ? `<span style="font-size:10px;color:${envColor};font-weight:600;">${esc(d.environment)}</span>`
+            : '<span style="color:var(--text4)">—</span>';
+        const grp = _matchingGroup(d.name);
+        const grpBadge = grp
+            ? `<span style="font-size:10px;background:rgba(15,155,142,.12);color:var(--accent);
+                border:1px solid rgba(15,155,142,.3);padding:2px 7px;border-radius:3px;"
+               >${esc(grp.group_name)}</span>`
+            : '<span style="color:var(--text4);font-size:11px;">—</span>';
+        const ouCell = d.ou_path
+            ? `<span style="font-size:10px;color:var(--text3);font-family:Consolas,'SF Mono',monospace;">${esc(d.ou_path)}</span>`
+            : '<span style="color:var(--text4);font-size:11px;">—</span>';
+        return `<tr>
+          <td class="device-name">${esc(d.name)}</td>
+          <td>${srcBadges}</td>
+          <td style="font-size:11px;color:var(--text3)">${esc(d.os || '—')}</td>
+          <td>${envBadge}</td>
+          <td>${ouCell}</td>
+          <td>${grpBadge}</td>
+          <td style="white-space:nowrap;">
+            <button class="cr-action-btn" onclick="openAddModal(${JSON.stringify(d.name)})">+ Register</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+    wrap.innerHTML = header + rows + '</tbody></table>';
+}
+
+const SEV_ORDER = ['Critical','Service Down','Trouble','Attention','Clear','Unknown'];
+
+function updateStats() {
+    const p1 = _entries.filter(e => e.tier==='P1').length;
+    const p2 = _entries.filter(e => e.tier==='P2').length;
+    const p3 = _entries.filter(e => e.tier==='P3').length;
+    const sg = _entries.filter(e => e.is_singleton).length;
+    document.getElementById('statTotal').textContent = _entries.length;
+    document.getElementById('statP1').textContent = p1;
+    document.getElementById('statP2').textContent = p2;
+    document.getElementById('statP3').textContent = p3;
+    document.getElementById('statSingleton').textContent = sg;
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+
+function tierBadge(tier) {
+    return `<span class="cr-tier-badge cr-tier-${tier.toLowerCase()}">${tier}</span>`;
+}
+
+function sevBadge(sev) {
+    const map = {
+        'Critical':     'v2-badge-err',
+        'Trouble':      'v2-badge-warn',
+        'Attention':    'v2-badge-warn',
+        'Service Down': 'v2-badge-err',
+        'Clear':        'v2-badge-ok',
+    };
+    return `<span class="v2-badge ${map[sev]||'v2-badge-gray'}">${sev}</span>`;
+}
+
+function renderRegistry() {
+    const search = (document.getElementById('regSearch').value||'').toLowerCase();
+    const team   = document.getElementById('teamFilter').value;
+    const rows   = _entries.filter(e => {
+        if (_tierFilter !== 'all' && e.tier !== _tierFilter) return false;
+        if (team && e.owner_team !== team) return false;
+        if (search && !e.device_name.toLowerCase().includes(search) &&
+            !(e.service_description||'').toLowerCase().includes(search)) return false;
+        return true;
+    });
+
+    if (!rows.length) {
+        document.getElementById('registryTableWrap').innerHTML =
+            '<div class="cr-empty">No entries match the current filters.</div>';
+        return;
+    }
+
+    const allVisibleSelected = rows.every(e => _selectedDevices.has(e.device_name));
+    let html = `<table class="cr-table">
+      <thead><tr>
+        <th style="width:28px;padding:7px 6px 7px 10px;">
+          <input type="checkbox" id="regSelectAll" title="Select all visible"
+                 ${allVisibleSelected ? 'checked' : ''}
+                 onchange="toggleSelectAll(this.checked)"
+                 style="accent-color:var(--accent);cursor:pointer;">
+        </th>
+        <th>Device</th><th>Tier</th><th>Description</th>
+        <th>Blast Radius</th><th>Team</th><th>Escalation</th><th>Actions</th>
+      </tr></thead><tbody>`;
+
+    rows.forEach(e => {
+        const checked = _selectedDevices.has(e.device_name) ? 'checked' : '';
+        const sg = e.is_singleton ? '<span class="cr-singleton-dot" title="Singleton — no failover"></span>' : '';
+        const slack = e.escalation_slack ? `<div style="font-size:10px;color:var(--accent)">${esc(e.escalation_slack)}</div>` : '';
+        const email = e.escalation_email ? `<div style="font-size:10px;color:var(--text4)">${esc(e.escalation_email)}</div>` : '';
+        const escInfo = slack || email || '<span style="color:var(--text4);font-size:10px;">—</span>';
+        const rowSel = checked ? ' style="background:rgba(255,68,68,.04)"' : '';
+        html += `<tr${rowSel}>
+          <td style="padding:9px 6px 9px 10px;">
+            <input type="checkbox" ${checked} value="${esc(e.device_name)}"
+                   onchange="toggleRowSelect(this.value, this.checked)"
+                   style="accent-color:var(--accent);cursor:pointer;">
+          </td>
+          <td class="device-name">${sg}${esc(e.device_name)}</td>
+          <td>${tierBadge(e.tier)}</td>
+          <td class="desc-cell">${esc(e.service_description||'—')}</td>
+          <td class="blast-cell">${esc(e.blast_radius||'—')}</td>
+          <td style="font-size:11px;white-space:nowrap">${esc(e.owner_team||'—')}</td>
+          <td>${escInfo}</td>
+          <td style="white-space:nowrap">
+            <button class="cr-action-btn" onclick="openEditModal('${esc(e.device_name)}')">Edit</button>
+            <button class="cr-action-btn del" onclick="openDeleteModal('${esc(e.device_name)}')">Remove</button>
+          </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('registryTableWrap').innerHTML = html;
+    updateBulkBar();
+}
+
+function toggleRowSelect(name, checked) {
+    if (checked) _selectedDevices.add(name);
+    else         _selectedDevices.delete(name);
+    updateBulkBar();
+    // keep select-all checkbox state in sync
+    const allChk = document.getElementById('regSelectAll');
+    if (allChk) {
+        const search = (document.getElementById('regSearch').value||'').toLowerCase();
+        const team   = document.getElementById('teamFilter').value;
+        const visible = _entries.filter(e => {
+            if (_tierFilter !== 'all' && e.tier !== _tierFilter) return false;
+            if (team && e.owner_team !== team) return false;
+            if (search && !e.device_name.toLowerCase().includes(search) &&
+                !(e.service_description||'').toLowerCase().includes(search)) return false;
+            return true;
+        });
+        allChk.checked = visible.length > 0 && visible.every(e => _selectedDevices.has(e.device_name));
+    }
+}
+
+function toggleSelectAll(checked) {
+    const search = (document.getElementById('regSearch').value||'').toLowerCase();
+    const team   = document.getElementById('teamFilter').value;
+    const visible = _entries.filter(e => {
+        if (_tierFilter !== 'all' && e.tier !== _tierFilter) return false;
+        if (team && e.owner_team !== team) return false;
+        if (search && !e.device_name.toLowerCase().includes(search) &&
+            !(e.service_description||'').toLowerCase().includes(search)) return false;
+        return true;
+    });
+    visible.forEach(e => { if (checked) _selectedDevices.add(e.device_name); else _selectedDevices.delete(e.device_name); });
+    renderRegistry();
+}
+
+function updateBulkBar() {
+    const n = _selectedDevices.size;
+    const btn = document.getElementById('bulkRemoveBtn');
+    document.getElementById('bulkRemoveCount').textContent = n;
+    btn.style.display = n > 0 ? '' : 'none';
+}
+
+function openBulkDeleteModal() {
+    if (!_selectedDevices.size) return;
+    const names = [..._selectedDevices].sort();
+    document.getElementById('bulkDeleteCount').textContent = names.length;
+    document.getElementById('bulkDeleteList').innerHTML = names.map(n => esc(n)).join('<br>');
+    document.getElementById('bulkDeleteModal').classList.add('open');
+}
+
+function closeBulkDeleteModal() {
+    document.getElementById('bulkDeleteModal').classList.remove('open');
+}
+
+async function confirmBulkDelete() {
+    const names = [..._selectedDevices];
+    if (!names.length) return;
+    const btn = document.getElementById('bulkDeleteConfirmBtn');
+    btn.disabled = true; btn.textContent = 'Removing…';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/bulk-delete`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({device_names: names}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Bulk delete failed');
+        _selectedDevices.clear();
+        closeBulkDeleteModal();
+        await loadRegistry();
+    } catch(e) {
+        alert('Bulk remove failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Remove All';
+    }
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+function switchTab(tab, btn) {
+    document.querySelectorAll('.v2-tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.v2-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    btn.classList.add('active');
+    if (tab === 'opm-groups')   loadOpmGroups();
+    if (tab === 'dependencies') loadDependencies();
+    if (tab === 'locations')    loadLocations();
+    if (tab === 'inventory')    loadInventoryMerged();
+    if (tab === 'groups')       loadGroups();
+}
+
+function setTierFilter(tier, btn) {
+    _tierFilter = tier;
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderRegistry();
+}
+
+function filterRegistry() { renderRegistry(); }
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+
+function openAddModal(prefillName) {
+    _editingDevice = null;
+    document.getElementById('modalTitle').textContent = 'Register Device';
+    clearForm();
+    if (prefillName) document.getElementById('fDeviceName').value = prefillName;
+    selectTier('P3');
+    document.getElementById('editModal').classList.add('open');
+    document.getElementById('fDeviceName').focus();
+}
+
+function openEditModal(deviceName) {
+    const e = _entries.find(x => x.device_name === deviceName);
+    if (!e) return;
+    _editingDevice = e.device_name;
+    document.getElementById('modalTitle').textContent = 'Edit — ' + e.device_name;
+    document.getElementById('fDeviceName').value = e.device_name;
+    document.getElementById('fDeviceName').readOnly = true;
+    selectTier(e.tier || 'P3');
+    document.getElementById('fOwnerTeam').value  = e.owner_team || '';
+    document.getElementById('fSingleton').checked = !!e.is_singleton;
+    document.getElementById('fServiceDesc').value  = e.service_description || '';
+    document.getElementById('fBlastRadius').value  = e.blast_radius || '';
+    document.getElementById('fEscalationSlack').value = e.escalation_slack || '';
+    document.getElementById('fEscalationEmail').value = e.escalation_email || '';
+    document.getElementById('fDependencies').value = e.dependencies || '';
+    document.getElementById('fNotes').value        = e.notes || '';
+    document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('editModal').classList.remove('open');
+    document.getElementById('fDeviceName').readOnly = false;
+    document.getElementById('aiConfidence').style.display = 'none';
+    _editingDevice = null;
+}
+
+function openDeleteModal(name) {
+    _deleteTarget = name;
+    document.getElementById('deleteDeviceName').textContent = name;
+    document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('open');
+    _deleteTarget = null;
+}
+
+function clearForm() {
+    ['fDeviceName','fServiceDesc','fBlastRadius','fEscalationSlack',
+     'fEscalationEmail','fDependencies','fNotes'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('fOwnerTeam').value = '';
+    document.getElementById('fSingleton').checked = false;
+    document.getElementById('fTier').value = 'P3';
+    document.getElementById('aiConfidence').style.display = 'none';
+}
+
+function selectTier(tier) {
+    ['P1','P2','P3','INFO'].forEach(t => {
+        document.getElementById('tier'+t).className = 'cr-tier-option';
+    });
+    document.getElementById('tier'+tier).className = 'cr-tier-option selected-'+tier;
+    document.getElementById('fTier').value = tier;
+}
+
+// ── AI suggest ────────────────────────────────────────────────────────────────
+
+async function runAiSuggest() {
+    const name = document.getElementById('fDeviceName').value.trim();
+    if (!name) { alert('Enter a device name first.'); return; }
+    const btn = document.getElementById('btnAiSuggest');
+    btn.disabled = true;
+    document.getElementById('aiSpinner').textContent = '⏳';
+    document.getElementById('aiConfidence').style.display = 'none';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/ai-suggest`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({device_name: name}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'AI suggest failed');
+        const s = d.suggestion;
+        selectTier(s.tier || 'P3');
+        if (s.service_description) document.getElementById('fServiceDesc').value  = s.service_description;
+        if (s.blast_radius)        document.getElementById('fBlastRadius').value  = s.blast_radius;
+        if (s.owner_team)          document.getElementById('fOwnerTeam').value    = s.owner_team;
+        if (s.is_singleton)        document.getElementById('fSingleton').checked  = true;
+        if (s.notes)               document.getElementById('fNotes').value        = s.notes;
+        const confEl = document.getElementById('aiConfidence');
+        const confColor = s.confidence === 'high' ? 'var(--success)' : s.confidence === 'medium' ? 'var(--warning)' : 'var(--text4)';
+        confEl.innerHTML = `<span style="color:${confColor}">AI confidence: ${s.confidence||'?'}</span> — review and adjust before saving`;
+        confEl.style.display = 'block';
+    } catch(e) {
+        alert('AI suggest failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        document.getElementById('aiSpinner').textContent = '';
+    }
+}
+
+// ── Save / Delete ─────────────────────────────────────────────────────────────
+
+async function saveEntry() {
+    const name = document.getElementById('fDeviceName').value.trim();
+    if (!name) { alert('Device name is required.'); return; }
+    const tier = document.getElementById('fTier').value;
+    if (!tier) { alert('Select a tier.'); return; }
+
+    const btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const payload = {
+        device_name:         name,
+        tier:                tier,
+        service_description: document.getElementById('fServiceDesc').value.trim(),
+        blast_radius:        document.getElementById('fBlastRadius').value.trim(),
+        owner_team:          document.getElementById('fOwnerTeam').value,
+        escalation_slack:    document.getElementById('fEscalationSlack').value.trim(),
+        escalation_email:    document.getElementById('fEscalationEmail').value.trim(),
+        dependencies:        document.getElementById('fDependencies').value.trim(),
+        is_singleton:        document.getElementById('fSingleton').checked,
+        notes:               document.getElementById('fNotes').value.trim(),
+    };
+
+    try {
+        const r = await fetch(`${BASE}/api/criticality`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Save failed');
+        closeModal();
+        await loadRegistry();
+    } catch(e) {
+        alert('Save failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Save';
+    }
+}
+
+async function confirmDelete() {
+    if (!_deleteTarget) return;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/${encodeURIComponent(_deleteTarget)}`, {method:'DELETE'});
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Delete failed');
+        closeDeleteModal();
+        await loadRegistry();
+    } catch(e) {
+        alert('Delete failed: ' + e.message);
+    }
+}
+
+// ── Device Groups ─────────────────────────────────────────────────────────────
+
+async function loadGroups() {
+    document.getElementById('groupsTableWrap').innerHTML = '<div class="cr-empty">Loading…</div>';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups`);
+        const d = await r.json();
+        _groups = d.groups || [];
+        document.getElementById('tabCountGroups').textContent = _groups.length;
+        renderGroups();
+        // Keep location cards in sync — they show linked device groups
+        if (document.getElementById('locGrid').children.length) renderLocGrid();
+    } catch(e) {
+        document.getElementById('groupsTableWrap').innerHTML = '<div class="cr-empty" style="color:var(--danger)">Failed to load groups</div>';
+    }
+}
+
+function filterGroups() {
+    const q = (document.getElementById('groupSearch').value || '').toLowerCase();
+    const filtered = q ? _groups.filter(g =>
+        (g.group_name||'').toLowerCase().includes(q) ||
+        (g.opm_group_name||'').toLowerCase().includes(q) ||
+        (g.match_value||'').toLowerCase().includes(q) ||
+        (g.owner_team||'').toLowerCase().includes(q)
+    ) : _groups;
+    renderGroups(filtered);
+}
+
+function renderGroups(list) {
+    list = list || _groups;
+    if (!list.length) {
+        document.getElementById('groupsTableWrap').innerHTML =
+            '<div class="cr-empty">No device groups defined yet. Click "+ Add Group" to create one.</div>';
+        return;
+    }
+    const CAT_COLOR = { App:'var(--accent)', Technology:'var(--warning)', Geographic:'#88aaff' };
+    const ENV_COLOR = { Prod:'var(--success)', QA:'var(--warning)', Dev:'var(--text4)',
+                        Test:'var(--text4)', UAT:'var(--text4)', Unknown:'var(--text4)' };
+    let html = `<table class="cr-table"><thead><tr>
+      <th>Group Name</th><th>OPM Group / Pattern</th><th>Devices</th>
+      <th>Tier</th><th>Category</th><th>Env</th><th>Location</th><th>Team</th><th>Actions</th>
+    </tr></thead><tbody>`;
+    list.forEach(g => {
+        const opmBadge = g.opm_group_name
+            ? `<div><span class="opm-link-badge" title="Linked to OPM group">⊕ ${escHtml(g.opm_group_name)}</span></div>`
+            : '';
+        const matchLabel = {prefix:'starts with',suffix:'ends with',contains:'contains',exact:'exact'}[g.match_type]||g.match_type;
+        const patternLine = g.match_value
+            ? `<div style="font-size:10px;color:var(--text4);margin-top:2px;">
+                 <span style="color:var(--text4)">${matchLabel}:</span>
+                 <span style="font-family:Consolas,'SF Mono',monospace;">${escHtml(g.match_value)}</span>
+               </div>`
+            : '';
+        const cnt = g.member_count || 0;
+        const cntBadge = `<span class="dgm-count-badge">${cnt} device${cnt!==1?'s':''}</span>`;
+        const cat = g.group_category || 'App';
+        const env = g.environment || 'Unknown';
+        const catCol = CAT_COLOR[cat] || 'var(--text3)';
+        const envCol = ENV_COLOR[env] || 'var(--text4)';
+        const catBadge = `<span style="font-size:10px;padding:2px 6px;border-radius:3px;
+            background:${catCol}22;color:${catCol};border:1px solid ${catCol}44;">${cat}</span>`;
+        const envBadge = `<span style="font-size:10px;padding:2px 6px;border-radius:3px;
+            background:${envCol}22;color:${envCol};border:1px solid ${envCol}44;">${env}</span>`;
+        const cbr = g.computed_blast_radius || [];
+        const blastTitle = cbr.length ? `title="Blast radius: ${cbr.join(', ')}"` : '';
+        const blastBadge = cbr.length
+            ? `<span ${blastTitle} style="font-size:10px;padding:2px 5px;border-radius:3px;cursor:default;
+               background:rgba(255,170,0,.12);color:var(--warning);border:1px solid rgba(255,170,0,.3);">
+               ⚡ ${cbr.length}</span>`
+            : '';
+        html += `<tr>
+          <td style="font-weight:600;color:var(--text)">${escHtml(g.group_name)} ${blastBadge}</td>
+          <td>${opmBadge}${patternLine}</td>
+          <td>${cntBadge}</td>
+          <td><span class="cr-tier-badge cr-tier-${(g.default_tier||'p3').toLowerCase()}">${escHtml(g.default_tier)}</span></td>
+          <td>${catBadge}</td>
+          <td>${envBadge}</td>
+          <td style="font-size:11px">${escHtml((_locations||[]).find(l=>l.id===g.location_id)?.name||'—')}</td>
+          <td style="font-size:11px">${escHtml(g.owner_team||'—')}</td>
+          <td style="white-space:nowrap">
+            <button class="cr-action-btn" onclick="openGroupBulkModal(${g.id})" title="Bulk-register matching inventory devices">Bulk Reg</button>
+            <button class="cr-action-btn" onclick="openGroupModal(${g.id})">Edit</button>
+            <button class="cr-action-btn del" onclick="deleteGroup(${g.id},'${esc(g.group_name)}')">Remove</button>
+          </td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('groupsTableWrap').innerHTML = html;
+}
+
+function openGroupModal(id) {
+    const g = id ? _groups.find(x => x.id === id) : null;
+    _gExcludedDevices.clear();
+    _gPreviewSamples = [];
+    _gMembersLoaded  = false;
+    if (g && Array.isArray(g.excluded_devices)) {
+        g.excluded_devices.forEach(n => _gExcludedDevices.add(n));
+    }
+    // Populate OPM group selector from the known OPM groups
+    const sel = document.getElementById('gOpmGroup');
+    const currentOpm = g ? (g.opm_group_name || '') : '';
+    let opts = '<option value="">— None (manual group) —</option>';
+    _opmGroups.forEach(og => {
+        const selected = og.name === currentOpm ? ' selected' : '';
+        opts += `<option value="${escHtml(og.name)}"${selected}>${escHtml(og.name)}</option>`;
+    });
+    // If current value not in list, add it
+    if (currentOpm && !_opmGroups.find(og => og.name === currentOpm)) {
+        opts += `<option value="${escHtml(currentOpm)}" selected>${escHtml(currentOpm)}</option>`;
+    }
+    sel.innerHTML = opts;
+    document.getElementById('gSyncStatus').style.display = 'none';
+    document.getElementById('btnSyncOpm').disabled = !currentOpm;
+
+    // Members panel: show only when editing an existing group
+    const membersPanel = document.getElementById('gMembersPanel');
+    membersPanel.style.display = g ? 'block' : 'none';
+    if (g) {
+        document.getElementById('gMembersList').style.display = 'none';
+        document.getElementById('gMembersHelp').style.display = 'block';
+        document.getElementById('gMembersCount').textContent  = g.member_count ? `(${g.member_count} devices)` : '';
+        document.getElementById('btnLoadMembers').textContent  = 'Load';
+        document.getElementById('btnLoadMembers').disabled     = false;
+    }
+    // Populate Location dropdown from loaded locations
+    const locSel = document.getElementById('gLocation');
+    locSel.innerHTML = '<option value="">— None —</option>' +
+        (_locations || []).map(l =>
+            `<option value="${l.id}">${escHtml(l.name)}</option>`
+        ).join('');
+    document.getElementById('groupModalTitle').textContent = g ? 'Edit Group' : 'Add Device Group';
+    document.getElementById('gId').value              = g ? g.id : '';
+    document.getElementById('gName').value            = g ? g.group_name : '';
+    document.getElementById('gCategory').value        = g ? (g.group_category || 'App') : 'App';
+    document.getElementById('gEnvironment').value     = g ? (g.environment || 'Unknown') : 'Unknown';
+    locSel.value = g ? (g.location_id || '') : '';
+    document.getElementById('gMatchType').value       = g ? g.match_type : 'prefix';
+    document.getElementById('gMatchValue').value      = g ? g.match_value : '';
+    document.getElementById('gTier').value            = g ? g.default_tier : 'P3';
+    document.getElementById('gOwnerTeam').value       = g ? (g.owner_team||'') : '';
+    onGroupCategoryChanged();
+    // Computed blast radius panel
+    const cbr = g ? (g.computed_blast_radius || []) : [];
+    const cbrPanel = document.getElementById('gComputedBlastPanel');
+    if (cbr.length > 0) {
+        document.getElementById('gComputedBlast').innerHTML =
+            cbr.map(n => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;
+                background:rgba(255,170,0,.12);color:var(--warning);border:1px solid rgba(255,170,0,.3);
+                border-radius:3px;font-size:11px;">${n}</span>`).join('');
+        cbrPanel.style.display = '';
+    } else {
+        cbrPanel.style.display = 'none';
+    }
+    document.getElementById('gSingleton').checked     = g ? !!g.is_singleton : false;
+    document.getElementById('gEscalationSlack').value = g ? (g.escalation_slack||'') : '';
+    document.getElementById('gEscalationEmail').value = g ? (g.escalation_email||'') : '';
+    document.getElementById('gServiceDesc').value     = g ? (g.service_description||'') : '';
+    document.getElementById('gBlastRadius').value     = g ? (g.blast_radius||'') : '';
+    document.getElementById('gNotes').value           = g ? (g.notes||'') : '';
+    document.getElementById('groupModal').classList.add('open');
+}
+
+function onOpmGroupSelected() {
+    const name = document.getElementById('gOpmGroup').value;
+    document.getElementById('btnSyncOpm').disabled = !name;
+    // Auto-fill group name if currently empty
+    if (name && !document.getElementById('gName').value.trim()) {
+        document.getElementById('gName').value = name;
+    }
+}
+
+function onGroupCategoryChanged() {
+    const cat = document.getElementById('gCategory').value;
+    const envSel = document.getElementById('gEnvironment');
+    if (cat === 'Technology' || cat === 'Geographic') {
+        envSel.value = 'Prod';
+        envSel.disabled = true;
+        envSel.title = 'Technology and Geographic groups are always Prod';
+    } else {
+        envSel.disabled = false;
+        envSel.title = '';
+    }
+}
+
+function closeGroupModal() {
+    document.getElementById('groupModal').classList.remove('open');
+    document.getElementById('gAiConfidence').style.display = 'none';
+    document.getElementById('gAiPreview').style.display = 'none';
+    document.getElementById('gAiSpinner').textContent = '';
+    document.getElementById('gSyncStatus').style.display = 'none';
+    _gExcludedDevices.clear();
+    _gPreviewSamples = [];
+    _gMembersLoaded  = false;
+    _gCurrentMembers = [];
+}
+
+let _gAiPreviewVisible = true;
+let _gExcludedDevices  = new Set();  // device names the user has unchecked in the preview
+let _gPreviewSamples   = [];         // last AI-returned sample list
+
+async function runGroupAiSuggest() {
+    const name    = document.getElementById('gName').value.trim();
+    const mtype   = document.getElementById('gMatchType').value;
+    const mval    = document.getElementById('gMatchValue').value.trim();
+    const groupId = document.getElementById('gId').value || null;
+    if (!name && !mval) { alert('Enter a group name or match value first.'); return; }
+    const btn = document.getElementById('btnGroupAiSuggest');
+    btn.disabled = true;
+    document.getElementById('gAiSpinner').textContent = '⏳';
+    document.getElementById('gAiConfidence').style.display = 'none';
+    document.getElementById('gAiPreview').style.display = 'none';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/ai-suggest`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({group_name: name, match_type: mtype, match_value: mval,
+                                  group_id: groupId ? parseInt(groupId) : null}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'AI suggest failed');
+        const s = d.suggestion;
+        if (s.default_tier) document.getElementById('gTier').value = s.default_tier;
+        if (s.owner_team)   document.getElementById('gOwnerTeam').value = s.owner_team;
+        if (s.service_description) document.getElementById('gServiceDesc').value = s.service_description;
+        if (s.blast_radius) document.getElementById('gBlastRadius').value = s.blast_radius;
+        if (s.is_singleton) document.getElementById('gSingleton').checked = true;
+        if (s.notes)        document.getElementById('gNotes').value = s.notes;
+
+        // Apply environment suggestion — only if field is currently Unknown or empty
+        const envSel = document.getElementById('gEnvironment');
+        if (s.environment && !envSel.disabled &&
+            (envSel.value === 'Unknown' || !envSel.value)) {
+            envSel.value = s.environment;
+        }
+
+        // Auto-fill match pattern if AI suggested one and the field is currently empty
+        if (s.match_value && !document.getElementById('gMatchValue').value.trim()) {
+            document.getElementById('gMatchType').value  = s.match_type  || 'prefix';
+            document.getElementById('gMatchValue').value = s.match_value;
+        } else if (d.derived_match_value && !document.getElementById('gMatchValue').value.trim()) {
+            // Pattern derived from existing members but not in AI response
+            document.getElementById('gMatchType').value  = 'prefix';
+            document.getElementById('gMatchValue').value = d.derived_match_value;
+        }
+
+        // Confidence line
+        const conf = document.getElementById('gAiConfidence');
+        const col  = s.confidence === 'high' ? 'var(--success)' : s.confidence === 'medium' ? 'var(--warning)' : 'var(--text4)';
+        const isEdit    = !!groupId;
+        const existing  = d.existing_count || 0;
+        const showing   = d.samples ? d.samples.length : 0;
+        const total     = d.sample_count || 0;
+        const existNote = isEdit && existing ? ` · ${existing} existing member(s) kept` : '';
+        const cntNote   = total ? ` · ${showing} suggested addition(s)` : '';
+        conf.innerHTML  = `<span style="color:${col}">AI confidence: ${s.confidence||'?'}</span>${existNote}${cntNote}`;
+        conf.style.display = 'block';
+
+        // Update preview section label based on context
+        const previewLabel = document.querySelector('#gAiPreview span[style*="text-transform"]');
+        if (previewLabel) {
+            previewLabel.childNodes[0].textContent = isEdit ? 'Suggested Additions ' : 'Matched Devices ';
+        }
+
+        // Build preview with checkboxes
+        if (d.samples && d.samples.length) {
+            _gPreviewSamples = d.samples;
+            renderGroupPreview();
+        }
+    } catch(e) {
+        alert('AI suggest failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        document.getElementById('gAiSpinner').textContent = '';
+    }
+}
+
+function renderGroupPreview() {
+    if (!_gPreviewSamples.length) return;
+    const SOURCE_COLORS = {
+        lansweeper: 'var(--text3)', vmware: 'var(--accent)',
+        meraki: '#4da6ff', citrix: 'var(--warning)', opmanager: 'var(--success)',
+    };
+    const lines = _gPreviewSamples.map(dev => {
+        const excluded  = _gExcludedDevices.has(dev.device_name);
+        const srcCol    = SOURCE_COLORS[dev.source] || 'var(--text4)';
+        const src       = `<span style="font-size:9px;color:${srcCol};margin-left:6px;">[${esc(dev.source)}]</span>`;
+        const extra     = [dev.type, dev.environment].filter(Boolean)
+                            .map(x => `<span style="color:var(--text4)">${esc(x)}</span>`).join(' · ');
+        const strike    = excluded ? 'style="opacity:.35;text-decoration:line-through"' : '';
+        return `<div ${strike}>
+          <label style="display:flex;align-items:baseline;gap:5px;cursor:pointer;">
+            <input type="checkbox" ${excluded?'':'checked'} value="${esc(dev.device_name)}"
+                   onchange="toggleGroupExclusion('${esc(dev.device_name)}',this.checked)"
+                   style="accent-color:var(--accent);flex-shrink:0;margin-top:2px;">
+            <span>${esc(dev.device_name)}${src}${extra ? ' &nbsp;' + extra : ''}</span>
+          </label>
+        </div>`;
+    });
+    const included = _gPreviewSamples.length - _gExcludedDevices.size;
+    document.getElementById('gAiPreviewCount').textContent =
+        `(${included} included${_gExcludedDevices.size ? ', ' + _gExcludedDevices.size + ' excluded' : ''})`;
+    document.getElementById('gAiPreviewList').innerHTML = lines.join('');
+    _gAiPreviewVisible = true;
+    document.getElementById('gAiPreviewToggle').textContent = 'Hide ▲';
+    document.getElementById('gAiPreview').style.display = 'block';
+}
+
+function toggleGroupExclusion(name, checked) {
+    if (checked) _gExcludedDevices.delete(name);
+    else         _gExcludedDevices.add(name);
+    renderGroupPreview();
+}
+
+function toggleAiPreview() {
+    _gAiPreviewVisible = !_gAiPreviewVisible;
+    document.getElementById('gAiPreviewList').style.display = _gAiPreviewVisible ? '' : 'none';
+    document.getElementById('gAiPreviewToggle').textContent = _gAiPreviewVisible ? 'Hide ▲' : 'Show ▼';
+}
+
+async function saveGroup() {
+    const name    = document.getElementById('gName').value.trim();
+    const val     = document.getElementById('gMatchValue').value.trim();
+    const opmGrp  = document.getElementById('gOpmGroup').value;
+    if (!name) { alert('Group name is required.'); return; }
+    if (!val && !opmGrp) { alert('Either a match value or an OPM group link is required.'); return; }
+    const btn = document.getElementById('btnGroupSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const locVal = document.getElementById('gLocation').value;
+    const payload = {
+        id:                  document.getElementById('gId').value || undefined,
+        group_name:          name,
+        opm_group_name:      opmGrp,
+        group_category:      document.getElementById('gCategory').value,
+        environment:         document.getElementById('gEnvironment').value,
+        location_id:         locVal ? parseInt(locVal) : null,
+        match_type:          document.getElementById('gMatchType').value,
+        match_value:         val,
+        default_tier:        document.getElementById('gTier').value,
+        owner_team:          document.getElementById('gOwnerTeam').value,
+        is_singleton:        document.getElementById('gSingleton').checked,
+        escalation_slack:    document.getElementById('gEscalationSlack').value.trim(),
+        escalation_email:    document.getElementById('gEscalationEmail').value.trim(),
+        service_description: document.getElementById('gServiceDesc').value.trim(),
+        blast_radius:        document.getElementById('gBlastRadius').value.trim(),
+        notes:               document.getElementById('gNotes').value.trim(),
+        excluded_devices:    [..._gExcludedDevices],
+    };
+    if (!payload.id) delete payload.id;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error||'Save failed');
+        closeGroupModal();
+        await loadGroups();
+    } catch(e) {
+        alert('Save failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Save Group';
+    }
+}
+
+async function deleteGroup(id, name) {
+    if (!confirm(`Remove group "${name}"? Devices already registered won't be affected.`)) return;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/${id}/delete`, {method:'POST'});
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error('Delete failed');
+        await loadGroups();
+    } catch(e) {
+        alert('Delete failed: ' + e.message);
+    }
+}
+
+async function openGroupBulkModal(gid) {
+    const grp = _groups.find(g => g.id === gid);
+    if (!grp) return;
+    const v = (grp.match_value||'').toUpperCase();
+    if (!v) { alert('This group has no match value set — edit the group first.'); return; }
+
+    // Source from merged inventory if loaded, otherwise use server members endpoint
+    const excluded = new Set((grp.excluded_devices || []).map(n => n.toUpperCase()));
+    const pool = _invDevices.length ? _invDevices.map(d => ({ device_name: d.name })) : [];
+    let matching = pool.filter(d => {
+        const n = d.device_name.toUpperCase();
+        if (grp.match_type === 'prefix')   return n.startsWith(v);
+        if (grp.match_type === 'suffix')   return n.endsWith(v);
+        if (grp.match_type === 'contains') return n.includes(v);
+        if (grp.match_type === 'exact')    return n === v;
+        return false;
+    });
+    const filteredOut = matching.filter(d => excluded.has(d.device_name.toUpperCase()));
+    matching = matching.filter(d => !excluded.has(d.device_name.toUpperCase()));
+
+    if (!matching.length && !filteredOut.length) {
+        // Fall through to the server-side group members endpoint
+        const r2 = await fetch(`${BASE}/api/criticality/groups/${gid}/members`);
+        const d2 = await r2.json();
+        const unregd = (d2.members || []).filter(m => !m.registered && !m.excluded);
+        if (!unregd.length) {
+            alert(`No unregistered inventory devices match the pattern for group "${grp.group_name}".`);
+            return;
+        }
+        matching = unregd.map(m => ({ device_name: m.device_name }));
+    }
+
+    if (!matching.length) { alert('All matching devices are already registered or excluded.'); return; }
+    let msg = `Register ${matching.length} device(s) under group "${grp.group_name}" (${grp.default_tier} / ${grp.owner_team||'no team'})?\n\n`
+        + matching.slice(0, 20).map(d => `• ${d.device_name}`).join('\n')
+        + (matching.length > 20 ? `\n… and ${matching.length - 20} more` : '');
+    if (filteredOut.length) msg += `\n\n(${filteredOut.length} skipped — excluded from this group)`;
+    if (!confirm(msg)) return;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/${gid}/bulk-register`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({device_names: matching.map(d => d.device_name)}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error||'Bulk register failed');
+        alert(`✓ Registered ${d.count} device(s).`);
+        await loadRegistry();
+    } catch(e) {
+        alert('Bulk register failed: ' + e.message);
+    }
+}
+
+// ── Group member management (explicit device_group_members) ──────────────────
+
+let _gMembersLoaded = false;
+let _gCurrentMembers = [];
+
+async function loadGroupDevices() {
+    const gid = document.getElementById('gId').value;
+    if (!gid) return;
+    const btn = document.getElementById('btnLoadMembers');
+    btn.textContent = 'Loading…'; btn.disabled = true;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/${gid}/devices`);
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Load failed');
+        _gCurrentMembers = d.members || [];
+        renderGroupDevices(_gCurrentMembers);
+        _gMembersLoaded = true;
+        btn.textContent = '↻ Reload';
+    } catch(e) {
+        document.getElementById('dgmList').innerHTML =
+            `<div style="color:var(--danger);padding:8px;font-size:11px;">Failed to load: ${esc(e.message)}</div>`;
+        document.getElementById('gMembersList').style.display = 'block';
+        btn.textContent = 'Retry';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function renderGroupDevices(members) {
+    const list    = document.getElementById('dgmList');
+    const countEl = document.getElementById('gMembersCount');
+    countEl.textContent = `(${members.length} device${members.length!==1?'s':''})`;
+
+    if (!members.length) {
+        list.innerHTML = '<div style="color:var(--text4);padding:10px;font-size:11px;">No devices yet — sync from OPM or add manually.</div>';
+    } else {
+        list.innerHTML = members.map(m => {
+            const srcClass = m.source === 'opm' ? 'dgm-src-opm' : 'dgm-src-manual';
+            const reg = m.registered
+                ? `<span style="font-size:9px;color:var(--success);margin-left:4px;">✓ registered</span>`
+                : '';
+            return `<div class="dgm-row">
+              <span class="dgm-device-name">${escHtml(m.device_name)}</span>
+              <span class="dgm-src-badge ${srcClass}">${escHtml(m.source)}</span>
+              ${reg}
+              <button class="dgm-remove-btn" onclick="dgmRemoveDevice(${parseInt(document.getElementById('gId').value)}, '${escHtml(m.device_name)}')" title="Remove">✕</button>
+            </div>`;
+        }).join('');
+    }
+    document.getElementById('gMembersList').style.display = 'block';
+    document.getElementById('gMembersHelp').style.display = 'none';
+
+    // Populate datalist for add input from current inventory
+    const dl = document.getElementById('inventoryNameList');
+    if (dl && _invDevices.length) {
+        const memberSet = new Set(members.map(m => m.device_name.toUpperCase()));
+        dl.innerHTML = _invDevices
+            .filter(d => !memberSet.has(d.name.toUpperCase()))
+            .map(d => `<option value="${escHtml(d.name)}">`)
+            .join('');
+    }
+}
+
+async function dgmAddDevice() {
+    const gid  = parseInt(document.getElementById('gId').value);
+    const name = document.getElementById('dgmAddInput').value.trim();
+    if (!gid || !name) return;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/${gid}/devices/add`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({device_names: [name], source: 'manual'}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Add failed');
+        document.getElementById('dgmAddInput').value = '';
+        await loadGroupDevices();
+        // Refresh count badge in groups table
+        await loadGroups();
+    } catch(e) {
+        alert('Add failed: ' + e.message);
+    }
+}
+
+async function dgmRemoveDevice(gid, name) {
+    if (!confirm(`Remove "${name}" from this group?`)) return;
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/${gid}/devices/remove`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({device_name: name}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Remove failed');
+        await loadGroupDevices();
+        await loadGroups();
+    } catch(e) {
+        alert('Remove failed: ' + e.message);
+    }
+}
+
+async function syncGroupFromOpm() {
+    const gid    = parseInt(document.getElementById('gId').value);
+    const opmGrp = document.getElementById('gOpmGroup').value;
+    if (!opmGrp) { alert('Select an OPM group first.'); return; }
+    if (!gid) {
+        // Group not saved yet — save first
+        alert('Save the group first, then use Sync to import OPM devices.');
+        return;
+    }
+    const btn = document.getElementById('btnSyncOpm');
+    const statusEl = document.getElementById('gSyncStatus');
+    btn.disabled = true; btn.textContent = '⏳';
+    statusEl.style.display = 'none';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/${gid}/sync-opm`, {method: 'POST'});
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Sync failed');
+        statusEl.textContent = `✓ Synced: ${d.added} added, ${d.removed_old} old OPM devices cleared — ${d.total} total`;
+        statusEl.style.color = 'var(--success)';
+        statusEl.style.display = 'block';
+        if (_gMembersLoaded) await loadGroupDevices();
+        await loadGroups();
+    } catch(e) {
+        statusEl.textContent = 'Sync failed: ' + e.message;
+        statusEl.style.color = 'var(--danger)';
+        statusEl.style.display = 'block';
+    } finally {
+        btn.disabled = false; btn.textContent = '↻ Sync';
+    }
+}
+
+async function syncAllFromOpm() {
+    const btn = document.getElementById('btnSyncAllOpm');
+    btn.disabled = true; btn.textContent = '⏳ Syncing…';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/sync-all-from-opm`, {method: 'POST'});
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Sync failed');
+        await loadGroups();
+        alert(`✓ Synced ${d.synced} OPM-linked group(s) — ${d.total_devices} total devices.`);
+    } catch(e) {
+        alert('Sync failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = '↻ Sync All from OPM';
+    }
+}
+
+async function autoCreateFromOpm() {
+    if (!confirm('Auto-create one device group for every OPM group that doesn\'t already have a linked group? This will also import their current devices.')) return;
+    const btn = document.getElementById('btnAutoCreateOpm');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+        const r = await fetch(`${BASE}/api/criticality/groups/auto-create-from-opm`, {method: 'POST'});
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Auto-create failed');
+        await loadGroups();
+        alert(`✓ Created ${d.created_count} group(s), skipped ${d.skipped_count} already-linked.`);
+    } catch(e) {
+        alert('Auto-create failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Auto-create from OPM';
+    }
+}
+
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close modals on overlay click
+document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+document.getElementById('groupModal').addEventListener('click', function(e) {
+    if (e.target === this) closeGroupModal();
+});
+// ── OPM Groups ────────────────────────────────────────────────────────────────
+
+let _opmGroups  = null;
+let _opmFilter  = '';
+
+async function loadOpmGroups(force = false) {
+    const wrap = document.getElementById('opmGroupsWrap');
+    wrap.innerHTML = '<div class="cr-empty">Loading…</div>';
+    try {
+        const url = '/infraportal/api/criticality/topology' + (force ? '?refresh=1' : '');
+        const r = await fetch(url);
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Failed');
+        _opmGroups = d.groups || [];
+        document.getElementById('tabCountOpmGroups').textContent = _opmGroups.length;
+        // Populate datalist for dependency form
+        let dl = document.getElementById('groupNameList');
+        dl.innerHTML = _opmGroups.map(g => `<option value="${escHtml(g.name)}">`).join('');
+        renderOpmGroups();
+    } catch(e) {
+        wrap.innerHTML = `<div class="cr-empty">Error loading groups: ${escHtml(String(e))}</div>`;
+    }
+}
+
+function filterOpmGroups() {
+    _opmFilter = document.getElementById('opmGroupSearch').value.toLowerCase();
+    renderOpmGroups();
+}
+
+function renderOpmGroups() {
+    const wrap = document.getElementById('opmGroupsWrap');
+    if (!_opmGroups) return;
+    const shown = _opmGroups.filter(g =>
+        !_opmFilter || g.name.toLowerCase().includes(_opmFilter));
+    if (!shown.length) {
+        wrap.innerHTML = '<div class="cr-empty">No groups found. Use + Add Group to manually register groups, or wait for OPM alarm data to populate.</div>';
+        return;
+    }
+    const STATUS_COLOR = {critical:'var(--danger)',warning:'var(--warning)',minor:'#88cc00',clear:'var(--success)'};
+    const STATUS_BG    = {
+        critical:'rgba(255,68,68,.10)', warning:'rgba(255,170,0,.10)',
+        minor:'rgba(136,204,0,.10)',    clear:'rgba(34,204,102,.08)'
+    };
+    // Count by source
+    const totalDevices = _opmGroups.reduce((s, g) => s + (g.device_count || 0), 0);
+    const fromAlarm    = _opmGroups.filter(g => g.source === 'alarm').length;
+    const fromCustom   = _opmGroups.filter(g => g.source === 'custom').length;
+    const inAlarm      = _opmGroups.filter(g => g.alert_count > 0).length;
+    const parts = [`${_opmGroups.length} groups · ${totalDevices} devices monitored`];
+    if (inAlarm)    parts.push(`${inAlarm} currently alerting`);
+    if (fromAlarm)  parts.push(`${fromAlarm} alarm-only`);
+    if (fromCustom) parts.push(`${fromCustom} manually added`);
+    const summary = `<div style="padding:8px 12px 4px;font-size:10px;color:var(--text4);">${parts.join(' · ')}</div>`;
+
+    wrap.innerHTML = summary + `<div style="padding:4px 8px;">` +
+        shown.map(g => {
+            const status = g.status || 'clear';
+            const sc  = STATUS_COLOR[status] || 'var(--text4)';
+            const sbg = STATUS_BG[status] || 'transparent';
+            const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                            background:${sc};margin-right:6px;flex-shrink:0;"></span>`;
+            const alertBadge = g.alert_count
+                ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;
+                       background:rgba(255,68,68,.12);color:var(--danger);margin-right:4px;">${g.alert_count} alarm${g.alert_count>1?'s':''}</span>`
+                : '';
+            const devCount = g.device_count != null
+                ? `<span style="font-size:9px;color:var(--text4);margin-right:6px;">${g.device_count} device${g.device_count!==1?'s':''}</span>`
+                : '';
+            // Only badge non-standard sources — device is the norm so no badge needed
+            const srcBadge = g.source === 'custom'
+                ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(15,155,142,.12);color:var(--accent);margin-right:4px;">custom</span>`
+                : g.source === 'alarm'
+                ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,170,0,.10);color:var(--warning);margin-right:4px;">alarm-only</span>`
+                : '';
+            const delBtn = g.source === 'custom'
+                ? `<button onclick="deleteOpmGroup(${JSON.stringify(g.name)})" class="dep-del-btn" title="Remove">✕</button>`
+                : '';
+            return `<div class="opm-group-row" style="background:${sbg};border-radius:4px;margin-bottom:2px;padding:6px 8px;">
+                ${dot}
+                <div class="opm-group-name">${escHtml(g.name)}</div>
+                <div style="flex:1;"></div>
+                ${devCount}${alertBadge}${srcBadge}
+                <div class="opm-group-count" style="color:${sc};font-weight:600;min-width:54px;text-align:right;">
+                    ${status.charAt(0).toUpperCase()+status.slice(1)}</div>
+                ${delBtn}
+            </div>`;
+        }).join('') + '</div>';
+}
+
+// ── Add / Remove custom OPM group names ───────────────────────────────────────
+function openAddGroupModal() {
+    document.getElementById('addGroupName').value = '';
+    document.getElementById('addGroupModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('addGroupName').focus(), 50);
+}
+function closeAddGroupModal() {
+    document.getElementById('addGroupModal').style.display = 'none';
+}
+async function saveAddGroup() {
+    const name = document.getElementById('addGroupName').value.trim();
+    if (!name) return;
+    try {
+        const r = await fetch('/infraportal/api/criticality/opm-groups/add', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({name})
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Failed');
+        closeAddGroupModal();
+        loadOpmGroups(true);
+    } catch(e) { alert('Failed: ' + e.message); }
+}
+async function deleteOpmGroup(name) {
+    if (!confirm(`Remove "${name}" from custom groups?`)) return;
+    try {
+        const r = await fetch('/infraportal/api/criticality/opm-groups/delete', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({name})
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Failed');
+        loadOpmGroups(true);
+    } catch(e) { alert('Failed: ' + e.message); }
+}
+
+// ── Dependencies ──────────────────────────────────────────────────────────────
+
+let _depData = null;
+let _depPollTimer = null;
+
+async function loadDependencies() {
+    if (!_opmGroups) await loadOpmGroups();
+    if (!_groups.length) await loadGroups();
+    try {
+        const r = await fetch('/infraportal/api/criticality/dependencies');
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Failed');
+        _depData = d.dependencies;
+        renderDepList(_depData);
+        renderDepGraph(_depData);
+        document.getElementById('tabCountDeps').textContent = _depData.length;
+    } catch(e) {
+        document.getElementById('depList').innerHTML =
+            `<div class="cr-empty">Error: ${escHtml(String(e))}</div>`;
+    }
+}
+
+// ── Dependency graph (D3 force-directed editor) ───────────────────────────────
+
+const DEP_EDGE_COL = {
+    geographic:     '#0f9b8e',
+    application:    '#ffaa00',
+    infrastructure: '#ff4444',
+    service:        '#8888ff',
+};
+
+let _depGraphSim       = null;
+let _depGraphSrc       = null;
+let _depGraphPendingEdge = null;
+let _depGraphZoom      = null;
+let _depGraphNodes     = null;
+
+function _wrapLabel(name) {
+    // Split on word/separator boundaries into lines of max 13 chars, up to 2 lines
+    const words = name.split(/[\s_\-\/]+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+        const test = cur ? cur + ' ' + w : w;
+        if (test.length > 13 && cur) { lines.push(cur); cur = w; }
+        else cur = test;
+    }
+    if (cur) lines.push(cur);
+    const out = lines.slice(0, 2);
+    if (lines.length > 2) out[1] = out[1].slice(0, 11) + '…';
+    return out;
+}
+
+function fitDepGraph() {
+    const svg = document.getElementById('depGraphSvg');
+    if (!svg || !_depGraphZoom || !_depGraphNodes || !_depGraphNodes.length) return;
+    const W = svg.clientWidth, H = svg.clientHeight;
+    const pad = 70;
+    const xs = _depGraphNodes.map(n => n.x), ys = _depGraphNodes.map(n => n.y);
+    const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad;
+    const y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+    const scale = Math.min(W / (x1 - x0), H / (y1 - y0), 1.4);
+    const tx = W / 2 - scale * (x0 + x1) / 2;
+    const ty = H / 2 - scale * (y0 + y1) / 2;
+    d3.select(svg).transition().duration(500)
+        .call(_depGraphZoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+}
+
+function renderDepGraph(deps) {
+    const svg = document.getElementById('depGraphSvg');
+    if (!svg) return;
+
+    const nodeNames = new Set(_groups.map(g => g.group_name));
+    (deps || []).forEach(d => { nodeNames.add(d.from_group); nodeNames.add(d.to_group); });
+
+    if (!nodeNames.size) {
+        document.getElementById('depGraphHint').textContent = 'No groups defined yet';
+        return;
+    }
+    document.getElementById('depGraphHint').textContent =
+        'Click node → click another to add edge · click edge to delete · scroll to zoom · drag to pan';
+
+    const nodes = [...nodeNames].map(name => {
+        const g = _groups.find(x => x.group_name === name);
+        return { id: name, tier: g ? g.default_tier : 'P3', team: g ? (g.owner_team || '') : '' };
+    });
+    _depGraphNodes = nodes;
+
+    const links = (deps || []).map(d => ({
+        source: d.from_group, target: d.to_group,
+        type: d.dep_type || 'application', id: d.id, conf: d.confidence || 'medium',
+    }));
+
+    const TIER_COL = { P1:'#ff4444', P2:'#ffaa00', P3:'#22cc66', INFO:'#555577' };
+    const NODE_R   = 32;
+
+    const W = svg.clientWidth  || 900;
+    const H = svg.clientHeight || 560;
+
+    const d3svg = d3.select(svg);
+    d3svg.selectAll('*').remove();
+
+    // Arrow markers — refX accounts for larger node radius
+    const defs = d3svg.append('defs');
+    Object.entries(DEP_EDGE_COL).forEach(([type, col]) => {
+        defs.append('marker')
+            .attr('id', `arr-${type}`)
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', NODE_R + 10).attr('refY', 0)
+            .attr('markerWidth', 7).attr('markerHeight', 7)
+            .attr('orient', 'auto')
+          .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', col);
+    });
+    defs.append('marker')
+        .attr('id', 'arr-selected')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', NODE_R + 10).attr('refY', 0)
+        .attr('markerWidth', 7).attr('markerHeight', 7)
+        .attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#fff');
+
+    const g = d3svg.append('g');
+
+    _depGraphZoom = d3.zoom().scaleExtent([0.15, 3]).on('zoom', ev => {
+        g.attr('transform', ev.transform);
+    });
+    d3svg.call(_depGraphZoom);
+
+    // Links
+    const link = g.selectAll('.dep-link')
+        .data(links).enter().append('line')
+        .attr('class', 'dep-link')
+        .attr('stroke', d => DEP_EDGE_COL[d.type] || '#888')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', d => d.conf === 'low' ? '6,3' : null)
+        .attr('marker-end', d => `url(#arr-${d.type})`)
+        .style('cursor', 'pointer')
+        .on('click', (ev, d) => {
+            ev.stopPropagation();
+            if (confirm(`Remove dependency:\n${d.source.id || d.source} → ${d.target.id || d.target}?`)) {
+                deleteDependency(d.id);
+            }
+        })
+        .on('mouseover', (ev, d) => showDepTip(ev,
+            `${d.source.id||d.source} → ${d.target.id||d.target}\nType: ${d.type}  Conf: ${d.conf}\n(click to delete)`))
+        .on('mouseout', hideDepTip);
+
+    // Nodes
+    const node = g.selectAll('.dep-node')
+        .data(nodes).enter().append('g')
+        .attr('class', 'dep-node')
+        .style('cursor', 'pointer')
+        .call(d3.drag()
+            .on('start', (ev, d) => { if (!ev.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+            .on('drag',  (ev, d) => { d.fx=ev.x; d.fy=ev.y; })
+            .on('end',   (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+        )
+        .on('click', (ev, d) => { ev.stopPropagation(); handleDepNodeClick(d, node); });
+
+    // Circle body
+    node.append('circle')
+        .attr('r', NODE_R)
+        .attr('fill', d => TIER_COL[d.tier] || '#555')
+        .attr('fill-opacity', 0.22)
+        .attr('stroke', d => TIER_COL[d.tier] || '#555')
+        .attr('stroke-width', 2.5);
+
+    // Tier badge pill above circle
+    node.append('rect')
+        .attr('x', -14).attr('y', -NODE_R - 11)
+        .attr('width', 28).attr('height', 13).attr('rx', 6)
+        .attr('fill', d => TIER_COL[d.tier] || '#555')
+        .attr('fill-opacity', 0.9);
+    node.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('y', -NODE_R + 1)
+        .attr('font-size', 8).attr('font-weight', '700').attr('fill', '#fff')
+        .attr('pointer-events', 'none')
+        .text(d => d.tier);
+
+    // Wrapped label — up to 2 lines inside circle
+    node.each(function(d) {
+        const lines = _wrapLabel(d.id);
+        const lh = 13;
+        const startY = -((lines.length - 1) * lh) / 2;
+        const txt = d3.select(this).append('text')
+            .attr('text-anchor', 'middle')
+            .attr('font-size', 11).attr('font-weight', '500').attr('fill', '#eeeeee')
+            .attr('pointer-events', 'none')
+            .style('filter', 'drop-shadow(0 0 3px rgba(0,0,0,1))');
+        lines.forEach((line, i) => {
+            txt.append('tspan').attr('x', 0).attr('y', startY + i * lh).text(line);
+        });
+    });
+
+    // Team name below circle
+    node.filter(d => !!d.team)
+        .append('text')
+        .attr('text-anchor', 'middle')
+        .attr('y', NODE_R + 14)
+        .attr('font-size', 9).attr('fill', '#999')
+        .attr('pointer-events', 'none')
+        .text(d => d.team.length > 16 ? d.team.slice(0, 14) + '…' : d.team);
+
+    node.append('title').text(d => `${d.id}\nTier: ${d.tier}${d.team ? '\nTeam: ' + d.team : ''}`);
+
+    d3svg.on('click', cancelDepEdge);
+
+    const sim = d3.forceSimulation(nodes)
+        .force('link',    d3.forceLink(links).id(d => d.id).distance(200))
+        .force('charge',  d3.forceManyBody().strength(-600))
+        .force('center',  d3.forceCenter(W / 2, H / 2))
+        .force('spreadX', d3.forceX(W / 2).strength(0.04))
+        .force('spreadY', d3.forceY(H / 2).strength(0.08))
+        .force('collide', d3.forceCollide(NODE_R + 22))
+        .on('tick', () => {
+            link
+                .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+        })
+        .on('end', fitDepGraph);
+
+    _depGraphSim = sim;
+    _depGraphSrc = null;
+}
+
+function handleDepNodeClick(d, nodeSelection) {
+    if (!_depGraphSrc) {
+        // First click — select as source
+        _depGraphSrc = d;
+        nodeSelection.select('circle')
+            .attr('stroke', n => n.id === d.id ? '#ffffff' : null)
+            .attr('stroke-width', n => n.id === d.id ? 3 : 2);
+    } else {
+        if (_depGraphSrc.id === d.id) {
+            // Clicked same node — deselect
+            cancelDepEdge();
+            return;
+        }
+        // Second click — open edge-type picker
+        _depGraphPendingEdge = { from: _depGraphSrc.id, to: d.id };
+        document.getElementById('depPickerFrom').textContent = _depGraphSrc.id;
+        document.getElementById('depPickerTo').textContent   = d.id;
+        document.getElementById('depEdgePicker').style.display = 'block';
+        _depGraphSrc = null;
+        // Reset node highlights
+        nodeSelection.select('circle').attr('stroke', n => {
+            const tier = n.tier;
+            const TIER_COL = { P1:'#ff4444', P2:'#ffaa00', P3:'#22cc66', INFO:'#555577' };
+            return TIER_COL[tier] || '#555';
+        }).attr('stroke-width', 2);
+    }
+}
+
+async function confirmDepEdge() {
+    if (!_depGraphPendingEdge) return;
+    const { from, to } = _depGraphPendingEdge;
+    const type = document.getElementById('depPickerType').value;
+    const conf = document.getElementById('depPickerConf').value;
+    const r = await fetch('/infraportal/api/criticality/dependencies', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({from_group:from, to_group:to, dep_type:type, confidence:conf}),
+    });
+    const d = await r.json();
+    if (d.status === 'duplicate') { alert('This dependency already exists.'); cancelDepEdge(); return; }
+    if (d.status !== 'ok') { alert('Error: ' + (d.error||d.status)); return; }
+    cancelDepEdge();
+    _depData = null;
+    await loadDependencies();
+}
+
+function cancelDepEdge() {
+    _depGraphSrc = null;
+    _depGraphPendingEdge = null;
+    document.getElementById('depEdgePicker').style.display = 'none';
+}
+
+function showDepTip(ev, text) {
+    const tip = document.getElementById('depGraphTip');
+    if (!tip) return;
+    tip.textContent = text;
+    tip.style.opacity = '1';
+    tip.style.left = (ev.offsetX + 12) + 'px';
+    tip.style.top  = (ev.offsetY + 8)  + 'px';
+}
+
+function hideDepTip() {
+    const tip = document.getElementById('depGraphTip');
+    if (tip) tip.style.opacity = '0';
+}
+
+function renderDepList(deps) {
+    const list = document.getElementById('depList');
+    document.getElementById('depEdgeCount').textContent = `(${(deps||[]).length})`;
+    if (!deps || !deps.length) {
+        list.innerHTML = '<div class="cr-empty">No dependencies defined. Add edges manually or use AI Suggest.</div>';
+        return;
+    }
+    list.innerHTML = deps.map(d => {
+        const tc = 'dep-type-' + (d.dep_type || 'application');
+        return `<div class="dep-item">
+            <div class="dep-item-text">
+                <div class="dep-item-from">${escHtml(d.from_group)}</div>
+                <div style="font-size:9px;color:var(--text4);margin:2px 0;">→ depends on</div>
+                <div class="dep-item-to">${escHtml(d.to_group)}</div>
+                ${d.notes ? `<div style="font-size:9px;color:var(--text4);margin-top:2px;">${escHtml(d.notes)}</div>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+                <span class="dep-item-type ${tc}">${escHtml(d.dep_type||'')}</span>
+                ${d.ai_suggested ? '<span style="font-size:9px;color:var(--text4);">AI</span>' : ''}
+            </div>
+            <button class="dep-del-btn" onclick="deleteDependency(${d.id})" title="Remove">✕</button>
+        </div>`;
+    }).join('');
+}
+
+async function addDependency() {
+    const from  = document.getElementById('depFrom').value.trim();
+    const to    = document.getElementById('depTo').value.trim();
+    const type  = document.getElementById('depType').value;
+    const conf  = document.getElementById('depConf').value;
+    const notes = document.getElementById('depNotes').value.trim();
+    if (!from || !to) { alert('Both group names are required.'); return; }
+    if (from === to)  { alert('A group cannot depend on itself.'); return; }
+    const r = await fetch('/infraportal/api/criticality/dependencies', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({from_group:from, to_group:to, dep_type:type,
+                               confidence:conf, notes:notes}),
+    });
+    const d = await r.json();
+    if (d.status === 'duplicate') { alert('This dependency already exists.'); return; }
+    if (d.status !== 'ok') { alert('Error: ' + (d.error||d.status)); return; }
+    document.getElementById('depNotes').value = '';
+    _depData = null;
+    await loadDependencies();
+}
+
+async function deleteDependency(id) {
+    const r = await fetch(`/infraportal/api/criticality/dependencies/${id}/delete`, {method:'POST'});
+    const d = await r.json();
+    if (d.status !== 'ok') { alert('Failed to remove dependency.'); return; }
+    _depData = null;
+    await loadDependencies();
+}
+
+async function runDepSuggest() {
+    const btn = document.getElementById('btnDepSuggest');
+    btn.disabled = true;
+    document.getElementById('depAiStatus').textContent = 'Starting AI analysis of all groups…';
+    try {
+        const r = await fetch('/infraportal/api/criticality/dependencies/suggest', {method:'POST'});
+        const d = await r.json();
+        if (d.status === 'already_running') {
+            document.getElementById('depAiStatus').textContent = 'AI analysis already running…';
+        } else if (d.status !== 'started') {
+            throw new Error(d.error || d.status);
+        }
+        pollDepSuggest();
+    } catch(e) {
+        document.getElementById('depAiStatus').textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+    }
+}
+
+function pollDepSuggest() {
+    if (_depPollTimer) clearInterval(_depPollTimer);
+    _depPollTimer = setInterval(async () => {
+        try {
+            const r = await fetch('/infraportal/api/criticality/dependencies/suggest/status');
+            const d = await r.json();
+            if (d.running) return;
+            clearInterval(_depPollTimer);
+            document.getElementById('btnDepSuggest').disabled = false;
+            if (d.error) {
+                document.getElementById('depAiStatus').textContent = 'AI error: ' + d.error;
+                return;
+            }
+            const total = (d.result||[]).length;
+            const added = d.added || 0;
+            document.getElementById('depAiStatus').textContent =
+                `Done — ${total} suggestion${total!==1?'s':''}, ${added} new edge${added!==1?'s':''} added.`;
+            _depData = null;
+            await loadDependencies();
+        } catch(e) {
+            clearInterval(_depPollTimer);
+            document.getElementById('btnDepSuggest').disabled = false;
+            document.getElementById('depAiStatus').textContent = 'Polling error: ' + e.message;
+        }
+    }, 3000);
+}
+
+// ── Locations ─────────────────────────────────────────────────────────────────
+
+let _locations = [];
+
+async function loadLocations() {
+    try {
+        const r = await fetch('/infraportal/api/criticality/locations');
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Failed');
+        _locations = d.locations || [];
+        document.getElementById('tabCountLocations').textContent = _locations.length;
+        renderLocGrid();
+    } catch(e) {
+        document.getElementById('locGrid').innerHTML =
+            `<div class="cr-empty">Error: ${escHtml(String(e))}</div>`;
+    }
+}
+
+function renderLocGrid() {
+    const grid = document.getElementById('locGrid');
+    if (!_locations.length) {
+        grid.innerHTML = '<div class="cr-empty">No locations defined. Add your first site.</div>';
+        return;
+    }
+    grid.innerHTML = _locations.map(loc => {
+        const opmGroups    = (loc.opm_groups || []);
+        const linkedGroups = (_groups || []).filter(g => g.location_id === loc.id);
+        const groupChips   = linkedGroups.map(g => {
+            const envColor = g.environment === 'Prod' ? 'var(--success)' :
+                             g.environment === 'QA'   ? 'var(--warning)' : 'var(--text4)';
+            return `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px;padding:2px 8px;
+                        background:rgba(15,155,142,.1);color:var(--accent);
+                        border:1px solid rgba(15,155,142,.3);border-radius:3px;font-size:11px;cursor:pointer;"
+                        onclick="openGroupModal(${g.id})" title="Edit ${escHtml(g.group_name)}">
+                      ${escHtml(g.group_name)}
+                      <span style="font-size:9px;color:${envColor};">${escHtml(g.environment||'')}</span>
+                    </span>`;
+        }).join('');
+
+        return `<div class="loc-card">
+            <div>
+                <div class="loc-name">${escHtml(loc.name)}</div>
+                <div class="loc-coords">${loc.lat}, ${loc.lng}</div>
+                ${loc.description ? `<div class="loc-desc">${escHtml(loc.description)}</div>` : ''}
+                <div style="margin-top:8px;">
+                  <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">
+                    Device Groups ${linkedGroups.length ? `<span style="color:var(--accent);font-weight:normal;text-transform:none;">(${linkedGroups.length})</span>` : ''}
+                  </div>
+                  ${linkedGroups.length ? `<div>${groupChips}</div>` :
+                    `<span style="font-size:11px;color:var(--text4);">No groups linked — edit a group to assign it here</span>`}
+                </div>
+                ${opmGroups.length ? `<div class="loc-groups" style="margin-top:6px;font-size:10px;color:var(--text4);">OPM: ${opmGroups.map(escHtml).join(', ')}</div>` : ''}
+            </div>
+            <div class="loc-actions">
+                <button class="cr-action-btn" onclick="openLocModal(${loc.id})">Edit</button>
+                <button class="cr-action-btn del" onclick="deleteLocation(${loc.id})">Delete</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function openLocModal(locId) {
+    const loc = locId ? _locations.find(l => l.id === locId) : null;
+    document.getElementById('locModalTitle').textContent = loc ? 'Edit Location' : 'Add Location';
+    document.getElementById('locId').value    = loc ? loc.id  : '';
+    document.getElementById('locLat').value   = loc ? loc.lat : '';
+    document.getElementById('locLng').value   = loc ? loc.lng : '';
+    document.getElementById('locName').value  = loc ? loc.name : '';
+    document.getElementById('locDesc').value  = loc ? (loc.description||'') : '';
+    document.getElementById('locGroups').value = loc ? (loc.opm_groups||[]).join('\n') : '';
+    // Pre-fill address field with name when editing so user can re-lookup if needed
+    document.getElementById('locAddress').value = '';
+    document.getElementById('geocodeResults').style.display = 'none';
+    // Show existing coords if editing
+    const confirmEl = document.getElementById('geocodeConfirm');
+    if (loc && (loc.lat || loc.lng)) {
+        confirmEl.textContent = `📍 ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+        confirmEl.style.display = 'block';
+    } else {
+        confirmEl.style.display = 'none';
+    }
+    document.getElementById('locModal').classList.add('open');
+    document.getElementById('locName').focus();
+}
+
+function closeLocModal() {
+    document.getElementById('locModal').classList.remove('open');
+}
+
+async function geocodeLookup() {
+    const q = document.getElementById('locAddress').value.trim();
+    if (!q) return;
+    const btn = document.getElementById('btnGeocode');
+    const resultsEl = document.getElementById('geocodeResults');
+    const confirmEl = document.getElementById('geocodeConfirm');
+    btn.textContent = '⌛';
+    btn.disabled = true;
+    resultsEl.style.display = 'none';
+    confirmEl.style.display = 'none';
+    try {
+        const r = await fetch(`/infraportal/api/criticality/geocode?q=${encodeURIComponent(q)}`);
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'Lookup failed');
+        if (d.results.length === 1) {
+            // Single result — apply immediately
+            applyGeoResult(d.results[0]);
+        } else {
+            // Multiple results — show a picker
+            resultsEl.innerHTML = d.results.map((res, i) =>
+                `<div onclick="applyGeoResult(${JSON.stringify(res).replace(/"/g,'&quot;')})"
+                      style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);
+                             color:var(--text2);" onmouseover="this.style.background='var(--surface)'"
+                      onmouseout="this.style.background=''">
+                    <strong style="color:var(--text)">${escHtml(res.label)}</strong><br>
+                    <span style="font-size:10px;color:var(--text4);">${escHtml(res.display_name)}</span>
+                </div>`
+            ).join('');
+            resultsEl.style.display = 'block';
+        }
+    } catch(e) {
+        confirmEl.textContent = '⚠ ' + e.message;
+        confirmEl.style.color = 'var(--danger)';
+        confirmEl.style.background = 'rgba(255,68,68,.06)';
+        confirmEl.style.borderColor = 'rgba(255,68,68,.2)';
+        confirmEl.style.display = 'block';
+    } finally {
+        btn.textContent = '🔍 Look up';
+        btn.disabled = false;
+    }
+}
+
+function applyGeoResult(res) {
+    document.getElementById('locLat').value = res.lat;
+    document.getElementById('locLng').value = res.lng;
+    document.getElementById('geocodeResults').style.display = 'none';
+    const confirmEl = document.getElementById('geocodeConfirm');
+    confirmEl.textContent = `📍 ${res.lat.toFixed(4)}, ${res.lng.toFixed(4)} — ${res.label}`;
+    confirmEl.style.color = 'var(--success)';
+    confirmEl.style.background = 'rgba(34,204,102,.06)';
+    confirmEl.style.borderColor = 'rgba(34,204,102,.2)';
+    confirmEl.style.display = 'block';
+}
+
+async function saveLocation() {
+    const name = document.getElementById('locName').value.trim();
+    const lat  = parseFloat(document.getElementById('locLat').value) || 0;
+    const lng  = parseFloat(document.getElementById('locLng').value) || 0;
+    const desc = document.getElementById('locDesc').value.trim();
+    const lid  = document.getElementById('locId').value;
+    const groups = document.getElementById('locGroups').value
+        .split('\n').map(s => s.trim()).filter(Boolean);
+    if (!name) { alert('Location name is required.'); return; }
+    const r = await fetch('/infraportal/api/criticality/locations', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: lid ? parseInt(lid) : null, name, lat, lng,
+                               description: desc, opm_groups: groups}),
+    });
+    const d = await r.json();
+    if (d.status !== 'ok') { alert('Error: ' + (d.error||d.status)); return; }
+    closeLocModal();
+    await loadLocations();
+}
+
+async function deleteLocation(locId) {
+    if (!confirm('Delete this location?')) return;
+    const r = await fetch(`/infraportal/api/criticality/locations/${locId}/delete`, {method:'POST'});
+    const d = await r.json();
+    if (d.status !== 'ok') { alert('Failed to delete location.'); return; }
+    await loadLocations();
+}
+
+document.getElementById('locModal').addEventListener('click', function(e) {
+    if (e.target === this) closeLocModal();
+});
+
+document.getElementById('addGroupName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveAddGroup();
+    if (e.key === 'Escape') closeAddGroupModal();
+});
+
+// Init
+loadOpmGroups(true);   // force refresh on load to clear stale category-based cache
+loadRegistry();
+loadLocations();       // needed for Location dropdown in group edit modal
+
+</script>
+{% endblock %}

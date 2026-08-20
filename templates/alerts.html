@@ -1,0 +1,1922 @@
+{% extends "base.html" %}
+{% block title %}Alerts - Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/infraportal/static/tableutils.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+
+.section { background-color: var(--bg2); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .section h2 { color: var(--accent); margin-top: 0; }
+        .btn-danger { background-color: #7a1a1a; color: #ffaaaa; border: 1px solid #cc2222; }
+        .btn-danger:hover { background-color: #cc2222; color: var(--text); }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .badge-critical    { background-color: #7a1a1a; color: #ffaaaa; }
+        .badge-trouble     { background-color: #7a4a1a; color: #ffddaa; }
+        .badge-attention   { background-color: #7a6a1a; color: #ffeeaa; }
+        .badge-servicedown { background-color: #3a1a6a; color: #ddaaff; }
+        .badge-clear       { background-color: #1a4a2a; color: #aaffaa; }
+        .badge-ok          { background-color: #1a4a2a; color: #aaffaa; }
+        .badge-info        { background-color: #1a2a4a; color: #aaaaff; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-card { background-color: var(--bg3); border-radius: 8px; padding: 15px; text-align: center; border-left: 4px solid var(--accent); }
+        .summary-card h3 { margin: 0 0 8px 0; font-size: 11px; color: var(--text3); text-transform: uppercase; }
+        .summary-card p  { margin: 0; font-size: 28px; font-weight: bold; }
+        .summary-card.crit { border-left-color: #ff2222; } .summary-card.crit p { color: #ff2222; }
+        .summary-card.warn { border-left-color: #ffaa00; } .summary-card.warn p { color: #ffaa00; }
+        .summary-card.ok   { border-left-color: #22cc66; } .summary-card.ok   p { color: #22cc66; }
+        .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+        .filter-btn { background-color: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 5px 14px; border-radius: 15px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+        .filter-btn:hover { background-color: var(--surface); color: #fff; }
+        .filter-btn.active { background-color: var(--accent); color: #fff; border-color: var(--accent); }
+        .filter-btn.active-crit { background-color: #cc2222; color: #fff; border-color: #cc2222; }
+        .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--surface); }
+        .tab { padding: 10px 20px; cursor: pointer; font-size: 14px; color: var(--text3); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .ack-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--bg3); border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; }
+        .ack-count { font-size: 13px; color: var(--text3); }
+        .ack-count strong { color: var(--text); }
+        .device-group { background: var(--bg3); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+        .device-group-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; border-left: 4px solid #ff2222; }
+        .device-group-header:hover { background: var(--bg); }
+        .device-group-header.trouble { border-left-color: #ff8800; }
+        .device-group-header.attention { border-left-color: #ffcc00; }
+        .device-group-header.ok { border-left-color: #22cc66; }
+        .device-group-title { font-size: 14px; font-weight: bold; }
+        .device-group-title a { color: var(--accent); text-decoration: none; }
+        .device-group-title a:hover { text-decoration: underline; }
+        .device-group-meta { font-size: 12px; color: var(--text4); margin-top: 3px; }
+        .device-group-right { display: flex; align-items: center; gap: 10px; }
+        .device-group-body { padding: 0 16px 12px 16px; display: none; }
+        .device-group-body.open { display: block; }
+        .alarm-row { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--bg); font-size: 13px; }
+        .alarm-row:last-child { border-bottom: none; }
+        .alarm-row input[type=checkbox] { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
+        .alarm-details { flex: 1; }
+        .alarm-event { font-weight: bold; color: var(--text2); }
+        .alarm-msg { color: var(--text4); font-size: 12px; margin-top: 2px; }
+        .alarm-time { color: #555555; font-size: 11px; margin-top: 3px; }
+        .alarm-jira { flex-shrink: 0; min-width: 120px; text-align: right; }
+        .jira-ticket-link { display: inline-block; background: var(--surface); color: var(--accent); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: bold; text-decoration: none; }
+        .jira-ticket-link:hover { background: var(--bg3); }
+        .jira-create-btn { background: var(--surface); color: var(--text3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+        .jira-create-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .jira-loading { color: #555; font-size: 11px; }
+        .loading { color: var(--text3); font-style: italic; }
+        /* Event type filter */
+        /* Second filter row */
+        .filter-bar-row2 { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+        .filter-sep { width: 1px; height: 20px; background: var(--surface); margin: 0 4px; }
+        .evt-filter-wrap { position: relative; display: inline-block; }
+        .evt-filter-btn { background: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 5px 14px; border-radius: 15px; cursor: pointer; font-size: 12px; }
+        .evt-filter-btn:hover { background: var(--surface); color: #fff; }
+        .evt-filter-btn.has-filter { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .evt-dropdown { position: absolute; top: 32px; left: 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; z-index: 200; min-width: 280px; max-height: 320px; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.5); display: none; }
+        .evt-dropdown.open { display: block; }
+        .evt-dropdown-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; color: #888; }
+        .evt-dropdown-header a { color: var(--accent); cursor: pointer; text-decoration: none; }
+        .evt-item { display: flex; align-items: center; gap: 8px; padding: 5px 4px; font-size: 13px; cursor: pointer; border-radius: 4px; color: var(--text2); }
+        .evt-item:hover { background: var(--surface); }
+        .evt-item input { accent-color: var(--accent); cursor: pointer; }
+        .evt-count { margin-left: auto; font-size: 11px; color: #555; }
+        .toast { position: fixed; bottom: 30px; right: 30px; background: var(--bg2); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 20px; font-size: 14px; z-index: 2000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .toast.error { border-color: #cc2222; }
+        /* Jira create modal */
+        .jira-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1500; align-items: center; justify-content: center; }
+        .jira-modal-overlay.open { display: flex; }
+        .jira-modal { background: var(--bg2); border-radius: 12px; width: 100%; max-width: 560px; padding: 28px; position: relative; }
+        .jira-modal h3 { color: var(--accent); margin: 0 0 16px 0; font-size: 16px; }
+        .jira-field { margin-bottom: 14px; }
+        .jira-field label { display: block; font-size: 12px; color: var(--text3); margin-bottom: 5px; text-transform: uppercase; }
+        .jira-field input, .jira-field select, .jira-field textarea {
+            width: 100%; background: var(--bg3); border: 1px solid var(--surface); border-radius: 6px;
+            color: var(--text); padding: 8px 10px; font-size: 13px; box-sizing: border-box;
+        }
+        .jira-field input:focus, .jira-field textarea:focus, .jira-field select:focus { outline: none; border-color: var(--accent); }
+        .jira-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+        .btn-secondary { background: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 8px 18px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+        .btn-secondary:hover { background: var(--surface); color: #fff; }
+        .team-result-item { padding: 8px 12px; font-size: 13px; cursor: pointer; color: var(--text2); }
+        .team-result-item:hover { background: var(--accent); color: #fff; }
+        .team-result-item.selected { background: var(--accent-dark); color: #fff; }
+        .team-selected-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--accent); border-radius: 4px; padding: 3px 8px; font-size: 12px; color: var(--accent); margin-top: 5px; }
+        .team-selected-badge button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; padding: 0; line-height: 1; }
+        .team-hint { font-size: 11px; color: #555; margin-top: 4px; }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="toast" id="toast"></div>
+
+    <!-- Jira Create Ticket Modal -->
+    <div class="jira-modal-overlay" id="jira-modal">
+        <div class="jira-modal">
+            <h3>🎫 Create ITSD Ticket</h3>
+            <div class="jira-field">
+                <label>Summary</label>
+                <input type="text" id="jira-summary" placeholder="Brief description of the issue">
+            </div>
+            <div class="jira-field">
+                <label>Priority</label>
+                <select id="jira-priority">
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium" selected>Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div class="jira-field">
+                <label>Team <span style="font-size:11px;color:var(--text4);font-weight:normal;text-transform:none">(optional)</span></label>
+                <select id="jira-team-id" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;">
+                    <option value="">— No team —</option>
+                </select>
+                <div class="team-hint" id="team-hint"></div>
+            </div>
+            <div class="jira-field">
+                <label>Description</label>
+                <textarea id="jira-description"></textarea>
+            </div>
+            <input type="hidden" id="jira-device-name">
+            <input type="hidden" id="jira-alarm-id">
+            <div class="jira-modal-actions">
+                <button class="btn-secondary" onclick="closeJiraModal()">Cancel</button>
+                <button class="btn" id="jira-submit-btn" onclick="submitJiraTicket()">Create Ticket</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Summary -->
+        <div class="section">
+            <h2>📡 OpManager Alert Center</h2>
+            <div class="summary-grid">
+                <div class="summary-card crit"><h3>Critical</h3><p id="s-critical">--</p></div>
+                <div class="summary-card warn"><h3>Trouble</h3><p id="s-trouble">--</p></div>
+                <div class="summary-card warn"><h3>Attention</h3><p id="s-attention">--</p></div>
+                <div class="summary-card"><h3>Total Active</h3><p id="s-total">--</p></div>
+                <div class="summary-card ok"><h3>Acknowledged</h3><p id="s-acked">--</p></div>
+                <div class="summary-card"><h3>Devices Affected</h3><p id="s-devices">--</p></div>
+            </div>
+            <div class="timestamp" id="timestamp-bar"></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="section">
+            <div class="tab-bar">
+                <div class="tab active" id="tab-by-device" onclick="switchTab('by-device')">📦 By Device</div>
+                <div class="tab" id="tab-by-type"   onclick="switchTab('by-type')"  >🏷️ By Alert Type</div>
+                <div class="tab" id="tab-all"        onclick="switchTab('all')"       >📋 All Alerts</div>
+                <div class="tab" id="tab-reports"    onclick="switchTab('reports')"   >📊 Reports</div>
+                <div class="tab" id="tab-ai-lens"    onclick="switchTab('ai-lens')"   >🧠 AI Insights</div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filter-bar">
+                <span style="font-size:12px;color:#888">Status:</span>
+                <button class="filter-btn active" id="f-unacked" onclick="toggleFlag('unacked', this)">Unacknowledged</button>
+                <button class="filter-btn active" id="f-acked"   onclick="toggleFlag('acked',   this)">Acknowledged</button>
+                <!-- Event type multi-select -->
+                <div class="evt-filter-wrap" style="margin-left:8px">
+                    <button class="evt-filter-btn" id="evt-filter-btn" onclick="toggleEvtDropdown()">
+                        Event Type <span id="evt-filter-count"></span>
+                    </button>
+                    <div class="evt-dropdown" id="evt-dropdown">
+                        <div class="evt-dropdown-header">
+                            <span>Filter by event type</span>
+                            <span><a onclick="selectAllEvt()">All</a> · <a onclick="clearAllEvt()">None</a></span>
+                        </div>
+                        <div id="evt-items"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Second filter row: Time · Severity · Category · Jira -->
+            <div class="filter-bar-row2">
+                <span style="font-size:12px;color:#888">Time:</span>
+                <button class="filter-btn active" id="tf-all"    onclick="setTimeFilter('all',    this)">All</button>
+                <button class="filter-btn"         id="tf-1h"     onclick="setTimeFilter('1h',     this)">Last hour</button>
+                <button class="filter-btn"         id="tf-24h"    onclick="setTimeFilter('24h',    this)">Last 24h</button>
+                <button class="filter-btn"         id="tf-7d"     onclick="setTimeFilter('7d',     this)">Last 7d</button>
+                <button class="filter-btn"         id="tf-custom" onclick="setTimeFilter('custom', this)">Custom…</button>
+                <span id="custom-range-wrap" style="display:none;gap:6px;align-items:center">
+                    <input type="date" id="tf-from" style="background:var(--bg3);border:1px solid var(--border);color:#ccc;border-radius:5px;padding:3px 7px;font-size:12px" onchange="renderTab()">
+                    <span style="color:var(--text4);font-size:12px">to</span>
+                    <input type="date" id="tf-to"   style="background:var(--bg3);border:1px solid var(--border);color:#ccc;border-radius:5px;padding:3px 7px;font-size:12px" onchange="renderTab()">
+                </span>
+                <div class="filter-sep"></div>
+                <!-- Severity dropdown -->
+                <div class="evt-filter-wrap">
+                    <button class="evt-filter-btn" id="sev-filter-btn" onclick="toggleSevDropdown()">
+                        Severity <span id="sev-filter-count"></span>
+                    </button>
+                    <div class="evt-dropdown" id="sev-dropdown">
+                        <div class="evt-dropdown-header">
+                            <span>Filter by severity</span>
+                            <span><a onclick="selectAllSev()">All</a> · <a onclick="clearAllSev()">None</a></span>
+                        </div>
+                        <div id="sev-items"></div>
+                    </div>
+                </div>
+                <!-- Category dropdown -->
+                <div class="evt-filter-wrap">
+                    <button class="evt-filter-btn" id="cat-filter-btn" onclick="toggleCatDropdown()">
+                        Category <span id="cat-filter-count"></span>
+                    </button>
+                    <div class="evt-dropdown" id="cat-dropdown">
+                        <div class="evt-dropdown-header">
+                            <span>Filter by category</span>
+                            <span><a onclick="selectAllCat()">All</a> · <a onclick="clearAllCat()">None</a></span>
+                        </div>
+                        <div id="cat-items"></div>
+                    </div>
+                </div>
+                <div class="filter-sep"></div>
+                <span style="font-size:12px;color:#888">Jira:</span>
+                <button class="filter-btn active" id="jf-all"    onclick="setJiraFilter('all',    this)">All</button>
+                <button class="filter-btn"         id="jf-with"   onclick="setJiraFilter('with',   this)">Has ticket</button>
+                <button class="filter-btn"         id="jf-none"   onclick="setJiraFilter('none',   this)">No ticket</button>
+            </div>
+
+            <!-- Acknowledge/Clear bar -->
+            <div class="ack-bar">
+                <span class="ack-count">Selected: <strong id="sel-count">0</strong> alerts</span>
+                <button class="btn" style="padding:6px 14px;font-size:13px;margin:0" onclick="selectAllVisible()">Select All Visible</button>
+                <button class="btn" style="padding:6px 14px;font-size:13px;margin:0" onclick="clearSelection()">Clear</button>
+                <button class="btn btn-danger" style="padding:6px 14px;font-size:13px;margin:0;background:#7a4a1a;color:#ffddaa;border-color:#cc8822" id="btn-ack" onclick="acknowledgeSelected()" disabled>✓ Acknowledge</button>
+                <button class="btn btn-danger" style="padding:6px 14px;font-size:13px;margin:0" id="btn-clear" onclick="clearSelected()" disabled>🗑 Clear Alerts</button>
+                <button class="btn-refresh" onclick="loadAlerts(true)">↻ Refresh</button>
+            </div>
+
+            <div id="alert-content">
+                <p class="loading"><span class="loading-spinner"></span> Loading alerts...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Asset Detail Modal -->
+    <div class="modal-overlay" id="asset-modal" onclick="handleOverlayClick(event)">
+        <div class="modal" id="asset-modal-content">
+            <button class="modal-close" onclick="closeAssetModal()">✕</button>
+            <div id="asset-modal-body">
+                <div class="modal-loading"><span class="loading-spinner"></span> Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; overflow-y: auto; }
+        .modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; }
+        .modal { background: var(--bg2); border-radius: 12px; width: 100%; max-width: 860px; padding: 30px; position: relative; }
+        .modal-close { position: absolute; top: 15px; right: 20px; background: none; border: none; color: var(--text3); font-size: 22px; cursor: pointer; }
+        .modal-close:hover { color: var(--text); }
+        .modal-title { color: var(--accent); margin: 0 0 4px 0; font-size: 20px; }
+        .modal-sub   { color: var(--text4); font-size: 13px; margin: 0 0 20px 0; }
+        .modal-loading { text-align: center; padding: 40px; color: var(--text3); }
+        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .modal-section { background: var(--bg3); border-radius: 8px; padding: 16px; }
+        .modal-section h4 { margin: 0 0 12px 0; color: var(--accent); font-size: 13px; text-transform: uppercase; }
+        .modal-stat { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 7px; border-bottom: 1px solid var(--bg); padding-bottom: 7px; }
+        .modal-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .modal-stat span   { color: var(--text3); }
+        .modal-stat strong { color: var(--text); max-width: 55%; text-align: right; word-break: break-word; }
+        .modal-stat strong.ok   { color: #22cc66; }
+        .modal-stat strong.warn { color: #ffaa00; }
+        .modal-stat strong.crit { color: #ff4444; }
+        .modal-full { grid-column: 1 / -1; }
+        .rec-list { list-style: none; padding: 0; margin: 0; }
+        .rec-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
+        .rec-item.critical { background: rgba(255,68,68,0.12); border-left: 3px solid #ff4444; }
+        .rec-item.warning  { background: rgba(255,170,0,0.12); border-left: 3px solid #ffaa00; }
+        .rec-item.info     { background: rgba(68,136,255,0.12); border-left: 3px solid #4488ff; }
+        .rec-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+        .rec-body { flex: 1; }
+        .rec-cat  { font-size: 11px; font-weight: bold; text-transform: uppercase; color: var(--text4); margin-bottom: 3px; }
+        .modal-alert-row { background: rgba(255,68,68,0.1); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; border-left: 3px solid #ff4444; display: flex; gap: 10px; align-items: flex-start; }
+        .modal-alert-row.warning { border-left-color: #ffaa00; background: rgba(255,170,0,0.1); }
+        .modal-alert-time { font-size: 11px; color: #666; margin-top: 4px; }
+        .modal-alert-msg  { color: var(--text2); margin-top: 4px; font-size: 12px; }
+        .no-data { color: #555555; font-style: italic; font-size: 13px; text-align: center; padding: 15px; }
+        .source-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-right: 4px; }
+        .source-badge.vmware { background: #1a3a1a; color: #88ff88; }
+        .source-badge.citrix { background: #0a3a4a; color: #00c8ff; }
+        .source-badge.ad     { background: #1a2a4a; color: #aaaaff; }
+        .source-badge.alerts { background: #3a1a1a; color: #ff8888; }
+        .override-banner { background: rgba(255,170,0,0.1); border: 1px solid #cc9900; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--warning); }
+        .override-banner .reason { font-size: 12px; color: #888; margin-top: 2px; }
+        .btn-override { padding: 5px 12px; border-radius: 5px; border: 1px solid #665500; background: none; color: #ccaa44; cursor: pointer; font-size: 12px; }
+        .btn-override:hover { background: #332200; }
+        .btn-restore  { padding: 5px 12px; border-radius: 5px; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; }
+        .btn-restore:hover { background: #222233; color: var(--text); }
+
+        /* ── AI Lens ── */
+        .ai-lens-wrap { padding: 4px 0 0 0; }
+        .ai-lens-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .ai-lens-toolbar .ts { font-size: 12px; color: var(--text4); }
+        .ai-lens-loading { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 14px; }
+        .ai-lens-loading .spinner { font-size: 32px; display: block; margin-bottom: 12px; animation: spin 1.2s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .ai-grade-banner { display: flex; align-items: center; gap: 20px; background: var(--bg3); border-radius: 10px; padding: 18px 22px; margin-bottom: 20px; }
+        .ai-grade-letter { font-size: 52px; font-weight: bold; line-height: 1; flex-shrink: 0; }
+        .ai-grade-text h3 { margin: 0 0 4px; font-size: 16px; color: var(--text); }
+        .ai-grade-text p  { margin: 0; font-size: 13px; color: var(--text3); }
+        .ai-charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        @media (max-width: 700px) { .ai-charts-grid { grid-template-columns: 1fr; } }
+        .ai-chart-card { background: var(--bg3); border-radius: 10px; padding: 16px; }
+        .ai-chart-card h4 { margin: 0 0 14px; font-size: 13px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+        .ai-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+        .ai-bar-label { width: 130px; flex-shrink: 0; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ai-bar-track { flex: 1; background: var(--bg); border-radius: 4px; height: 14px; overflow: hidden; }
+        .ai-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+        .ai-bar-val   { width: 30px; text-align: right; color: var(--text3); flex-shrink: 0; }
+        .ai-patterns  { margin-bottom: 20px; }
+        .ai-patterns h4 { margin: 0 0 12px; font-size: 13px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+        .ai-pattern-item { display: flex; gap: 12px; background: var(--bg3); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; border-left: 3px solid var(--border); }
+        .ai-pattern-item.critical { border-left-color: #ff4444; }
+        .ai-pattern-item.warning  { border-left-color: #ffaa00; }
+        .ai-pattern-item.info     { border-left-color: #4488ff; }
+        .ai-pattern-title { font-size: 13px; font-weight: bold; color: var(--text); margin-bottom: 3px; }
+        .ai-pattern-detail { font-size: 12px; color: var(--text3); line-height: 1.5; }
+        .ai-recs h4 { margin: 0 0 12px; font-size: 13px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+        .ai-rec-item { display: flex; gap: 12px; align-items: flex-start; background: var(--bg3); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+        .ai-rec-pri { font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; margin-top: 2px; white-space: nowrap; }
+        .ai-rec-pri.high   { background: #3a0f0f; color: #f87171; }
+        .ai-rec-pri.medium { background: #3a2a0a; color: #fbbf24; }
+        .ai-rec-pri.low    { background: #0f2744; color: #60a5fa; }
+        .ai-rec-body { font-size: 13px; color: var(--text2); line-height: 1.5; }
+        .ai-rec-devices { font-size: 11px; color: var(--text4); margin-top: 3px; }
+        .ai-error { background: var(--bg3); border-left: 3px solid #cc2222; border-radius: 8px; padding: 16px; color: #ff8888; font-size: 13px; }
+    </style>
+
+    <script src="/infraportal/static/tableutils.js"></script>
+    <script>
+        const BASE = '/infraportal';
+        let allAlarms    = [];
+        let selectedIds  = new Set();
+        let activeTab    = 'by-device';
+        let sevFilters   = new Set(['Critical','Trouble','Attention','Service Down']);
+        let sevCounts    = {};
+        let showUnacked  = true;
+        let showAcked    = true;
+        let evtExcluded  = new Set();
+        let evtCounts    = {};
+        let catExcluded  = new Set();
+        let catCounts    = {};
+        let jiraTickets  = {};
+        let alarmMap     = {};
+
+        // ── new filter state ──────────────────────────────────────────────────
+        let timeFilter   = 'all';   // 'all' | '1h' | '24h' | '7d' | 'custom'
+        let jiraFilter   = 'all';   // 'all' | 'with' | 'none'
+
+        function openJiraModalById(alarmId) {
+            const alarm = alarmMap[String(alarmId)];
+            if (!alarm) { showToast('⚠ Alarm data not found', true); return; }
+            const dev      = shortDeviceName(alarm.device_name || '').toUpperCase();
+            const summary  = `${alarm.event_type || 'Alert'}: ${dev || alarm.ip_address || 'Unknown'}`;
+            const desc     = buildTicketDescription(alarm);
+            const priority = alarm.severity === 'Critical' ? 'Critical' : alarm.severity === 'Trouble' ? 'High' : 'Medium';
+            openJiraModal(summary, desc, priority, dev, String(alarm.alarm_id));
+        }
+
+        // ── Jira ─────────────────────────────────────────────────────────────
+
+        async function loadJiraTickets(alarms) {
+            // Serve from server-side bulk cache (refreshed every 4h by scheduler).
+            // Only fires one request per device per session - no bulk pull on every page load.
+            const devices = [...new Set(
+                alarms
+                    .filter(a => a.severity !== 'Clear')
+                    .map(a => shortDeviceName(a.device_name || '').toUpperCase())
+                    .filter(Boolean)
+            )];
+
+            await Promise.all(devices.map(async dev => {
+                if (jiraTickets[dev] !== undefined) return;  // already loaded this session
+                jiraTickets[dev] = { loaded: false, tickets: [] };
+                try {
+                    const res  = await fetch(`${BASE}/api/jira/search?device=${encodeURIComponent(dev)}`);
+                    const data = await res.json();
+                    jiraTickets[dev] = { loaded: true, tickets: data.tickets || [] };
+                } catch {
+                    jiraTickets[dev] = { loaded: true, tickets: [] };
+                }
+            }));
+        }
+
+        async function refreshJiraForDevice(dev) {
+            // Force a live Jira lookup for one device, bypassing all caches.
+            // Called from the + ITSD button area when user wants to check a specific alert.
+            dev = dev.toUpperCase();
+            jiraTickets[dev] = { loaded: false, tickets: [] };
+            try {
+                const res  = await fetch(`${BASE}/api/jira/search?device=${encodeURIComponent(dev)}&force_live=true`);
+                const data = await res.json();
+                jiraTickets[dev] = { loaded: true, tickets: data.tickets || [] };
+            } catch {
+                jiraTickets[dev] = { loaded: true, tickets: [] };
+            }
+            renderTab();
+        }
+
+        function jiraWidget(alarm) {
+            // Only show on uncleared alarms
+            if (alarm.severity === 'Clear') return '';
+            const dev     = shortDeviceName(alarm.device_name || '').toUpperCase();
+            const entry   = jiraTickets[dev];
+            if (!entry || !entry.loaded) {
+                return `<div class="alarm-jira"><span class="jira-loading">⏳</span></div>`;
+            }
+            if (entry.tickets.length > 0) {
+                // Show most recent open ticket
+                const t = entry.tickets[0];
+                return `<div class="alarm-jira">
+                    <a class="jira-ticket-link" href="${escHtml(t.url)}" target="_blank"
+                       title="${escHtml(t.summary)}">🎫 ${escHtml(t.key)}</a>
+                </div>`;
+            }
+            // No ticket — show create button
+            const summary = `${alarm.event_type || 'Alert'}: ${(alarm.device_name||'').split('.')[0]}`;
+            const desc    = buildTicketDescription(alarm);
+            const priority = alarm.severity === 'Critical' ? 'Critical' : alarm.severity === 'Trouble' ? 'High' : 'Medium';
+            return `<div class="alarm-jira">
+                <button class="jira-create-btn"
+                    onclick="openJiraModal('${escJs(summary)}','${escJs(desc)}','${escJs(priority)}','${escJs(dev)}','${escJs(String(alarm.alarm_id))}');event.stopPropagation()">
+                    + ITSD
+                </button>
+            </div>`;
+        }
+
+        function buildTicketDescription(alarm) {
+            return [
+                `Device: ${alarm.device_name || alarm.ip_address || 'Unknown'}`,
+                `IP: ${alarm.ip_address || 'N/A'}`,
+                `Severity: ${alarm.severity || 'N/A'}`,
+                `Category: ${alarm.category || 'N/A'}`,
+                `Event Type: ${alarm.event_type || 'N/A'}`,
+                `Message: ${alarm.message || 'N/A'}`,
+                `Time: ${alarm.time || 'N/A'}`,
+                `Alarm ID: ${alarm.alarm_id || 'N/A'}`,
+                ``,
+                `Created by Zinnia Infrastructure Portal`,
+            ].join('\n');
+        }
+
+        function openJiraModal(summary, description, priority, deviceName, alarmId) {
+            document.getElementById('jira-summary').value     = summary;
+            document.getElementById('jira-description').value = description;
+            document.getElementById('jira-priority').value    = priority;
+            document.getElementById('jira-team-id').value     = '';
+            document.getElementById('jira-device-name').value = deviceName;
+            document.getElementById('jira-alarm-id').value    = alarmId;
+            document.getElementById('jira-submit-btn').disabled   = false;
+            document.getElementById('jira-submit-btn').textContent = 'Create Ticket';
+            document.getElementById('jira-modal').classList.add('open');
+            loadTeamDropdown();
+        }
+
+        async function loadTeamDropdown() {
+            const sel = document.getElementById('jira-team-id');
+            if (sel.options.length > 1) return;  // already loaded
+            try {
+                const res  = await fetch(`${BASE}/api/jira/teams`);
+                const data = await res.json();
+                const hint = document.getElementById('team-hint');
+                if (!data.teams || data.teams.length === 0) {
+                    hint.textContent = 'No teams configured — add them in Jira Config';
+                    hint.style.color = 'var(--warning)';
+                    return;
+                }
+                data.teams.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.name;
+                    sel.appendChild(opt);
+                });
+                hint.textContent = '';
+            } catch(e) {
+                document.getElementById('team-hint').textContent = 'Could not load teams';
+            }
+        }
+
+        function closeJiraModal() {
+            document.getElementById('jira-modal').classList.remove('open');
+        }
+
+        async function submitJiraTicket() {
+            const btn = document.getElementById('jira-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Creating...';
+
+            const teamSel = document.getElementById('jira-team-id');
+            const payload = {
+                summary:     document.getElementById('jira-summary').value.trim(),
+                description: document.getElementById('jira-description').value.trim(),
+                priority:    document.getElementById('jira-priority').value,
+                team_id:     teamSel ? teamSel.value : '',
+                device_name: document.getElementById('jira-device-name').value,
+                alarm_id:    document.getElementById('jira-alarm-id').value,
+            };
+
+            try {
+                const res  = await fetch(BASE + '/api/jira/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    // Update local cache so the row immediately shows the ticket link
+                    const dev = payload.device_name.toUpperCase();
+                    if (!jiraTickets[dev]) jiraTickets[dev] = { loaded: true, tickets: [] };
+                    jiraTickets[dev].tickets.unshift({
+                        key:     data.key,
+                        url:     data.url,
+                        summary: payload.summary,
+                        status:  'Open',
+                    });
+                    closeJiraModal();
+                    showToast(`✓ Created ${data.key}`, false);
+                    renderTab(); // re-render to swap button → badge
+                } else {
+                    showToast('⚠ ' + (data.message || 'Ticket creation failed'), true);
+                    btn.disabled = false;
+                    btn.textContent = 'Create Ticket';
+                }
+            } catch(e) {
+                showToast('⚠ Error: ' + e.message, true);
+                btn.disabled = false;
+                btn.textContent = 'Create Ticket';
+            }
+        }
+
+        // Close Jira modal on Escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                closeJiraModal();
+                closeAssetModal();
+            }
+        });
+
+        // ── severity helpers ──────────────────────────────────────────────────
+
+        function sevBadge(sev) {
+            const map = {
+                'Critical':     'badge-critical',
+                'Trouble':      'badge-trouble',
+                'Attention':    'badge-attention',
+                'Service Down': 'badge-servicedown',
+                'Clear':        'badge-clear',
+            };
+            return `<span class="badge ${map[sev]||'badge-info'}">${sev}</span>`;
+        }
+
+        function topSev(alarms) {
+            const order = ['Critical','Trouble','Attention','Service Down','Clear'];
+            for (const s of order) if (alarms.some(a => a.severity === s)) return s;
+            return 'Clear';
+        }
+
+        function groupClass(sev) {
+            if (sev === 'Critical')     return '';
+            if (sev === 'Trouble')      return 'trouble';
+            if (sev === 'Attention')    return 'attention';
+            return 'ok';
+        }
+
+        // ── filters ───────────────────────────────────────────────────────────
+
+        function toggleFlag(flag, btn) {
+            if (flag === 'unacked') showUnacked = !showUnacked;
+            if (flag === 'acked')   showAcked   = !showAcked;
+            btn.classList.toggle('active', flag === 'unacked' ? showUnacked : showAcked);
+            renderTab();
+        }
+
+        function applyFilters(alarms) {
+            return alarms.filter(a => {
+                if (!sevFilters.has(a.severity)) return false;
+                if (!showUnacked && !a.acknowledged) return false;
+                if (!showAcked   &&  a.acknowledged) return false;
+                if (evtExcluded.has(a.event_type)) return false;
+                // Time filter
+                if (timeFilter !== 'all') {
+                    const t = new Date(a.time);
+                    if (isNaN(t)) return false;
+                    const now = Date.now();
+                    if (timeFilter === '1h'     && (now - t) > 3600000)    return false;
+                    if (timeFilter === '24h'    && (now - t) > 86400000)   return false;
+                    if (timeFilter === '7d'     && (now - t) > 604800000)  return false;
+                    if (timeFilter === 'custom') {
+                        const from = document.getElementById('tf-from').value;
+                        const to   = document.getElementById('tf-to').value;
+                        if (from && t < new Date(from))              return false;
+                        if (to   && t > new Date(to + 'T23:59:59')) return false;
+                    }
+                }
+                // Category filter
+                if (catExcluded.has(a.category || 'Unknown')) return false;
+                // Jira filter
+                if (jiraFilter !== 'all') {
+                    const dev   = shortDeviceName(a.device_name || '').toUpperCase();
+                    const entry = jiraTickets[dev];
+                    const has   = entry && entry.loaded && entry.tickets.length > 0;
+                    if (jiraFilter === 'with' && !has) return false;
+                    if (jiraFilter === 'none' &&  has) return false;
+                }
+                return true;
+            });
+        }
+
+        // ── event type filter ─────────────────────────────────────────────────
+
+        function buildEvtDropdown(alarms) {
+            evtCounts = {};
+            for (const a of alarms) {
+                const t = a.event_type || 'Unknown';
+                evtCounts[t] = (evtCounts[t] || 0) + 1;
+            }
+            const sorted = Object.entries(evtCounts).sort((a,b) => a[0].localeCompare(b[0]));
+            const container = document.getElementById('evt-items');
+            container.innerHTML = sorted.map(([type, count]) => `
+                <label class="evt-item">
+                    <input type="checkbox" checked data-evt="${escHtml(type)}"
+                        onchange="toggleEvt('${escJs(type)}', this.checked)">
+                    <span>${escHtml(type)}</span>
+                    <span class="evt-count">${count}</span>
+                </label>`).join('');
+        }
+
+        function toggleEvt(type, checked) {
+            if (!checked) evtExcluded.add(type);
+            else evtExcluded.delete(type);
+            updateEvtBtn();
+            renderTab();
+        }
+
+        function selectAllEvt() {
+            evtExcluded.clear();
+            document.querySelectorAll('#evt-items input').forEach(cb => cb.checked = true);
+            updateEvtBtn(); renderTab();
+        }
+
+        function clearAllEvt() {
+            evtExcluded = new Set(Object.keys(evtCounts));
+            document.querySelectorAll('#evt-items input').forEach(cb => cb.checked = false);
+            updateEvtBtn(); renderTab();
+        }
+
+        function updateEvtBtn() {
+            const btn     = document.getElementById('evt-filter-btn');
+            const cnt     = document.getElementById('evt-filter-count');
+            const active  = evtExcluded.size > 0;
+            btn.classList.toggle('has-filter', active);
+            const showing = Object.keys(evtCounts).length - evtExcluded.size;
+            const total   = Object.keys(evtCounts).length;
+            cnt.textContent = active ? ` (${showing}/${total})` : '';
+        }
+
+        function toggleEvtDropdown() {
+            document.getElementById('evt-dropdown').classList.toggle('open');
+        }
+
+        document.addEventListener('click', e => {
+            document.querySelectorAll('.evt-filter-wrap').forEach(wrap => {
+                if (!wrap.contains(e.target)) {
+                    wrap.querySelectorAll('.evt-dropdown').forEach(d => d.classList.remove('open'));
+                }
+            });
+        });
+
+        // ── severity dropdown ─────────────────────────────────────────────────
+
+        function buildSevFilter(alarms) {
+            sevCounts = {};
+            for (const a of alarms) {
+                const s = a.severity || 'Unknown';
+                sevCounts[s] = (sevCounts[s] || 0) + 1;
+            }
+            const sorted = Object.entries(sevCounts).sort((a,b) => a[0].localeCompare(b[0]));
+            const container = document.getElementById('sev-items');
+            container.innerHTML = sorted.map(([sev, count]) => `
+                <label class="evt-item">
+                    <input type="checkbox" ${sevFilters.has(sev) ? 'checked' : ''} data-sev="${escHtml(sev)}"
+                        onchange="toggleSevItem('${escJs(sev)}', this.checked)">
+                    <span>${escHtml(sev)}</span>
+                    <span class="evt-count">${count}</span>
+                </label>`).join('');
+            updateSevBtn();
+        }
+
+        function toggleSevItem(sev, checked) {
+            if (checked) sevFilters.add(sev);
+            else sevFilters.delete(sev);
+            updateSevBtn();
+            renderTab();
+        }
+
+        function selectAllSev() {
+            Object.keys(sevCounts).forEach(s => sevFilters.add(s));
+            document.querySelectorAll('#sev-items input').forEach(cb => cb.checked = true);
+            updateSevBtn(); renderTab();
+        }
+
+        function clearAllSev() {
+            sevFilters.clear();
+            document.querySelectorAll('#sev-items input').forEach(cb => cb.checked = false);
+            updateSevBtn(); renderTab();
+        }
+
+        function updateSevBtn() {
+            const btn    = document.getElementById('sev-filter-btn');
+            const cnt    = document.getElementById('sev-filter-count');
+            const total  = Object.keys(sevCounts).length;
+            const active = sevFilters.size < total;
+            btn.classList.toggle('has-filter', active);
+            cnt.textContent = active ? ` (${sevFilters.size}/${total})` : '';
+        }
+
+        function toggleSevDropdown() {
+            document.getElementById('sev-dropdown').classList.toggle('open');
+        }
+
+        // ── time filter ───────────────────────────────────────────────────────
+
+        function setTimeFilter(val, btn) {
+            timeFilter = val;
+            document.querySelectorAll('[id^="tf-"]').forEach(b => {
+                if (b.tagName === 'BUTTON') b.classList.remove('active');
+            });
+            btn.classList.add('active');
+            const rangeWrap = document.getElementById('custom-range-wrap');
+            rangeWrap.style.display = val === 'custom' ? 'flex' : 'none';
+            renderTab();
+        }
+
+        // ── category filter ───────────────────────────────────────────────────
+
+        function buildCatFilter(alarms) {
+            catCounts = {};
+            for (const a of alarms) {
+                const c = a.category || 'Unknown';
+                catCounts[c] = (catCounts[c] || 0) + 1;
+            }
+            const sorted = Object.entries(catCounts).sort((a,b) => a[0].localeCompare(b[0]));
+            const container = document.getElementById('cat-items');
+            container.innerHTML = sorted.map(([cat, count]) => `
+                <label class="evt-item">
+                    <input type="checkbox" checked data-cat="${escHtml(cat)}"
+                        onchange="toggleCat('${escJs(cat)}', this.checked)">
+                    <span>${escHtml(cat)}</span>
+                    <span class="evt-count">${count}</span>
+                </label>`).join('');
+            catExcluded.clear();
+            updateCatBtn();
+        }
+
+        function toggleCat(cat, checked) {
+            if (!checked) catExcluded.add(cat);
+            else catExcluded.delete(cat);
+            updateCatBtn();
+            renderTab();
+        }
+
+        function selectAllCat() {
+            catExcluded.clear();
+            document.querySelectorAll('#cat-items input').forEach(cb => cb.checked = true);
+            updateCatBtn(); renderTab();
+        }
+
+        function clearAllCat() {
+            catExcluded = new Set(Object.keys(catCounts));
+            document.querySelectorAll('#cat-items input').forEach(cb => cb.checked = false);
+            updateCatBtn(); renderTab();
+        }
+
+        function updateCatBtn() {
+            const btn    = document.getElementById('cat-filter-btn');
+            const cnt    = document.getElementById('cat-filter-count');
+            const active = catExcluded.size > 0;
+            btn.classList.toggle('has-filter', active);
+            const showing = Object.keys(catCounts).length - catExcluded.size;
+            const total   = Object.keys(catCounts).length;
+            cnt.textContent = active ? ` (${showing}/${total})` : '';
+        }
+
+        function toggleCatDropdown() {
+            document.getElementById('cat-dropdown').classList.toggle('open');
+        }
+
+        // ── jira filter ───────────────────────────────────────────────────────
+
+        function setJiraFilter(val, btn) {
+            jiraFilter = val;
+            document.querySelectorAll('[id^="jf-"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderTab();
+        }
+
+        // ── selection ─────────────────────────────────────────────────────────
+
+        function toggleSelect(id, checked) {
+            if (checked) selectedIds.add(String(id));
+            else selectedIds.delete(String(id));
+            updateSelCount();
+        }
+
+        function selectAllVisible() {
+            document.querySelectorAll('.alarm-checkbox').forEach(cb => {
+                cb.checked = true;
+                selectedIds.add(cb.dataset.id);
+            });
+            updateSelCount();
+        }
+
+        function clearSelection() {
+            selectedIds.clear();
+            document.querySelectorAll('.alarm-checkbox').forEach(cb => cb.checked = false);
+            updateSelCount();
+        }
+
+        function toggleSelectAllStale(checked) {
+            document.querySelectorAll('#stale-table .alarm-checkbox').forEach(cb => {
+                cb.checked = checked;
+                if (checked) selectedIds.add(cb.dataset.id);
+                else selectedIds.delete(cb.dataset.id);
+            });
+            updateSelCount();
+        }
+
+        function updateSelCount() {
+            const n = selectedIds.size;
+            document.getElementById('sel-count').textContent = n;
+            document.getElementById('btn-ack').disabled   = n === 0;
+            document.getElementById('btn-clear').disabled = n === 0;
+        }
+
+        // ── acknowledge / clear ───────────────────────────────────────────────
+        // Runs through /api/alerts/bulk-action (background job + polling) rather than
+        // the old synchronous endpoint — Select All on Stale Alerts can mean thousands
+        // of alarms, and clearing those one-by-one against OpManager can take many
+        // minutes, well past any reasonable request timeout.
+
+        async function runBulkAction(action) {
+            if (selectedIds.size === 0) return;
+            const btn       = document.getElementById(action === 'acknowledge' ? 'btn-ack' : 'btn-clear');
+            const idleLabel = action === 'acknowledge' ? '✓ Acknowledge' : '🗑 Clear Alerts';
+            const verb      = action === 'acknowledge' ? 'Acknowledging' : 'Clearing';
+            btn.disabled = true;
+            btn.textContent = `⏳ ${verb}...`;
+
+            const ids    = [...selectedIds];
+            const alarms = ids.map(id => alarmMap[String(id)]).filter(Boolean);
+
+            try {
+                const kick = await fetch(BASE + '/api/alerts/bulk-action', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({action, alarm_ids: ids, alarms}),
+                });
+                const kickData = await kick.json();
+                if (kickData.status !== 'running') throw new Error(kickData.message || 'Could not start action');
+
+                await new Promise((resolve, reject) => {
+                    const poll = setInterval(async () => {
+                        try {
+                            const res  = await fetch(BASE + '/api/alerts/bulk-action/status');
+                            const data = await res.json();
+                            if (data.status === 'running') {
+                                btn.textContent = `⏳ ${verb} ${data.completed}/${data.total}...`;
+                                return;
+                            }
+                            clearInterval(poll);
+                            if (data.status === 'done') {
+                                showToast(
+                                    `${action === 'acknowledge' ? '✓' : '🗑'} ${verb} complete: ${data.success} succeeded${data.failed > 0 ? `, ${data.failed} failed` : ''}`,
+                                    data.failed > 0
+                                );
+                                resolve();
+                            } else {
+                                reject(new Error(data.message || 'Action failed'));
+                            }
+                        } catch(e) { clearInterval(poll); reject(e); }
+                    }, 700);
+                });
+
+                selectedIds.clear();
+                await loadAlerts(true);
+            } catch(e) {
+                showToast('⚠ Error: ' + e.message, true);
+            }
+            btn.disabled = false; btn.textContent = idleLabel;
+        }
+
+        async function acknowledgeSelected() { return runBulkAction('acknowledge'); }
+        async function clearSelected()       { return runBulkAction('clear'); }
+
+        // ── tabs ──────────────────────────────────────────────────────────────
+
+        function switchTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            // Alert-list filters (Status/Event/Time/Severity/Category/Jira) only apply to
+            // the raw alarm list — they're meaningless for Reports (its own day picker
+            // replaces them) and AI Insights (works off a pre-baked analysis).
+            const hideListFilters = (tab === 'reports' || tab === 'ai-lens');
+            document.querySelector('.filter-bar').style.display      = hideListFilters ? 'none' : 'flex';
+            document.querySelector('.filter-bar-row2').style.display = hideListFilters ? 'none' : 'flex';
+            document.querySelector('.ack-bar').style.display         = (tab === 'ai-lens') ? 'none' : 'flex';
+            renderTab();
+        }
+
+        function renderTab() {
+            const filtered = applyFilters(allAlarms);
+            if      (activeTab === 'by-device') renderByDevice(filtered);
+            else if (activeTab === 'by-type')   renderByType(filtered);
+            else if (activeTab === 'ai-lens')   renderAiLens();
+            else if (activeTab === 'reports')   renderReports();
+            else                                renderAll(filtered);
+        }
+
+        // ── AI Lens ───────────────────────────────────────────────────────────
+
+        let aiLensState = 'idle'; // idle | running | done | error
+
+        function gradeColor(letter) {
+            return {'A':'#4ade80','B':'#a3e635','C':'#fbbf24','D':'#fb923c','F':'#f87171'}[letter] || '#888';
+        }
+        function gradeBg(letter) {
+            return {'A':'#0d2a1a','B':'#1a2a0d','C':'#2a220d','D':'#2a150d','F':'#2a0d0d'}[letter] || 'var(--bg3)';
+        }
+
+        function renderAiLens() {
+            const el = document.getElementById('alert-content');
+
+            // Show toolbar + loading state, then check cache
+            el.innerHTML = `
+                <div class="ai-lens-wrap">
+                    <div class="ai-lens-toolbar">
+                        <button class="btn" style="padding:6px 16px;font-size:13px;margin:0" onclick="runAiLens(true)">🔄 Refresh Analysis</button>
+                        <span class="ai-lens-toolbar ts" id="ai-lens-ts"></span>
+                    </div>
+                    <div id="ai-lens-body">
+                        <div class="ai-lens-loading"><span class="spinner">🧠</span>Loading cached analysis...</div>
+                    </div>
+                </div>`;
+
+            // Try cache first
+            fetch(BASE + '/api/alerts/ai-analysis', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({refresh: false})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    document.getElementById('ai-lens-ts').textContent = 'Last run: ' + data.timestamp;
+                    paintAiLens(data.result);
+                } else {
+                    // No cache — prompt user to run
+                    document.getElementById('ai-lens-body').innerHTML = `
+                        <div class="ai-lens-loading">
+                            <span style="font-size:32px;display:block;margin-bottom:12px">🧠</span>
+                            No analysis yet. Click <strong>Run Analysis</strong> to get AI insights on current alerts.
+                        </div>`;
+                }
+            })
+            .catch(() => {
+                document.getElementById('ai-lens-body').innerHTML =
+                    '<div class="ai-error">⚠ Could not load analysis. Check server connection.</div>';
+            });
+        }
+
+        async function runAiLens(refresh) {
+            if (aiLensState === 'running') return;
+            aiLensState = 'running';
+
+            const body = document.getElementById('ai-lens-body');
+            const ts   = document.getElementById('ai-lens-ts');
+            if (body) body.innerHTML = '<div class="ai-lens-loading"><span class="spinner">⚙️</span>Analyzing alerts with Claude AI...</div>';
+            if (ts)   ts.textContent = '';
+
+            try {
+                const kick = await fetch(BASE + '/api/alerts/ai-analysis', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({refresh: true})
+                });
+                const kickData = await kick.json();
+                if (kickData.status === 'ok') {
+                    aiLensState = 'done';
+                    if (ts) ts.textContent = 'Just now';
+                    paintAiLens(kickData.result);
+                    return;
+                }
+                if (kickData.status !== 'running') {
+                    throw new Error(kickData.message || 'Unknown error');
+                }
+            } catch(e) {
+                aiLensState = 'error';
+                if (body) body.innerHTML = `<div class="ai-error">⚠ Error: ${escHtml(e.message)}</div>`;
+                return;
+            }
+
+            // Poll status
+            const poll = setInterval(async () => {
+                try {
+                    const res  = await fetch(BASE + '/api/alerts/ai-analysis/status');
+                    const data = await res.json();
+                    if (data.status === 'running') return;
+                    clearInterval(poll);
+                    aiLensState = data.status;
+                    if (data.status === 'ok') {
+                        if (ts) ts.textContent = 'Just now';
+                        paintAiLens(data.result);
+                    } else {
+                        if (body) body.innerHTML = `<div class="ai-error">⚠ ${escHtml(data.message || 'Analysis failed')}</div>`;
+                    }
+                } catch(e) {
+                    clearInterval(poll);
+                    aiLensState = 'error';
+                    if (body) body.innerHTML = `<div class="ai-error">⚠ Poll error: ${escHtml(e.message)}</div>`;
+                }
+            }, 3000);
+        }
+
+        function paintAiLens(r) {
+            const body = document.getElementById('ai-lens-body');
+            if (!body) return;
+            aiLensState = 'done';
+
+            const gc = gradeColor(r.grade);
+            const gb = gradeBg(r.grade);
+
+            // Grade banner
+            let html = `
+                <div class="ai-grade-banner" style="border-left: 4px solid ${gc}">
+                    <div class="ai-grade-letter" style="color:${gc};background:${gb};padding:8px 14px;border-radius:8px">${escHtml(r.grade)}</div>
+                    <div class="ai-grade-text">
+                        <h3>Alert Health: ${escHtml(r.grade_note || '')}</h3>
+                        <p>${escHtml(r.summary || '')}</p>
+                    </div>
+                </div>`;
+
+            // Charts grid
+            html += '<div class="ai-charts-grid">';
+
+            // Severity chart
+            const sevColors = {Critical:'#f87171', Trouble:'#fb923c', Attention:'#fbbf24', 'Service Down':'#c084fc', Clear:'#4ade80'};
+            const sevData   = r.chart_severity || {};
+            const sevMax    = Math.max(...Object.values(sevData), 1);
+            html += '<div class="ai-chart-card"><h4>Severity Breakdown</h4>';
+            for (const [sev, count] of Object.entries(sevData)) {
+                const pct   = Math.round((count / sevMax) * 100);
+                const color = sevColors[sev] || '#888';
+                html += `<div class="ai-bar-row">
+                    <div class="ai-bar-label" title="${escHtml(sev)}">${escHtml(sev)}</div>
+                    <div class="ai-bar-track"><div class="ai-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+                    <div class="ai-bar-val">${count}</div>
+                </div>`;
+            }
+            html += '</div>';
+
+            // Top devices chart
+            const devData = r.chart_top_devs || {};
+            const devMax  = Math.max(...Object.values(devData), 1);
+            html += '<div class="ai-chart-card"><h4>Top Devices by Severity Score</h4>';
+            for (const [dev, score] of Object.entries(devData)) {
+                const pct = Math.round((score / devMax) * 100);
+                html += `<div class="ai-bar-row">
+                    <div class="ai-bar-label" title="${escHtml(dev)}">${escHtml(dev)}</div>
+                    <div class="ai-bar-track"><div class="ai-bar-fill" style="width:${pct}%;background:#f87171"></div></div>
+                    <div class="ai-bar-val">${score}</div>
+                </div>`;
+            }
+            html += '</div>';
+
+            // Event types chart
+            const evtData = r.chart_evt_types || {};
+            const evtMax  = Math.max(...Object.values(evtData), 1);
+            html += '<div class="ai-chart-card"><h4>Top Event Types</h4>';
+            for (const [evt, count] of Object.entries(evtData)) {
+                const pct = Math.round((count / evtMax) * 100);
+                html += `<div class="ai-bar-row">
+                    <div class="ai-bar-label" title="${escHtml(evt)}">${escHtml(evt)}</div>
+                    <div class="ai-bar-track"><div class="ai-bar-fill" style="width:${pct}%;background:#60a5fa"></div></div>
+                    <div class="ai-bar-val">${count}</div>
+                </div>`;
+            }
+            html += '</div>';
+
+            // Tier breakdown chart
+            const tierData   = r.chart_tier || r.tier_breakdown || {};
+            const tierColors = {'Production (P)':'#f87171','QA (Q)':'#fbbf24','Dev/UAT/Test':'#60a5fa','Unknown':'#888','Production':'#f87171','QA':'#fbbf24'};
+            const tierMax    = Math.max(...Object.values(tierData), 1);
+            html += '<div class="ai-chart-card"><h4>Alerts by Server Tier</h4>';
+            for (const [tier, count] of Object.entries(tierData)) {
+                const pct   = Math.round((count / tierMax) * 100);
+                const color = tierColors[tier] || '#888';
+                html += `<div class="ai-bar-row">
+                    <div class="ai-bar-label" title="${escHtml(tier)}">${escHtml(tier)}</div>
+                    <div class="ai-bar-track"><div class="ai-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+                    <div class="ai-bar-val">${count}</div>
+                </div>`;
+            }
+            html += '</div>';
+
+            html += '</div>'; // end charts grid
+
+            // Patterns
+            if (r.patterns && r.patterns.length) {
+                html += '<div class="ai-patterns"><h4>🔍 Detected Patterns</h4>';
+                for (const p of r.patterns) {
+                    html += `<div class="ai-pattern-item ${escHtml(p.severity || 'info')}">
+                        <div>
+                            <div class="ai-pattern-title">${escHtml(p.title || '')}</div>
+                            <div class="ai-pattern-detail">${escHtml(p.detail || '')}</div>
+                        </div>
+                    </div>`;
+                }
+                html += '</div>';
+            }
+
+            // Recommendations
+            if (r.recommendations && r.recommendations.length) {
+                html += '<div class="ai-recs"><h4>🎯 Recommendations</h4>';
+                for (const rec of r.recommendations) {
+                    const pri = (rec.priority || 'medium').toLowerCase();
+                    html += `<div class="ai-rec-item">
+                        <span class="ai-rec-pri ${pri}">${pri.toUpperCase()}</span>
+                        <div class="ai-rec-body">
+                            ${escHtml(rec.action || '')}
+                            ${rec.devices ? `<div class="ai-rec-devices">📍 ${escHtml(rec.devices)}</div>` : ''}
+                        </div>
+                    </div>`;
+                }
+                html += '</div>';
+            }
+
+            body.innerHTML = html;
+        }
+
+        // ── By Device view ────────────────────────────────────────────────────
+
+        function renderByDevice(alarms) {
+            const groups = {};
+            for (const a of alarms) {
+                const key = a.device_name || a.ip_address || 'Unknown';
+                if (!groups[key]) groups[key] = {alarms: [], ip: a.ip_address, name: a.device_name};
+                groups[key].alarms.push(a);
+            }
+            const sorted = Object.entries(groups).sort((a, b) => {
+                const oa = SEVERITY_ORDER(topSev(a[1].alarms));
+                const ob = SEVERITY_ORDER(topSev(b[1].alarms));
+                return oa !== ob ? oa - ob : b[1].alarms.length - a[1].alarms.length;
+            });
+
+            if (sorted.length === 0) { noResults(); return; }
+
+            let html = `<p style="font-size:13px;color:#888;margin:0 0 12px 0">${sorted.length} device(s) with active alerts</p>`;
+            for (const [devName, grp] of sorted) {
+                const sev       = topSev(grp.alarms);
+                const shortName = shortDeviceName(devName);
+                const assetLink = `<a href="#" onclick="openAsset('${escJs(shortName)}');return false">${escHtml(devName)}</a>`;
+                const critCnt   = grp.alarms.filter(a => a.severity === 'Critical').length;
+                const id        = 'grp-' + devName.replace(/[^a-zA-Z0-9]/g,'_');
+                const devUpper  = shortName.toUpperCase();
+                const devEntry  = jiraTickets[devUpper];
+                let jiraGroupHtml = '';
+                if (devEntry && devEntry.loaded) {
+                    if (devEntry.tickets.length > 0) {
+                        const t = devEntry.tickets[0];
+                        jiraGroupHtml = `<a class="jira-ticket-link" href="${escHtml(t.url)}" target="_blank"
+                            title="${escHtml(t.summary)}">🎫 ${escHtml(t.key)}</a>`;
+                    } else {
+                        const topAlarm = grp.alarms.sort((a,b) => SEVERITY_ORDER(a.severity)-SEVERITY_ORDER(b.severity))[0];
+                        jiraGroupHtml  = `<button class="jira-create-btn"
+                            onclick="openJiraModalById('${escJs(String(topAlarm.alarm_id))}');event.stopPropagation()">
+                            + ITSD
+                        </button>`;
+                    }
+                }
+
+                html += `<div class="device-group">
+                    <div class="device-group-header ${groupClass(sev)}" onclick="toggleGroup('${id}')">
+                        <div>
+                            <div class="device-group-title">${assetLink}
+                                ${grp.ip ? `<span style="color:var(--text4);font-size:12px;margin-left:8px">${grp.ip}</span>` : ''}
+                            </div>
+                            <div class="device-group-meta">${grp.alarms.length} alert(s)${critCnt > 0 ? ` · <span style="color:#ff4444">${critCnt} critical</span>` : ''}</div>
+                        </div>
+                        <div class="device-group-right">
+                            ${jiraGroupHtml}
+                            ${sevBadge(sev)}
+                            <span style="color:var(--text4);font-size:18px" id="arrow-${id}">▼</span>
+                        </div>
+                    </div>
+                    <div class="device-group-body" id="${id}">
+                        ${grp.alarms.map(a => alarmRow(a)).join('')}
+                    </div>
+                </div>`;
+            }
+            document.getElementById('alert-content').innerHTML = html;
+            updateSelCount();
+        }
+
+        // ── By Type view ──────────────────────────────────────────────────────
+
+        function renderByType(alarms) {
+            const groups = {};
+            for (const a of alarms) {
+                const key = a.event_type || 'Unknown';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(a);
+            }
+            const sorted = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+
+            if (sorted.length === 0) { noResults(); return; }
+
+            let html = `<p style="font-size:13px;color:#888;margin:0 0 12px 0">${sorted.length} alert type(s)</p>`;
+            for (const [evType, evAlarms] of sorted) {
+                const sev = topSev(evAlarms);
+                const id  = 'type-' + evType.replace(/[^a-zA-Z0-9]/g,'_');
+                html += `<div class="device-group">
+                    <div class="device-group-header ${groupClass(sev)}" onclick="toggleGroup('${id}')">
+                        <div>
+                            <div class="device-group-title">${escHtml(evType)}</div>
+                            <div class="device-group-meta">${evAlarms.length} alert(s) across ${new Set(evAlarms.map(a=>a.device_name)).size} device(s)</div>
+                        </div>
+                        <div class="device-group-right">
+                            ${sevBadge(sev)}
+                            <span style="color:var(--text4);font-size:18px" id="arrow-${id}">▼</span>
+                        </div>
+                    </div>
+                    <div class="device-group-body" id="${id}">
+                        ${evAlarms.map(a => alarmRow(a)).join('')}
+                    </div>
+                </div>`;
+            }
+            document.getElementById('alert-content').innerHTML = html;
+            updateSelCount();
+        }
+
+        // ── All Alerts view ───────────────────────────────────────────────────
+
+        function renderAll(alarms) {
+            if (alarms.length === 0) { noResults(); return; }
+            document.getElementById('alert-content').innerHTML = '<div id="all-alerts-table"></div>';
+            const cols = ['', 'Severity', 'Device', 'IP', 'Category', 'Event Type', 'Message', 'Time', 'Acked', 'Jira'];
+            const rows = alarms.map(a => {
+                const dev    = shortDeviceName(a.device_name||'').toUpperCase();
+                const entry  = jiraTickets[dev];
+                let jiraCell = '';
+                if (entry && entry.loaded) {
+                    if (entry.tickets.length > 0) {
+                        const t = entry.tickets[0];
+                        jiraCell = `<a class="jira-ticket-link" href="${escHtml(t.url)}" target="_blank">🎫 ${escHtml(t.key)}</a>`;
+                    } else if (a.severity !== 'Clear') {
+                        const summary  = `${a.event_type || 'Alert'}: ${dev}`;
+                        const desc     = buildTicketDescription(a);
+                        const priority = a.severity === 'Critical' ? 'Critical' : a.severity === 'Trouble' ? 'High' : 'Medium';
+                        jiraCell = `<button class="jira-create-btn"
+                            onclick="openJiraModalById('${escJs(String(a.alarm_id))}')">
+                            + ITSD</button>`;
+                    }
+                }
+                return [
+                    `<input type="checkbox" class="alarm-checkbox" data-id="${a.alarm_id}"
+                        ${selectedIds.has(String(a.alarm_id)) ? 'checked' : ''}
+                        onchange="toggleSelect('${a.alarm_id}', this.checked)">`,
+                    sevBadge(a.severity),
+                    `<a href="#" onclick="openAsset('${escJs(shortDeviceName(a.device_name||''))}');return false"
+                        style="color:var(--accent)">${escHtml(a.device_name||a.ip_address||'')}</a>`,
+                    a.ip_address || '',
+                    a.category   || '',
+                    a.event_type || '',
+                    a.message    || '',
+                    a.time       || '',
+                    a.acknowledged ? '<span style="color:#22cc66">✓</span>' : '',
+                    jiraCell,
+                ];
+            });
+            new SmartTable('all-alerts-table', {
+                filename: 'zinnia-alerts-' + new Date().toISOString().slice(0,10),
+                title:    'OpManager Alerts'
+            }).setData(cols, rows);
+            updateSelCount();
+        }
+
+        // ── Reports (alert hygiene / cleanup) ───────────────────────────────────
+
+        let reportsSubTab = 'stale';   // 'stale' | 'critical-vs-device' | 'noisy-types' | 'chronic-red' | 'recurring'
+        let reportsDays   = 30;        // min-age (stale) or lookback window (noisy-types/chronic-red/recurring)
+
+        const REPORT_TABS = [
+            { id: 'stale',              label: '🧹 Stale Alerts' },
+            { id: 'critical-vs-device', label: '🎯 Critical but Device Up' },
+            { id: 'noisy-types',        label: '📢 Noisiest Alert Types' },
+            { id: 'chronic-red',        label: '🌡️ Chronic Red Devices' },
+            { id: 'recurring',          label: '🔁 Recurring Alerts (AI)' },
+        ];
+
+        const TAG_INFO = {
+            orphaned_device:        { label: 'Orphaned device — not in OpManager device list', cls: 'danger'  },
+            likely_decommissioned:  { label: 'Likely decommissioned (Lansweeper)',              cls: 'warning' },
+            critical_but_device_up: { label: 'Device is up — this check is off',                cls: 'accent'  },
+            aging_unacked_critical: { label: 'Aging & unacknowledged',                          cls: 'danger'  },
+            flapping_threshold:     { label: 'Flapping / threshold too tight',                  cls: 'warning' },
+        };
+        const TAG_STYLE = {
+            danger:  'background:rgba(255,68,68,.10);color:var(--danger);border:1px solid rgba(255,68,68,.30)',
+            warning: 'background:rgba(255,170,0,.10);color:var(--warning);border:1px solid rgba(255,170,0,.30)',
+            accent:  'background:rgba(15,155,142,.10);color:var(--accent);border:1px solid rgba(15,155,142,.30)',
+        };
+
+        function tagBadges(tags) {
+            if (!tags || !tags.length) return '';
+            return tags.map(t => {
+                const info = TAG_INFO[t] || { label: t, cls: 'accent' };
+                return `<span class="badge" style="${TAG_STYLE[info.cls]};margin-right:4px">${escHtml(info.label)}</span>`;
+            }).join('');
+        }
+
+        function fmtEpoch(sec) {
+            return sec ? new Date(sec * 1000).toLocaleString() : '';
+        }
+
+        function renderReports() {
+            document.getElementById('alert-content').innerHTML = `
+                <div class="tab-bar" style="margin-bottom:14px">
+                    ${REPORT_TABS.map(r => `<div class="tab ${reportsSubTab===r.id?'active':''}" onclick="switchReport('${r.id}')">${r.label}</div>`).join('')}
+                </div>
+                <div class="filter-bar" id="reports-days-bar">
+                    <span style="font-size:12px;color:#888">${reportsSubTab === 'stale' ? 'Minimum age:' : 'Lookback window:'}</span>
+                    <button class="filter-btn ${reportsDays===7?'active':''}"  onclick="setReportsDays(7,this)">7 days</button>
+                    <button class="filter-btn ${reportsDays===30?'active':''}" onclick="setReportsDays(30,this)">30 days</button>
+                    <button class="filter-btn ${reportsDays===90?'active':''}" onclick="setReportsDays(90,this)">90 days</button>
+                    <button class="btn-refresh" onclick="loadReport()">↻ Refresh</button>
+                </div>
+                <div id="report-body"><p class="loading"><span class="loading-spinner"></span> Loading report...</p></div>`;
+            document.getElementById('reports-days-bar').style.display = (reportsSubTab === 'critical-vs-device') ? 'none' : 'flex';
+            loadReport();
+        }
+
+        function switchReport(id) {
+            reportsSubTab = id;
+            renderReports();
+        }
+
+        function setReportsDays(n, btn) {
+            reportsDays = n;
+            document.querySelectorAll('#reports-days-bar .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadReport();
+        }
+
+        async function loadReport() {
+            const body = document.getElementById('report-body');
+            body.innerHTML = '<p class="loading"><span class="loading-spinner"></span> Loading report...</p>';
+            try {
+                const res  = await fetch(`${BASE}/api/alerts/reports/${reportsSubTab}?days=${reportsDays}`);
+                const data = await res.json();
+                if (data.status !== 'ok') throw new Error(data.message);
+                // Per-alarm reports carry checkboxes that feed runBulkAction(), which reads
+                // alarm metadata from alarmMap — merge these rows in since they didn't come
+                // from loadAlerts()'s allAlarms.
+                if (reportsSubTab === 'stale' || reportsSubTab === 'critical-vs-device') {
+                    for (const a of data.data) alarmMap[String(a.alarm_id)] = a;
+                }
+                if      (reportsSubTab === 'stale')              renderStaleTable(data.data);
+                else if (reportsSubTab === 'critical-vs-device') renderCriticalVsDeviceTable(data.data);
+                else if (reportsSubTab === 'noisy-types')        renderNoisyTypesTable(data.data);
+                else if (reportsSubTab === 'chronic-red')        renderChronicRedTable(data.data);
+                else if (reportsSubTab === 'recurring')          renderRecurringTable(data.data);
+            } catch(e) {
+                body.innerHTML = `<div style="color:#ff8888;padding:20px">Error loading report: ${escHtml(e.message)}</div>`;
+            }
+        }
+
+        function deviceLink(a) {
+            return `<a href="#" onclick="openAsset('${escJs(shortDeviceName(a.device_name||''))}');return false"
+                style="color:var(--accent)">${escHtml(a.device_name||a.ip_address||'')}</a>`;
+        }
+
+        function renderStaleTable(rows) {
+            const body = document.getElementById('report-body');
+            if (!rows.length) {
+                body.innerHTML = '<p class="no-data">No alerts at or beyond this age threshold — nothing to clean up.</p>';
+                return;
+            }
+            body.innerHTML = '<div id="stale-table"></div>';
+            const cols = [
+                `<input type="checkbox" title="Select all" onclick="event.stopPropagation()" onchange="toggleSelectAllStale(this.checked)">`,
+                'Severity', 'Device', 'Category', 'Event Type', 'Age', 'Times Seen', 'Acked', 'Flags'
+            ];
+            const tableRows = rows.map(a => [
+                `<input type="checkbox" class="alarm-checkbox" data-id="${a.alarm_id}"
+                    ${selectedIds.has(String(a.alarm_id)) ? 'checked' : ''}
+                    onchange="toggleSelect('${a.alarm_id}', this.checked)">`,
+                sevBadge(a.severity),
+                deviceLink(a),
+                a.category   || '',
+                a.event_type || '',
+                `${a.age_days}d`,
+                a.occurrence_count,
+                a.acknowledged ? '<span style="color:#22cc66">✓</span>' : '',
+                tagBadges(a.tags),
+            ]);
+            new SmartTable('stale-table', {
+                filename: 'zinnia-stale-alerts-' + new Date().toISOString().slice(0,10),
+                title:    'Stale OpManager Alerts'
+            }).setData(cols, tableRows);
+            updateSelCount();
+        }
+
+        function renderCriticalVsDeviceTable(rows) {
+            const body = document.getElementById('report-body');
+            if (!rows.length) {
+                body.innerHTML = '<p class="no-data">No Critical/Trouble alerts contradict their device\'s own status right now.</p>';
+                return;
+            }
+            body.innerHTML = '<div id="critdev-table"></div>';
+            const cols = ['Severity', 'Device', 'Device Status', 'Category', 'Event Type', 'Message', 'Age', 'Times Seen'];
+            const tableRows = rows.map(a => [
+                sevBadge(a.severity),
+                deviceLink(a),
+                `<span style="color:#22cc66">${escHtml(a.device_status||'')}</span>`,
+                a.category   || '',
+                a.event_type || '',
+                a.message    || '',
+                `${a.age_days}d`,
+                a.occurrence_count,
+            ]);
+            new SmartTable('critdev-table', {
+                filename: 'zinnia-critical-vs-device-' + new Date().toISOString().slice(0,10),
+                title:    'Critical Alerts on Healthy Devices'
+            }).setData(cols, tableRows);
+        }
+
+        function renderNoisyTypesTable(rows) {
+            const body = document.getElementById('report-body');
+            if (!rows.length) {
+                body.innerHTML = '<p class="no-data">No alert history in this window yet.</p>';
+                return;
+            }
+            body.innerHTML = '<div id="noisy-table"></div>';
+            const cols = ['Category', 'Event Type', 'Incidents', 'Poll Hits', 'Devices Affected', 'Most Recent'];
+            const tableRows = rows.map(r => [
+                r.category   || '',
+                r.event_type || '',
+                r.incident_count,
+                r.poll_hits,
+                r.device_count,
+                fmtEpoch(r.most_recent),
+            ]);
+            new SmartTable('noisy-table', {
+                filename: 'zinnia-noisy-alert-types-' + new Date().toISOString().slice(0,10),
+                title:    'Noisiest Alert Types'
+            }).setData(cols, tableRows);
+        }
+
+        function renderChronicRedTable(rows) {
+            const body = document.getElementById('report-body');
+            if (!rows.length) {
+                body.innerHTML = '<p class="no-data">No devices are chronically red in this window.</p>';
+                return;
+            }
+            body.innerHTML = '<div id="chronicred-table"></div>';
+            const cols = ['Device', 'Incidents', 'Poll Hits', 'Red %', 'Span', 'Orphaned', 'LS Days Unseen'];
+            const tableRows = rows.map(r => [
+                `<a href="#" onclick="openAsset('${escJs(shortDeviceName(r.device_name||''))}');return false" style="color:var(--accent)">${escHtml(r.device_name||'')}</a>`,
+                r.incident_count,
+                r.poll_hits,
+                `${r.red_ratio}%`,
+                `${r.span_days}d`,
+                r.orphaned ? '<span style="color:var(--danger)">Yes</span>' : '',
+                r.days_since_seen_ls != null ? `${r.days_since_seen_ls}d` : '',
+            ]);
+            new SmartTable('chronicred-table', {
+                filename: 'zinnia-chronic-red-devices-' + new Date().toISOString().slice(0,10),
+                title:    'Chronic Red Devices'
+            }).setData(cols, tableRows);
+        }
+
+        // ── Recurring Alerts (AI) ────────────────────────────────────────────────
+        // Raw grouping comes from the ack/clear action log (routers/alert_reports.py
+        // build_recurring_alerts_report) — deterministic, no AI needed to view it.
+        // The AI pass is opt-in (costs a Claude call) and always covers a fixed
+        // 90-day/top-40 window regardless of the day filter, mirroring the AI Insights
+        // tab's fire-and-forget + polling pattern.
+
+        let recurringRows = [];
+
+        function aiCauseLabel(cause) {
+            return {
+                decommissioned_device:   '🗑️ Decommissioned device',
+                threshold_misconfigured: '🎯 Threshold misconfigured',
+                flapping_flaky_check:    '📈 Flapping / flaky check',
+                real_recurring_issue:    '🔥 Real recurring issue',
+                unclear:                 '❓ Unclear',
+            }[cause] || (cause || '');
+        }
+
+        function renderRecurringTable(rows) {
+            recurringRows = rows;
+            const body = document.getElementById('report-body');
+            if (!rows.length) {
+                body.innerHTML = '<p class="no-data">No alert has been acknowledged/cleared 3+ times in this window yet — this fills in as the team uses Acknowledge/Clear.</p>';
+                return;
+            }
+            body.innerHTML = `
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+                    <button class="btn" style="padding:6px 16px;font-size:13px;margin:0" onclick="runRecurringAiAnalysis()">🧠 Run AI Analysis</button>
+                    <span style="font-size:11px;color:var(--text4)">Analyzes the worst 40 offenders over the last 90 days, regardless of the day filter above.</span>
+                    <span id="recurring-ai-ts" style="font-size:12px;color:var(--text4)"></span>
+                </div>
+                <div id="recurring-ai-summary"></div>
+                <div id="recurring-table"></div>`;
+            paintRecurringTable(rows, null);
+
+            // Show a cached AI result if one already exists, without forcing a fresh run.
+            fetch(BASE + '/api/alerts/reports/recurring-ai-analysis', {
+                method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({refresh: false})
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'ok') {
+                    const ts = document.getElementById('recurring-ai-ts');
+                    if (ts) ts.textContent = 'AI analysis from: ' + data.timestamp;
+                    paintRecurringAi(data.result);
+                }
+            }).catch(() => {});
+        }
+
+        function paintRecurringTable(rows, aiResult) {
+            const aiByKey = {};
+            if (aiResult && aiResult.groups) {
+                for (const g of aiResult.groups) aiByKey[g.device_name + '|' + g.event_type] = g;
+            }
+            const cols = ['Device', 'Event Type', 'Category', 'Actioned', 'Acked / Cleared', 'Span', 'Flags', 'AI Likely Cause', 'AI Recommendation'];
+            const tableRows = rows.map(r => {
+                const ai = aiByKey[r.device_name + '|' + r.event_type];
+                return [
+                    `<a href="#" onclick="openAsset('${escJs(shortDeviceName(r.device_name||''))}');return false" style="color:var(--accent)">${escHtml(r.device_name||'')}</a>`,
+                    r.event_type || '',
+                    r.category   || '',
+                    r.action_count,
+                    `${r.acknowledge_count||0} / ${r.clear_count||0}`,
+                    `${r.span_days}d`,
+                    tagBadges(r.tags),
+                    (ai && ai.ai_likely_cause) ? aiCauseLabel(ai.ai_likely_cause) : '<span style="color:var(--text4)">— run AI analysis —</span>',
+                    (ai && ai.ai_recommendation) ? escHtml(ai.ai_recommendation) : '',
+                ];
+            });
+            new SmartTable('recurring-table', {
+                filename: 'zinnia-recurring-alerts-' + new Date().toISOString().slice(0,10),
+                title:    'Recurring Alerts'
+            }).setData(cols, tableRows);
+        }
+
+        function paintRecurringAi(result) {
+            const summaryEl = document.getElementById('recurring-ai-summary');
+            if (summaryEl) {
+                summaryEl.innerHTML = result.summary
+                    ? `<div class="ai-error" style="border-left-color:var(--accent);color:var(--text2);background:var(--bg3);margin-bottom:14px">${escHtml(result.summary)}</div>`
+                    : '';
+            }
+            paintRecurringTable(recurringRows, result);
+        }
+
+        async function runRecurringAiAnalysis() {
+            const btn = document.querySelector('#report-body button[onclick^="runRecurringAiAnalysis"]');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyzing...'; }
+            const ts = document.getElementById('recurring-ai-ts');
+            try {
+                const kick = await fetch(BASE + '/api/alerts/reports/recurring-ai-analysis', {
+                    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({refresh: true}),
+                });
+                const kickData = await kick.json();
+                if (kickData.status === 'ok') {
+                    if (ts) ts.textContent = 'AI analysis from: just now';
+                    paintRecurringAi(kickData.result);
+                } else if (kickData.status === 'running') {
+                    await new Promise((resolve, reject) => {
+                        const poll = setInterval(async () => {
+                            try {
+                                const res  = await fetch(BASE + '/api/alerts/reports/recurring-ai-analysis/status');
+                                const data = await res.json();
+                                if (data.status === 'running') return;
+                                clearInterval(poll);
+                                if (data.status === 'ok') {
+                                    if (ts) ts.textContent = 'AI analysis from: just now';
+                                    paintRecurringAi(data.result);
+                                    resolve();
+                                } else {
+                                    reject(new Error(data.message || 'Analysis failed'));
+                                }
+                            } catch(e) { clearInterval(poll); reject(e); }
+                        }, 3000);
+                    });
+                } else {
+                    throw new Error(kickData.message || 'Unknown error');
+                }
+            } catch(e) {
+                showToast('⚠ AI analysis error: ' + e.message, true);
+            }
+            if (btn) { btn.disabled = false; btn.textContent = '🧠 Run AI Analysis'; }
+        }
+
+        // ── helpers ───────────────────────────────────────────────────────────
+
+        function alarmRow(a) {
+            return `<div class="alarm-row">
+                <input type="checkbox" class="alarm-checkbox" data-id="${a.alarm_id}"
+                    ${selectedIds.has(String(a.alarm_id)) ? 'checked' : ''}
+                    onchange="toggleSelect('${a.alarm_id}', this.checked)">
+                <div class="alarm-details">
+                    <div class="alarm-event">${escHtml(a.event_type||'')} ${sevBadge(a.severity)}
+                        ${a.acknowledged ? '<span style="color:#22cc66;font-size:11px;margin-left:6px">✓ Acked</span>' : ''}
+                    </div>
+                    <div class="alarm-msg">${escHtml(a.message||'')}</div>
+                    <div class="alarm-time">${escHtml(a.time||'')}</div>
+                </div>
+                ${jiraWidget(a)}
+            </div>`;
+        }
+
+        function toggleGroup(id) {
+            const body  = document.getElementById(id);
+            const arrow = document.getElementById('arrow-' + id);
+            if (!body) return;
+            const open = body.classList.toggle('open');
+            if (arrow) arrow.textContent = open ? '▲' : '▼';
+        }
+
+        function SEVERITY_ORDER(sev) {
+            return {'Critical':1,'Trouble':2,'Attention':3,'Service Down':4,'Clear':5}[sev] || 9;
+        }
+
+        function noResults() {
+            document.getElementById('alert-content').innerHTML =
+                '<p style="color:var(--text4);font-style:italic;text-align:center;padding:30px">No alerts match the current filters.</p>';
+        }
+
+        function isIpAddress(s) {
+            return /^\d{1,3}(\.\d{1,3}){3}$/.test(s);
+        }
+
+        function shortDeviceName(deviceName) {
+            if (!deviceName) return '';
+            // Don't strip IPs — only strip domain suffix from hostnames
+            if (isIpAddress(deviceName)) return deviceName;
+            return deviceName.split('.')[0];
+        }
+
+        function openAsset(name) {
+            if (!name || name === 'Unknown') return;
+            openAssetModal(name);
+        }
+
+        // ── asset modal ───────────────────────────────────────────────────────
+
+        async function openAssetModal(name) {
+            document.getElementById('asset-modal').classList.add('open');
+            document.getElementById('asset-modal-body').innerHTML =
+                `<div class="modal-loading"><span class="loading-spinner"></span> Loading details for ${escHtml(name)}...</div>`;
+            try {
+                const res  = await fetch(BASE + '/api/asset/' + encodeURIComponent(name));
+                const data = await res.json();
+                if (data.status !== 'ok') throw new Error(data.message);
+                renderAssetModal(data.asset);
+            } catch(e) {
+                document.getElementById('asset-modal-body').innerHTML =
+                    `<p style="color:#ff8888">Error loading asset: ${e.message}</p>`;
+            }
+        }
+
+        function closeAssetModal() {
+            document.getElementById('asset-modal').classList.remove('open');
+        }
+
+        function handleOverlayClick(e) {
+            if (e.target === document.getElementById('asset-modal')) closeAssetModal();
+        }
+
+        function mStat(label, value, cls) {
+            if (value == null || value === '') return '';
+            return `<div class="modal-stat"><span>${label}</span><strong class="${cls||''}">${value}</strong></div>`;
+        }
+
+        function renderAssetModal(a) {
+            const ls     = a.sources?.lansweeper  || {};
+            const vm     = a.sources?.vmware      || {};
+            const ctx    = a.sources?.citrix      || null;
+            const ad     = a.sources?.active_directory || {};
+            const alarms = a.sources?.opmanager   || [];
+
+            let sourceBadges = '';
+            if (vm.name)              sourceBadges += `<span class="source-badge vmware">✓ VMware</span>`;
+            if (ctx?.catalog_name)    sourceBadges += `<span class="source-badge citrix">✓ Citrix</span>`;
+            if (ad?.name)             sourceBadges += `<span class="source-badge ad">✓ AD</span>`;
+            if (alarms.length) sourceBadges += `<span class="source-badge alerts">⚠ ${alarms.length} Alert${alarms.length>1?'s':''}</span>`;
+
+            const diskPct   = a.used_disk_pct;
+            const diskCls   = diskPct > 85 ? 'crit' : diskPct > 70 ? 'warn' : 'ok';
+            const diskLabel = diskPct != null ? `${a.free_disk_gb}GB free / ${a.total_disk_gb}GB total (${diskPct}% used)` : null;
+
+            const recIcons = { critical: '🔴', warning: '🟡', info: 'ℹ️' };
+            const recHtml  = !(a.recommendations||[]).length
+                ? '<p class="no-data">No immediate actions identified.</p>'
+                : `<ul class="rec-list">${(a.recommendations||[]).map(r => `
+                    <li class="rec-item ${r.priority}">
+                        <span class="rec-icon">${recIcons[r.priority]||'•'}</span>
+                        <div class="rec-body"><div class="rec-cat">${escHtml(r.category)}</div><div>${escHtml(r.text)}</div></div>
+                    </li>`).join('')}</ul>`;
+
+            const alarmsHtml = alarms.length === 0
+                ? '<p class="no-data">No active alerts.</p>'
+                : `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                       <span style="font-size:12px;color:#888">${alarms.length} active alert(s)</span>
+                       <button class="btn" style="padding:5px 12px;font-size:12px;margin:0"
+                           onclick="ackModalSelected()">✓ Acknowledge Checked</button>
+                   </div>`
+                + alarms.slice(0,10).map(al => `
+                    <div class="modal-alert-row ${al.severity==='Critical'?'':'warning'}">
+                        <input type="checkbox" class="modal-alarm-cb" data-id="${al.alarm_id}"
+                            style="margin-top:3px;accent-color:var(--accent);flex-shrink:0">
+                        <div style="flex:1">
+                            <div style="display:flex;justify-content:space-between;align-items:center">
+                                <strong style="font-size:13px">${escHtml(al.event_type||'')}</strong>
+                                ${sevBadge(al.severity)}
+                            </div>
+                            <div class="modal-alert-msg">${escHtml(al.message||'')}</div>
+                            <div class="modal-alert-time">${escHtml(al.time||'')}${al.acknowledged?' · Acknowledged':''}</div>
+                        </div>
+                    </div>`).join('');
+
+            document.getElementById('asset-modal-body').innerHTML = `
+                <h2 class="modal-title">${escHtml(a.name||'Unknown')}</h2>
+                <p class="modal-sub">${a.ip||''} &nbsp;${a.os||''} &nbsp;${sourceBadges} &nbsp;${
+                    a.override ? '' : `<button class="btn-override" onclick="markUnimportantFromAlert('${escJs(a.name||'')}')">⊘ Mark Unimportant</button>`
+                }</p>
+                ${a.override ? `<div class="override-banner">
+                    <div><strong>⚠ Marked as Unimportant</strong>${a.override.reason ? `<div class="reason">${escHtml(a.override.reason)}</div>` : ''}</div>
+                    <button class="btn-restore" onclick="restoreAssetFromAlert('${escJs(a.name||'')}')">↩ Restore</button>
+                </div>` : ''}
+                <div class="modal-grid">
+                    <div class="modal-section">
+                        <h4>🖥️ Identity</h4>
+                        ${mStat('IP Address',    a.ip)}
+                        ${mStat('Domain',        ls.domain)}
+                        ${mStat('Type',          a.type)}
+                        ${mStat('Manufacturer',  a.manufacturer)}
+                        ${mStat('Model',         a.model)}
+                        ${mStat('State',         a.state)}
+                        ${mStat('Last Seen',     ls.last_seen ? ls.last_seen.slice(0,10) : null)}
+                        ${mStat('Days Since Seen', a.days_since_seen != null
+                            ? `<span class="${a.days_since_seen>90?'crit':a.days_since_seen>30?'warn':'ok'}">${a.days_since_seen}d</span>`
+                            : null)}
+                    </div>
+                    <div class="modal-section">
+                        <h4>🛡️ OS &amp; Patch</h4>
+                        ${mStat('OS',         a.os, a.is_eol ? 'crit' : '')}
+                        ${mStat('OS Version', a.os_version)}
+                        ${mStat('EOL', a.os ? (a.is_eol ? '⛔ End of Life' : '✅ Supported') : null, a.is_eol ? 'crit' : 'ok')}
+                        ${mStat('Last Scan',  ls.last_scan ? ls.last_scan.slice(0,10) : null)}
+                    </div>
+                    <div class="modal-section">
+                        <h4>⚙️ Hardware</h4>
+                        ${mStat('CPU',       a.cpu)}
+                        ${mStat('CPU Cores', a.cpu_cores)}
+                        ${mStat('RAM',       a.ram_mb ? Math.round(a.ram_mb/1024) + ' GB' : null)}
+                        ${mStat('Disk',      diskLabel, diskCls)}
+                    </div>
+                    <div class="modal-section">
+                        <h4>☁️ VMware</h4>
+                        ${vm.name ? `
+                            ${mStat('Power State',  a.power_state, a.power_state==='POWERED_ON'?'ok':'warn')}
+                            ${mStat('Environment',  a.environment)}
+                            ${mStat('Host',         a.host)}
+                            ${mStat('Snapshots',    a.snapshots > 0 ? `<span class="${a.snapshots>3?'warn':''}">${a.snapshots}</span>` : '0')}
+                        ` : '<p class="no-data">Not in VMware inventory.</p>'}
+                    </div>
+                    <div class="modal-section modal-full">
+                        <h4>⚡ Recommendations</h4>
+                        ${recHtml}
+                    </div>
+                    <div class="modal-section modal-full">
+                        <h4>🚨 Active Alerts</h4>
+                        ${alarmsHtml}
+                    </div>
+                </div>`;
+        }
+
+        async function ackModalSelected() {
+            const ids = [...document.querySelectorAll('.modal-alarm-cb:checked')].map(cb => cb.dataset.id);
+            if (!ids.length) { showToast('No alerts checked.', true); return; }
+            try {
+                const res  = await fetch(BASE + '/api/alerts/acknowledge', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({alarm_ids: ids}),
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`✓ Acknowledged ${data.success} alert(s)`, false);
+                    const name = document.querySelector('.modal-title')?.textContent;
+                    if (name) openAssetModal(name);
+                    loadAlerts(true);
+                } else { showToast('⚠ ' + data.message, true); }
+            } catch(e) { showToast('⚠ ' + e.message, true); }
+        }
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className   = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => t.className = 'toast', 3500);
+        }
+
+        function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function escJs(s)   { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+        // ── load ──────────────────────────────────────────────────────────────
+
+        async function loadAlerts(refresh) {
+            if (!refresh) {
+                document.getElementById('alert-content').innerHTML =
+                    '<p class="loading"><span class="loading-spinner"></span> Loading alerts...</p>';
+            }
+            try {
+                const res  = await fetch(BASE + '/api/alerts?refresh=' + (refresh || false));
+                const data = await res.json();
+                if (data.status !== 'ok') throw new Error(data.message);
+
+                allAlarms = data.alarms;
+                alarmMap  = {};
+                for (const a of allAlarms) alarmMap[String(a.alarm_id)] = a;
+                buildEvtDropdown(allAlarms);
+                buildSevFilter(allAlarms);
+                buildCatFilter(allAlarms);
+
+                const active = allAlarms.filter(a => a.severity !== 'Clear');
+                document.getElementById('s-critical').textContent  = active.filter(a => a.severity === 'Critical').length;
+                document.getElementById('s-trouble').textContent   = active.filter(a => a.severity === 'Trouble').length;
+                document.getElementById('s-attention').textContent = active.filter(a => a.severity === 'Attention').length;
+                document.getElementById('s-total').textContent     = active.length;
+                document.getElementById('s-acked').textContent     = active.filter(a => a.acknowledged).length;
+                document.getElementById('s-devices').textContent   = new Set(active.map(a => a.device_name||a.ip_address)).size;
+
+                document.getElementById('timestamp-bar').innerHTML =
+                    'Last updated: ' + data.timestamp +
+                    '<button class="btn-refresh" onclick="loadAlerts(true)">↻ Refresh</button>';
+
+                // Load Jira ticket status for all active devices, then render
+                await loadJiraTickets(allAlarms);
+                renderTab();
+            } catch(e) {
+                document.getElementById('alert-content').innerHTML =
+                    `<div style="color:#ff8888;padding:20px">Error loading alerts: ${e.message}</div>`;
+            }
+        }
+
+        // ── asset override helpers (used from asset modal on alerts page) ─────
+
+        async function markUnimportantFromAlert(name) {
+            const reason = prompt(`Reason for marking "${name}" as unimportant (optional):`);
+            if (reason === null) return;
+            try {
+                const res  = await fetch(BASE + '/api/asset/' + encodeURIComponent(name) + '/override', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body:    JSON.stringify({flag: 'unimportant', reason: reason.trim()}),
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    openAssetModal(name);   // refresh modal to show banner
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch(e) { alert('Error: ' + e.message); }
+        }
+
+        async function restoreAssetFromAlert(name) {
+            try {
+                const res  = await fetch(BASE + '/api/asset/' + encodeURIComponent(name) + '/override', {
+                    method: 'DELETE',
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    openAssetModal(name);   // refresh modal to remove banner
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch(e) { alert('Error: ' + e.message); }
+        }
+
+        // Team dropdown loaded from DB via loadTeamDropdown() in openJiraModal()
+
+        loadAlerts(false);
+    </script>
+{% endblock %}

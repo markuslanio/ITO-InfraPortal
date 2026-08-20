@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOC Mockup — Option 3: Traced Alert Table</title>
+<style>
+  :root{
+    --bg:#1a1a2e; --bg2:#16213e; --bg3:#0d1117; --surface:#2a2a4a; --border:#444466;
+    --text:#fff; --text2:#ccc; --text3:#aaa; --text4:#888;
+    --accent:#0f9b8e; --accent-dark:#0d8a7e; --danger:#ff4444; --warning:#ffaa00; --success:#22cc66;
+    --crit:#ff2f2f; --major:#ff6a00; --warn:#ffaa00; --clear:#22cc66;
+    --cat-tech:#ec4899; --cat-app:#3b82f6; --cat-geo:#0f9b8e;
+    --mono:'Consolas','SF Mono','Fira Code',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);
+       height:100vh;overflow:hidden;display:flex;flex-direction:column;font-size:13px;}
+  .mock-tag{position:fixed;bottom:8px;left:8px;z-index:50;font-size:9px;color:var(--text4);
+            background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:3px 8px;opacity:.75;}
+
+  .strip{display:flex;align-items:center;gap:18px;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+  .strip .title{font-size:13px;font-weight:700;}
+  .strip .title span{color:var(--accent);}
+  .stat{display:flex;align-items:center;gap:6px;font-size:12px;}
+  .stat b{font-family:var(--mono);font-size:15px;font-weight:600;}
+  .stat.crit b{color:var(--crit);} .stat.warn b{color:var(--warn);} .stat.ok b{color:var(--clear);}
+  .dotc{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .spacer{flex:1;}
+  .refresh{font-size:10px;color:var(--text4);font-family:var(--mono);display:flex;align-items:center;gap:6px;}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+  .body{flex:1;display:flex;min-height:0;}
+  .tablewrap{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .banner{margin:12px 16px 0;padding:9px 14px;border-radius:8px;background:rgba(255,47,47,.08);
+          border:1px solid rgba(255,47,47,.3);font-size:12px;display:flex;align-items:center;gap:8px;}
+  .banner b{color:var(--crit);} .banner .em{color:var(--text);}
+  .tscroll{flex:1;overflow:auto;padding:10px 16px 16px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  thead th{position:sticky;top:0;background:var(--bg3);text-align:left;padding:8px 10px;font-size:10px;
+           text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none;}
+  thead th:hover{color:var(--text);}
+  th .ar{color:var(--accent);}
+  tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+  tbody tr:hover{background:var(--surface);}
+  tbody tr.rootrow{background:rgba(255,47,47,.05);}
+  tbody tr.rootrow:hover{background:rgba(255,47,47,.11);}
+  td{padding:8px 10px;vertical-align:middle;}
+  .sevcell{display:flex;align-items:center;gap:4px;font-weight:700;font-size:11px;}
+  .sevcell.crit{color:var(--crit);} .sevcell.major{color:var(--major);} .sevcell.warn{color:var(--warn);}
+  .gname{font-weight:600;}
+  .catbadge{font-size:8.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:3px;text-transform:uppercase;}
+  .cb-tech{background:rgba(236,72,153,.15);color:var(--cat-tech);border:1px solid rgba(236,72,153,.35);}
+  .cb-app{background:rgba(59,130,246,.15);color:var(--cat-app);border:1px solid rgba(59,130,246,.35);}
+  .cb-geo{background:rgba(15,155,142,.15);color:var(--cat-geo);border:1px solid rgba(15,155,142,.35);}
+  .rootcause{display:flex;align-items:center;gap:6px;}
+  .rootcause .rc-name{font-weight:600;color:var(--crit);}
+  .rootcause.self{color:var(--text3);font-style:italic;font-weight:600;}
+  .rootcause.iso{color:var(--text4);font-style:italic;}
+  .trace{font-family:var(--mono);font-size:11px;color:var(--text3);white-space:nowrap;}
+  .trace .sym{color:var(--text4);} .trace .arr{color:var(--text4);margin:0 3px;} .trace .rt{color:var(--crit);font-weight:600;}
+  .impact{font-size:11px;color:var(--text4);}
+  .impact .n{color:var(--warning);font-weight:600;}
+
+  /* device panel (shared) */
+  .panel{width:0;flex-shrink:0;background:var(--bg2);border-left:1px solid transparent;overflow:hidden;display:flex;flex-direction:column;transition:width .22s,border-color .22s;}
+  .panel.open{width:344px;border-left-color:var(--border);}
+  .panel-hd{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;flex-shrink:0;}
+  .panel-hd .nm{font-size:14px;font-weight:700;flex:1;} .panel-hd .sub{font-size:11px;color:var(--text4);margin-top:2px;}
+  .panel-x{background:none;border:1px solid var(--border);color:var(--text3);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:13px;flex-shrink:0;}
+  .panel-x:hover{border-color:var(--danger);color:var(--danger);}
+  .actionbar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+  .abtn{font-size:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer;font-family:inherit;}
+  .abtn:hover{border-color:var(--accent);color:var(--text);}
+  .abtn.danger{background:rgba(255,68,68,.12);border-color:var(--danger);color:var(--danger);}
+  .abtn:disabled{opacity:.4;cursor:not-allowed;}
+  .selcount{font-size:10px;color:var(--text4);flex:1;}
+  .panel-body{flex:1;overflow-y:auto;padding:8px;}
+  .sev-hd{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 4px 3px;}
+  .dev-row{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--border);border-left:4px solid var(--border);border-radius:0 5px 5px 0;background:var(--bg3);padding:7px 10px;margin-bottom:4px;}
+  .dev-row.crit{border-left-color:var(--crit);} .dev-row.major{border-left-color:var(--major);} .dev-row.warn{border-left-color:var(--warn);} .dev-row.clear{border-left-color:var(--clear);}
+  .dev-row input{margin-top:2px;cursor:pointer;}
+  .dev-nm{font-family:var(--mono);font-size:11px;font-weight:600;}
+  .dev-al{font-size:10px;margin-top:3px;line-height:1.35;}
+  .dev-al.crit{color:var(--crit);} .dev-al.major{color:var(--major);} .dev-al.warn{color:var(--warn);} .dev-al.clear{color:var(--success);}
+  .tierpill{display:inline-block;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;margin-top:4px;background:rgba(15,155,142,.12);color:var(--accent);border:1px solid rgba(15,155,142,.3);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--bg2);border:1px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:12px;box-shadow:0 8px 30px rgba(0,0,0,.5);transition:all .25s;z-index:100;pointer-events:none;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast b{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<div class="strip">
+  <div class="title">NOC · <span>Active Issues, traced to root</span></div>
+  <div class="stat crit"><span class="dotc" style="background:var(--crit)"></span><b>2</b> root failures</div>
+  <div class="stat warn"><span class="dotc" style="background:var(--warn)"></span><b>7</b> impacted</div>
+  <div class="stat ok"><span class="dotc" style="background:var(--clear)"></span><b>133</b> healthy</div>
+  <div class="spacer"></div>
+  <div class="refresh"><span class="pulse"></span>auto 30s · 04:12:38</div>
+</div>
+
+<div class="body">
+  <div class="tablewrap">
+    <div class="banner" id="banner"></div>
+    <div class="tscroll">
+      <table>
+        <thead><tr>
+          <th onclick="sortBy('sev')">Sev<span id="ar-sev"></span></th>
+          <th onclick="sortBy('name')">Group<span id="ar-name"></span></th>
+          <th onclick="sortBy('cat')">Type<span id="ar-cat"></span></th>
+          <th onclick="sortBy('root')">Root Cause<span id="ar-root"></span></th>
+          <th>Trace</th>
+          <th onclick="sortBy('blast')">Impact<span id="ar-blast"></span></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- shared device panel -->
+  <div class="panel" id="panel">
+    <div class="panel-hd">
+      <div style="flex:1;min-width:0"><div class="nm" id="pName"></div><div class="sub" id="pSub"></div></div>
+      <button class="panel-x" onclick="closePanel()">✕</button>
+    </div>
+    <div class="actionbar" id="pActions" style="display:none">
+      <button class="abtn" onclick="selAlerting()">Select alerting</button>
+      <button class="abtn" onclick="deselAll()">Deselect</button>
+      <span class="selcount" id="pSel"></span>
+      <button class="abtn" id="pAck" disabled onclick="doAction('Acknowledged')">Acknowledge</button>
+      <button class="abtn danger" id="pClr" disabled onclick="doAction('Cleared')">Clear Alerts</button>
+    </div>
+    <div class="panel-body" id="pBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="mock-tag">MOCKUP · Option 3 · dummy data</div>
+
+<script>
+const GROUPS = {
+  coreNet:  {name:'Core Network', cat:'Technology', tier:'P1', loc:'Topeka', team:'Network', sev:'crit',  down:'sw-top-01'},
+  vmware:   {name:'VMware · Topeka', cat:'Technology', tier:'P1', loc:'Topeka', team:'VMware', sev:'crit',  down:'esxi-top-04'},
+  lifecad:  {name:'LifeCad', cat:'App', tier:'P2', loc:'Topeka', team:'AppOps', sev:'major', down:''},
+  billing:  {name:'Billing', cat:'App', tier:'P1', loc:'Topeka', team:'AppOps', sev:'major', down:''},
+  mcs:      {name:'MCS', cat:'App', tier:'P1', loc:'Topeka', team:'Wintel', sev:'crit',  down:''},
+  citrix:   {name:'Citrix', cat:'App', tier:'P2', loc:'Topeka', team:'Citrix', sev:'warn',  down:''},
+  vdi:      {name:'VDI Pool', cat:'App', tier:'P2', loc:'Topeka', team:'Citrix', sev:'major', down:''},
+  oracle:   {name:'Oracle Prod', cat:'App', tier:'P1', loc:'Topeka', team:'DBA', sev:'major', down:''},
+};
+const EDGES=[['lifecad','coreNet'],['mcs','coreNet'],['citrix','coreNet'],['billing','lifecad'],['vdi','vmware'],['mcs','vmware']];
+const DEVICES={
+  coreNet:[{n:'sw-top-01',s:'crit',a:'Switch unreachable — ICMP + SNMP timeout'},{n:'sw-top-02',s:'clear',a:''}],
+  vmware: [{n:'esxi-top-04',s:'crit',a:'Host not responding'},{n:'esxi-top-03',s:'clear',a:''},{n:'esxi-top-05',s:'clear',a:''}],
+  lifecad:[{n:'LIFECAD-APP01',s:'major',a:'HTTP 503 — backend unreachable'},{n:'LIFECAD-APP02',s:'major',a:'HTTP 503 — backend unreachable'}],
+  billing:[{n:'BILLING-01',s:'major',a:'Job queue backing up'},{n:'BILLING-02',s:'clear',a:''}],
+  mcs:    [{n:'MCS-01',s:'crit',a:'Down — datastore inaccessible'},{n:'MCS-02',s:'crit',a:'Down — datastore inaccessible'},{n:'MCS-03',s:'clear',a:''}],
+  citrix: [{n:'CTX-VDA-11',s:'warn',a:'Registration delayed'},{n:'CTX-VDA-12',s:'clear',a:''}],
+  vdi:    [{n:'VDI-POOL-A',s:'major',a:'50% capacity offline'}],
+  oracle: [{n:'ORA-PRD-01',s:'major',a:'Tablespace 92% full'}],
+};
+const SEVRANK={crit:0,major:1,warn:2,clear:9};
+const isDown=id=>GROUPS[id].sev!=='clear';
+const deps=id=>EDGES.filter(e=>e[0]===id).map(e=>e[1]);
+const dependents=id=>EDGES.filter(e=>e[1]===id).map(e=>e[0]);
+const isRoot=id=>isDown(id)&&!deps(id).some(isDown);
+function blast(id){const seen=new Set(),q=[id];while(q.length){const c=q.shift();
+  for(const d of dependents(c)){if(isDown(d)&&!seen.has(d)){seen.add(d);q.push(d);}}}return seen;}
+function catShort(c){return c==='Technology'?'TECH':c==='App'?'APP':'GEO';}
+function catClass(c){return c==='Technology'?'cb-tech':c==='App'?'cb-app':'cb-geo';}
+// primary root of a symptom = follow down-deps to the biggest-blast root; return {rootId, path[]}
+function traceToRoot(id){
+  // BFS collecting a path to any root
+  const prev={}; const q=[id]; const seen=new Set([id]); let found=null;
+  while(q.length){const c=q.shift(); if(isRoot(c)){found=c;break;}
+    for(const d of deps(c)){if(isDown(d)&&!seen.has(d)){seen.add(d);prev[d]=c;q.push(d);}}}
+  if(found===null)return {rootId:null,path:[id]};
+  const path=[]; let cur=found; while(cur!==undefined){path.unshift(cur); cur=prev[cur];}
+  return {rootId:found,path}; // path = [root ... id]? build from id back
+}
+function pathFromSymptomToRoot(id){
+  const {rootId}=traceToRoot(id); if(rootId===null)return {rootId:null,chain:[id]};
+  // rebuild forward chain id ◀ ... ◀ root by DFS shortest
+  const prev={}; const q=[id]; const seen=new Set([id]);
+  while(q.length){const c=q.shift(); if(c===rootId)break;
+    for(const d of deps(c)){if(isDown(d)&&!seen.has(d)){seen.add(d);prev[d]=c;q.push(d);}}}
+  const chain=[]; let cur=rootId; while(cur!==undefined){chain.push(cur);cur=prev[cur];}
+  return {rootId,chain}; // chain = [root, ..., id]
+}
+
+let sortKey='root', sortDir=1;
+function rowData(){
+  return Object.keys(GROUPS).filter(isDown).map(id=>{
+    const g=GROUPS[id]; const root=isRoot(id);
+    const {rootId,chain}=root?{rootId:id,chain:[id]}:pathFromSymptomToRoot(id);
+    return {id,g,root,rootId,chain,blast:blast(id).size};
+  });
+}
+function render(){
+  let rows=rowData();
+  rows.sort((a,b)=>{
+    let av,bv;
+    if(sortKey==='sev'){av=SEVRANK[a.g.sev];bv=SEVRANK[b.g.sev];}
+    else if(sortKey==='name'){av=a.g.name.toLowerCase();bv=b.g.name.toLowerCase();}
+    else if(sortKey==='cat'){av=a.g.cat;bv=b.g.cat;}
+    else if(sortKey==='blast'){av=a.blast;bv=b.blast;}
+    else { // root: group by root name, roots first within their cluster
+      av=(GROUPS[a.rootId]?.name||'~')+ (a.root?'0':'1');
+      bv=(GROUPS[b.rootId]?.name||'~')+ (b.root?'0':'1');
+    }
+    if(av<bv)return -1*sortDir; if(av>bv)return 1*sortDir; return SEVRANK[a.g.sev]-SEVRANK[b.g.sev];
+  });
+  const tb=document.getElementById('tbody');
+  tb.innerHTML=rows.map(r=>{
+    const g=r.g;
+    const sevLbl=g.sev==='crit'?'●● CRIT':g.sev==='major'?'● MAJOR':'▲ WARN';
+    let rootCell, trace;
+    if(r.root){
+      rootCell=`<span class="rootcause self">◀ itself (ROOT)</span>`;
+      trace=`<span class="impact"><span class="n">${r.blast}</span> downstream · ${g.down?g.down+' down':'device down'}</span>`;
+    } else if(r.rootId===null){
+      rootCell=`<span class="rootcause iso">◀ itself (no deps)</span>`;
+      trace=`<span class="impact">isolated</span>`;
+    } else {
+      const rg=GROUPS[r.rootId];
+      rootCell=`<span class="rootcause"><span class="rc-name">${rg.name}</span> <span class="catbadge ${catClass(rg.cat)}">${catShort(rg.cat)}</span></span>`;
+      const parts=r.chain.slice().reverse(); // id ... root
+      trace=`<span class="trace">`+parts.map((pid,i)=>{
+        const nm=GROUPS[pid].name.replace(' · Topeka','');
+        if(i===parts.length-1)return `<span class="rt">●${nm}</span>`;
+        return `<span class="sym">${nm}</span><span class="arr">◀</span>`;
+      }).join('')+`</span>`;
+    }
+    return `<tr class="${r.root?'rootrow':''}" onclick="openPanel('${r.id}')">
+      <td><span class="sevcell ${g.sev}">${sevLbl}</span></td>
+      <td class="gname">${g.name}</td>
+      <td><span class="catbadge ${catClass(g.cat)}">${catShort(g.cat)}</span></td>
+      <td>${rootCell}</td>
+      <td>${trace}</td>
+      <td class="impact">${r.root?`<span class="n">${r.blast}</span> groups`:''}</td>
+    </tr>`;
+  }).join('');
+  // arrows
+  ['sev','name','cat','root','blast'].forEach(k=>{const e=document.getElementById('ar-'+k);if(e)e.innerHTML=(k===sortKey)?` <span class="ar">${sortDir>0?'▲':'▼'}</span>`:'';});
+  // banner: how many symptoms funnel to the top root
+  const roots=Object.keys(GROUPS).filter(isRoot).map(id=>({id,b:blast(id).size})).sort((a,b)=>b.b-a.b);
+  if(roots.length && roots[0].b>0){
+    const top=GROUPS[roots[0].id];
+    document.getElementById('banner').innerHTML=`<b>${roots[0].b} active alerts</b> <span class="em">all trace to one root:</span> <b>${top.name} (${catShort(top.cat)})</b> — ${top.down} down. Fix this first.`;
+  } else {document.getElementById('banner').style.display='none';}
+}
+function sortBy(k){if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;}render();}
+
+// shared panel
+let selDevs=new Set(),panelGroup=null;
+function openPanel(id){panelGroup=id;selDevs.clear();
+  const g=GROUPS[id];const devs=DEVICES[id]||[];
+  document.getElementById('pName').textContent=g.name;
+  document.getElementById('pSub').innerHTML=`${devs.length} device(s) · ${catShort(g.cat)} · ${g.loc} · ${g.team}`;
+  const order=['crit','major','warn','clear'];let h='';
+  order.forEach(s=>{const rows=devs.filter(d=>d.s===s);if(!rows.length)return;
+    const lbl={crit:'Critical',major:'Major',warn:'Warning',clear:'Clear'}[s];
+    h+=`<div class="sev-hd" style="color:var(--${s==='clear'?'clear':s})">${lbl} — ${rows.length}</div>`;
+    rows.forEach(d=>{const al=d.s!=='clear';
+      h+=`<div class="dev-row ${d.s}">${al?`<input type="checkbox" onchange="toggleDev('${d.n}',this.checked)">`:'<span style="width:13px"></span>'}
+        <div style="flex:1;min-width:0"><div class="dev-nm">${d.n}</div>
+        ${d.a?`<div class="dev-al ${d.s}">${d.a}</div>`:`<div class="dev-al clear">✓ healthy</div>`}
+        <span class="tierpill">${g.tier}</span></div></div>`;});});
+  document.getElementById('pBody').innerHTML=h;
+  document.getElementById('pActions').style.display=devs.some(d=>d.s!=='clear')?'flex':'none';
+  updateSel();document.getElementById('panel').classList.add('open');}
+function closePanel(){document.getElementById('panel').classList.remove('open');panelGroup=null;selDevs.clear();}
+function toggleDev(n,c){c?selDevs.add(n):selDevs.delete(n);updateSel();}
+function selAlerting(){(DEVICES[panelGroup]||[]).forEach(d=>{if(d.s!=='clear')selDevs.add(d.n);});document.querySelectorAll('#pBody input').forEach(cb=>cb.checked=true);updateSel();}
+function deselAll(){selDevs.clear();document.querySelectorAll('#pBody input').forEach(cb=>cb.checked=false);updateSel();}
+function updateSel(){const n=selDevs.size;document.getElementById('pSel').textContent=n?`${n} selected`:'';document.getElementById('pAck').disabled=n===0;document.getElementById('pClr').disabled=n===0;}
+function doAction(w){const n=selDevs.size;showToast(`${w} <b>${n}</b> alarm${n!==1?'s':''} in OpManager <b>(mock)</b>`);deselAll();}
+let tT;function showToast(html){const t=document.getElementById('toast');t.innerHTML=html;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),2600);}
+
+render();
+</script>
+</body>
+</html>

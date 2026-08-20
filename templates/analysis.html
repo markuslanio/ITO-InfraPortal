@@ -1,0 +1,907 @@
+{% extends "base.html" %}
+{% block title %}AI Analysis - Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+
+.section { background-color: var(--bg2); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .section h2 { color: var(--accent); margin-top: 0; }
+        .progress-container { margin-top: 20px; }
+        .progress-label { color: var(--text3); font-size: 14px; margin-bottom: 8px; }
+        .progress-bar-wrap { background-color: var(--surface); border-radius: 10px; height: 24px; overflow: hidden; position: relative; }
+        .progress-bar-fill { height: 100%; background-color: var(--accent); border-radius: 10px; transition: width 0.3s ease; }
+        .progress-bar-text { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; }
+        .info-box { background-color: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 15px; margin-bottom: 15px; font-size: 13px; color: var(--text2); }
+        .grade-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .grade-card { background-color: var(--bg3); border-radius: 10px; padding: 20px; text-align: center; border-top: 4px solid var(--accent); cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; position: relative; }
+        .grade-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+        .grade-card:hover::after { content: '🔍 Click for deep dive'; position: absolute; bottom: 6px; left: 0; right: 0; font-size: 10px; color: #666; }
+        .grade-card h3 { margin: 0 0 10px 0; font-size: 11px; color: var(--text3); text-transform: uppercase; }
+        .grade-letter { font-size: 52px; font-weight: bold; line-height: 1; margin: 5px 0; }
+        .grade-card p { font-size: 11px; color: var(--text4); margin: 5px 0 0 0; }
+        .grade-a { color: #22cc66; border-top-color: #22cc66; }
+        .grade-b { color: #88cc22; border-top-color: #88cc22; }
+        .grade-c { color: #ccaa22; border-top-color: #ccaa22; }
+        .grade-d { color: #cc6622; border-top-color: #cc6622; }
+        .grade-f { color: #cc2222; border-top-color: #cc2222; }
+        .exec-summary { background-color: var(--bg3); border-radius: 10px; padding: 20px; margin-bottom: 25px; border-left: 4px solid var(--accent); line-height: 1.7; font-size: 14px; }
+        .analysis-sections { display: flex; flex-direction: column; gap: 15px; }
+        .analysis-section { background-color: var(--bg3); border-radius: 10px; overflow: hidden; }
+        .section-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .section-header:hover { background-color: var(--bg); }
+        .section-header h3 { margin: 0; font-size: 15px; }
+        .section-header .toggle { color: var(--accent); font-size: 18px; }
+        .section-body { padding: 0 20px 20px 20px; line-height: 1.8; font-size: 13px; color: var(--text2); white-space: pre-wrap; }
+        .section-immediate .section-header { border-left: 4px solid #ff2222; }
+        .section-immediate .section-header h3 { color: #ff6666; }
+        .section-warnings .section-header { border-left: 4px solid #ffaa00; }
+        .section-warnings .section-header h3 { color: #ffcc44; }
+        .section-recommendations .section-header { border-left: 4px solid var(--accent); }
+        .section-recommendations .section-header h3 { color: var(--accent); }
+        .section-alerts .section-header { border-left: 4px solid #aa44ff; }
+        .section-alerts .section-header h3 { color: #cc88ff; }
+        .section-trends .section-header { border-left: 4px solid #4488ff; }
+        .section-trends .section-header h3 { color: #88aaff; }
+        .hidden { display: none; }
+
+        /* ── Deep Dive Modal ── */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .modal-overlay.hidden { display: none; }
+        .modal { background: var(--bg2); border-radius: 14px; width: 100%; max-width: 660px; max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        .modal-header { padding: 24px 28px 16px; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--surface); position: sticky; top: 0; background: var(--bg2); z-index: 1; }
+        .modal-grade-badge { width: 70px; height: 70px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: bold; flex-shrink: 0; }
+        .modal-title { flex: 1; }
+        .modal-title h2 { margin: 0 0 4px; font-size: 18px; }
+        .modal-title p { margin: 0; font-size: 12px; color: #888; }
+        .modal-close { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+        .modal-close:hover { color: #fff; background: var(--surface); }
+        .modal-body { padding: 24px 28px; }
+        .modal-section { margin-bottom: 22px; }
+        .modal-section h4 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+        .modal-section p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text2); }
+        .action-list { list-style: none; padding: 0; margin: 0; }
+        .action-list li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--bg); font-size: 13px; line-height: 1.5; color: var(--text2); }
+        .action-list li:last-child { border-bottom: none; }
+        .action-num { background: var(--accent); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; flex-shrink: 0; margin-top: 1px; }
+        .modal-loading { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+        .positive-box { background: #0d2a1a; border-left: 3px solid #22cc66; border-radius: 6px; padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #aaddaa; }
+
+        /* ── Q&A Chat ── */
+        .qa-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .qa-header h2 { margin: 0; color: var(--accent); }
+        .qa-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .data-toggle { display: flex; background: var(--bg3); border-radius: 20px; padding: 3px; gap: 2px; }
+        .data-toggle button { border: none; padding: 5px 14px; border-radius: 17px; cursor: pointer; font-size: 12px; background: none; color: #888; transition: all 0.15s; }
+        .data-toggle button.active { background: var(--accent); color: #fff; }
+        .btn-clear-chat { background: none; border: 1px solid var(--border); color: #888; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .btn-clear-chat:hover { color: #fff; border-color: #888; }
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .chip-group { width: 100%; }
+        .chip-group-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .chip { background: var(--bg3); border: 1px solid var(--surface); color: var(--text3); padding: 6px 12px; border-radius: 15px; cursor: pointer; font-size: 12px; transition: all 0.15s; white-space: nowrap; }
+        .chip:hover { border-color: var(--accent); color: var(--accent); background: #0a1a18; }
+        .chat-window { background: var(--bg3); border-radius: 10px; padding: 20px; min-height: 200px; max-height: 600px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 16px; }
+        .chat-empty { text-align: center; color: #444; font-size: 14px; padding: 40px 20px; }
+        .chat-empty span { font-size: 32px; display: block; margin-bottom: 10px; }
+        .msg { display: flex; gap: 12px; max-width: 92%; }
+        .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .msg.assistant { align-self: flex-start; }
+        .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; margin-top: 2px; }
+        .msg.user .msg-avatar { background: var(--accent)22; }
+        .msg.assistant .msg-avatar { background: #4444aa22; }
+        .msg-bubble { padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.7; }
+        .msg.user .msg-bubble { background: #0f3030; color: #ccffff; border-bottom-right-radius: 4px; }
+        .msg.assistant .msg-bubble { background: var(--bg2); border: 1px solid var(--surface); color: var(--text2); border-bottom-left-radius: 4px; }
+        .msg.assistant .msg-bubble p  { margin: 0 0 10px; }
+        .msg.assistant .msg-bubble p:last-child { margin-bottom: 0; }
+        .msg.assistant .msg-bubble h3 { font-size: 13px; font-weight: 600; color: var(--accent); margin: 12px 0 4px; }
+        .msg.assistant .msg-bubble h4 { font-size: 12px; font-weight: 600; color: #aaaacc; margin: 10px 0 4px; }
+        .msg.assistant .msg-bubble ul, .msg.assistant .msg-bubble ol { margin: 4px 0 10px 18px; padding: 0; }
+        .msg.assistant .msg-bubble li { margin-bottom: 3px; }
+        .msg.assistant .msg-bubble code { background: var(--bg3); border: 1px solid var(--surface); border-radius: 3px; padding: 1px 5px; font-size: 12px; font-family: monospace; color: #7ec8e3; }
+        .msg.assistant .msg-bubble pre { background: var(--bg3); border: 1px solid var(--surface); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+        .msg.assistant .msg-bubble pre code { background: none; border: none; padding: 0; color: #aaffcc; }
+        .msg.assistant .msg-bubble strong { color: #e0e0e0; }
+        .msg.assistant .msg-bubble.streaming::after { content: '▋'; animation: blink 0.7s infinite; color: var(--accent); }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .msg-meta { font-size: 11px; color: #444; margin-top: 5px; text-align: right; }
+        .msg.assistant .msg-meta { text-align: left; }
+        .qa-input-row { display: flex; gap: 10px; align-items: flex-end; }
+        .qa-input:focus { outline: none; border-color: var(--accent); }
+        .qa-input::placeholder { color: #444; }
+        .btn-send { background: var(--accent); border: none; color: #fff; padding: 12px 20px; border-radius: 10px; cursor: pointer; font-size: 18px; flex-shrink: 0; height: 48px; display: flex; align-items: center; justify-content: center; }
+        .btn-send:hover { background: var(--accent-dark); }
+        .btn-send:disabled { background: #333; cursor: not-allowed; }
+        .qa-hint { font-size: 11px; color: #444; margin-top: 8px; text-align: center; }
+
+        /* ── V2 analysis overrides ── */
+        /* Hide classic run buttons and info-box; v2 has its own control bar */
+        body.ui-v2 .info-box                { display: none !important; }
+        body.ui-v2 #btn-analyze             { display: none !important; }
+        body.ui-v2 button[style*="btn-analyze-fresh"] { display: none !important; }
+        /* Hide Q&A section — replaced by floating chat widget */
+        body.ui-v2 #qa-section              { display: none !important; }
+        /* Restyle section accordions */
+        body.ui-v2 .analysis-sections       { gap: 6px; }
+        body.ui-v2 .analysis-section        { border-radius: 8px; overflow: hidden; }
+        body.ui-v2 .section-header          { padding: 8px 14px; }
+        body.ui-v2 .section-header h3       { font-size: 12px; font-weight: 600; }
+        body.ui-v2 .section-body            { padding: 0 14px 12px; font-size: 12px; line-height: 1.7; }
+        body.ui-v2 .section-body.hidden     { display: none; }
+        /* Compact exec summary */
+        body.ui-v2 .exec-summary            { padding: 12px 14px; font-size: 13px; margin-bottom: 12px; }
+        /* Section left-border colors stay as defined per class */
+        body.ui-v2 .section-immediate .section-header  { border-left: 3px solid #ff2222; }
+        body.ui-v2 .section-warnings  .section-header  { border-left: 3px solid #ffaa00; }
+        body.ui-v2 .section-recommendations .section-header { border-left: 3px solid var(--accent); }
+        body.ui-v2 .section-alerts    .section-header  { border-left: 3px solid #aa44ff; }
+        body.ui-v2 .section-trends    .section-header  { border-left: 3px solid #4488ff; }
+        /* Deep dive modal stays as-is — no overrides needed */
+
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Deep Dive Modal -->
+    <div class="modal-overlay hidden" id="deepdive-overlay" onclick="closeModal(event)">
+        <div class="modal" id="deepdive-modal">
+            <div class="modal-header">
+                <div class="modal-grade-badge" id="modal-badge"></div>
+                <div class="modal-title">
+                    <h2 id="modal-title">Loading...</h2>
+                    <p id="modal-note"></p>
+                </div>
+                <button class="modal-close" onclick="closeDeepDive()">✕</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <div class="modal-loading">Loading deep dive...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- ── V2: analysis control bar (hidden in classic mode) ── -->
+        <div class="v2-only v2-flex" id="v2AnalysisBar" style="flex-direction:column;gap:8px">
+            <div class="v2-page-header">
+                <span class="v2-page-title">AI Analysis</span>
+                <span class="v2-page-meta" id="v2-analysis-meta">Cached</span>
+            </div>
+            <div class="v2-analysis-bar" id="v2-abar">
+                <span class="v2-status-dot" id="v2-abar-dot"></span>
+                <span style="font-size:12px;font-weight:600" id="v2-abar-label">No analysis loaded</span>
+                <span class="v2-ts" id="v2-abar-ts"></span>
+                <span style="flex:1"></span>
+                <button class="v2-ghost-btn" style="padding:3px 9px;font-size:10px" onclick="runAnalysis(false)">⚡ Cached</button>
+                <button class="v2-btn"       style="padding:3px 9px;font-size:10px" onclick="runAnalysis(true)">↻ Fresh</button>
+            </div>
+        </div>
+        <!-- end v2 analysis bar -->
+
+        <!-- Existing analysis section — unchanged for classic mode -->
+        <div class="section">
+            <h2 class="v2-hide">🤖 AI Infrastructure Analysis</h2>
+            <div class="info-box">
+                This analysis collects data from all VMware environments, OpManager, Active Directory,
+                and Certificate Authority, then sends it to Claude AI for a comprehensive review
+                including threshold checks, alert intelligence, AD health, certificate health,
+                and trend analysis. Results are saved to the database for historical tracking.
+                <br><strong>💡 Click any grade card for a detailed deep dive.</strong>
+            </div>
+            <button class="btn" id="btn-analyze" onclick="runAnalysis(false)">🔍 Run AI Analysis</button>
+            <button class="btn" style="background-color:var(--surface);font-size:13px;" onclick="runAnalysis(true)">🔄 Run Fresh Analysis</button>
+            <div id="results"></div>
+        </div>
+
+        <!-- V2: floating chat hint (shown instead of Q&A section) -->
+        <div class="v2-only" id="v2ChatHint" style="margin-bottom:8px">
+            <div style="padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px">
+                <span style="color:var(--accent);font-size:15px">💬</span>
+                <span>Use the <strong style="color:var(--accent)">floating chat widget</strong> in the lower-right corner to ask questions about your infrastructure on any page.</span>
+            </div>
+        </div>
+
+        <!-- Q&A section (hidden in v2 mode, replaced by floating chat widget) -->
+        <div class="section" id="qa-section">
+            <div class="qa-header">
+                <h2>🧠 Ask Your Infrastructure</h2>
+                <div class="qa-controls">
+                    <div class="data-toggle">
+                        <button id="toggle-cached" class="active" onclick="setDataMode('cached')">⚡ Cached Data</button>
+                        <button id="toggle-fresh"  onclick="setDataMode('fresh')">🔄 Fresh Data</button>
+                    </div>
+                    <button class="btn-clear-chat" onclick="clearChat()">🗑 Clear Chat</button>
+                </div>
+            </div>
+
+            <!-- Suggested chips -->
+            <div class="chips" id="chips">
+                <div class="chip-group">
+                    <div class="chip-group-label">🚨 Urgency</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                        <span class="chip" onclick="useChip(this)">What needs my attention right now?</span>
+                        <span class="chip" onclick="useChip(this)">Which servers are at risk of outage in the next 24 hours?</span>
+                        <span class="chip" onclick="useChip(this)">Show me all Critical alerts grouped by application</span>
+                    </div>
+                </div>
+                <div class="chip-group" style="margin-top:10px">
+                    <div class="chip-group-label">🔍 Investigation</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                        <span class="chip" onclick="useChip(this)">Which servers are part of the Lifecad application?</span>
+                        <span class="chip" onclick="useChip(this)">Compare Production vs QA alert volumes</span>
+                        <span class="chip" onclick="useChip(this)">What patterns do you see in the memory alerts?</span>
+                        <span class="chip" onclick="useChip(this)">Which application stacks have the most issues?</span>
+                    </div>
+                </div>
+                <div class="chip-group" style="margin-top:10px">
+                    <div class="chip-group-label">📈 Trends</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                        <span class="chip" onclick="useChip(this)">Which systems are trending toward problems?</span>
+                        <span class="chip" onclick="useChip(this)">Are there any recurring alert patterns I should address?</span>
+                        <span class="chip" onclick="useChip(this)">What has gotten worse since the last analysis?</span>
+                    </div>
+                </div>
+                <div class="chip-group" style="margin-top:10px">
+                    <div class="chip-group-label">⚙️ Optimization</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                        <span class="chip" onclick="useChip(this)">Where can we reclaim the most disk space?</span>
+                        <span class="chip" onclick="useChip(this)">Which VMs are oversized or underutilized?</span>
+                        <span class="chip" onclick="useChip(this)">What are the top 5 things I should fix this week?</span>
+                        <span class="chip" onclick="useChip(this)">Which EOL servers are highest risk?</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat window -->
+            <div class="chat-window" id="chat-window">
+                <div class="chat-empty" id="chat-empty">
+                    <span>🧠</span>
+                    Ask anything about your infrastructure — alerts, servers, trends, applications, risks.
+                    <br><br>
+                    <span style="font-size:12px;color:#333">I have access to your VMware, OpManager, Active Directory, Citrix, Lansweeper, and Certificate data.</span>
+                </div>
+            </div>
+
+            <!-- Input -->
+            <div class="qa-input-row">
+                <textarea class="qa-input" id="qa-input" rows="1"
+                    placeholder="Ask about your infrastructure..."
+                    onkeydown="handleKey(event)"
+                    oninput="autoResize(this)"></textarea>
+                <button class="btn-send" id="btn-send" onclick="sendQuestion()">➤</button>
+            </div>
+            <div class="qa-hint">Press Enter to send · Shift+Enter for new line · conversation history is maintained within this session</div>
+        </div>
+
+    </div>
+
+    <script>
+        const BASE = '/infraportal';
+
+        // ── existing analysis functions (unchanged) ───────────────────────────
+
+        function gradeClass(letter) {
+            const map = {'A':'grade-a','B':'grade-b','C':'grade-c','D':'grade-d','F':'grade-f'};
+            return map[letter] || 'grade-c';
+        }
+        function gradeBgColor(letter) {
+            const map = {'A':'#0d2a1a','B':'#1a2a0d','C':'#2a220d','D':'#2a150d','F':'#2a0d0d'};
+            return map[letter] || 'var(--bg)';
+        }
+        function gradeTextColor(letter) {
+            const map = {'A':'#22cc66','B':'#88cc22','C':'#ccaa22','D':'#cc6622','F':'#cc2222'};
+            return map[letter] || '#cccccc';
+        }
+        function parseGrades(text) {
+            const grades = {};
+            for (const line of text.split('\n')) {
+                const m = line.match(/^([A-Z_]+):\s*([A-F])\s*[-–]?\s*(.*)/);
+                if (m) grades[m[1]] = {letter: m[2], note: m[3].trim()};
+            }
+            return grades;
+        }
+        function parseSection(text, marker) {
+            const start = text.indexOf('[' + marker + ']');
+            if (start === -1) return null;
+            const end = text.indexOf('[', start + marker.length + 2);
+            const content = end === -1 ? text.slice(start + marker.length + 2) : text.slice(start + marker.length + 2, end);
+            return content.trim();
+        }
+        function toggleSection(id) {
+            const body = document.getElementById(id), toggle = document.getElementById('toggle-' + id);
+            if (body.classList.contains('hidden')) { body.classList.remove('hidden'); toggle.textContent = '▲'; }
+            else { body.classList.add('hidden'); toggle.textContent = '▼'; }
+        }
+        function buildSection(cls, icon, title, content, id, expanded=false) {
+            return `<div class="analysis-section ${cls}">
+                <div class="section-header" onclick="toggleSection('${id}')">
+                    <h3>${icon} ${title}</h3>
+                    <span class="toggle" id="toggle-${id}">${expanded ? '▲' : '▼'}</span>
+                </div>
+                <div class="section-body ${expanded ? '' : 'hidden'}" id="${id}">${content}</div>
+            </div>`;
+        }
+        async function openDeepDive(gradeKey, letter, label, note) {
+            const overlay = document.getElementById('deepdive-overlay');
+            const badge = document.getElementById('modal-badge');
+            const title = document.getElementById('modal-title');
+            const noteEl = document.getElementById('modal-note');
+            const body = document.getElementById('modal-body');
+            badge.textContent = letter;
+            badge.style.background = gradeBgColor(letter);
+            badge.style.color = gradeTextColor(letter);
+            badge.style.border = `2px solid ${gradeTextColor(letter)}`;
+            title.textContent = label;
+            noteEl.textContent = note;
+            body.innerHTML = '<div class="modal-loading">⏳ Loading deep dive...</div>';
+            overlay.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            try {
+                const res = await fetch(`${BASE}/api/analyze/deepdive/${gradeKey}`);
+                const data = await res.json();
+                if (data.status !== 'ok') { body.innerHTML = `<div class="error-box">⚠️ ${data.message}</div>`; return; }
+                const d = data.deepdive;
+                let html = '';
+                html += `<div class="modal-section"><h4>📊 Why this grade?</h4><p>${d.why || 'No explanation available.'}</p></div>`;
+                if (d.top5?.length) {
+                    html += `<div class="modal-section"><h4>🎯 Top ${d.top5.length} actions to raise this grade</h4><ul class="action-list">`;
+                    d.top5.forEach((a, i) => { html += `<li><span class="action-num">${i+1}</span><span>${a}</span></li>`; });
+                    html += `</ul></div>`;
+                }
+                if (d.positive) html += `<div class="modal-section"><h4>✅ What's going well</h4><div class="positive-box">${d.positive}</div></div>`;
+                body.innerHTML = html;
+            } catch (err) {
+                body.innerHTML = `<div class="error-box">⚠️ Error: ${err.message}</div>`;
+            }
+        }
+        function closeDeepDive() {
+            document.getElementById('deepdive-overlay').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+        function closeModal(e) {
+            if (e.target === document.getElementById('deepdive-overlay')) closeDeepDive();
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDeepDive(); });
+        document.addEventListener('click', e => {
+            const card = e.target.closest('.grade-card');
+            if (card) openDeepDive(card.dataset.key, card.dataset.letter, card.dataset.label, card.dataset.note);
+        });
+        function renderAnalysis(raw) {
+            const exec = parseSection(raw, 'EXECUTIVE_SUMMARY');
+            const gradesRaw = parseSection(raw, 'GRADES');
+            const immediate = parseSection(raw, 'IMMEDIATE_ACTIONS');
+            const warnings = parseSection(raw, 'WARNINGS');
+            const recommendations = parseSection(raw, 'RECOMMENDATIONS');
+            const alertAnalysis = parseSection(raw, 'ALERT_ANALYSIS');
+            const trends = parseSection(raw, 'TRENDS');
+            let html = '';
+            if (exec) html += `<div class="exec-summary">${exec}</div>`;
+            if (gradesRaw) {
+                const grades = parseGrades(gradesRaw);
+                const gradeLabels = {
+                    'OVERALL':'Overall','CPU_AND_COMPUTE':'CPU & Compute','STORAGE':'Storage',
+                    'VM_ORGANIZATION':'VM Organization','PATCHING_AND_TOOLS':'Patching & Tools',
+                    'PATCH_COMPLIANCE':'Patch Compliance',
+                    'ALERT_HEALTH':'Alert Health','ACTIVE_DIRECTORY':'Active Directory',
+                    'CERTIFICATE_HEALTH':'Certificates','CITRIX_HEALTH':'Citrix',
+                };
+                html += '<div class="grade-cards">';
+                for (const [key, label] of Object.entries(gradeLabels)) {
+                    const g = grades[key] || {letter: '?', note: 'Not yet graded'};
+                    const note = g.note.length > 60 ? g.note.slice(0,57) + '…' : g.note;
+                    html += `<div class="grade-card ${gradeClass(g.letter)}"
+                        data-key="${key}" data-letter="${g.letter}"
+                        data-label="${label}" data-note="${g.note.replace(/"/g,'&quot;')}">
+                        <h3>${label}</h3>
+                        <div class="grade-letter">${g.letter}</div>
+                        <p>${note}</p>
+                    </div>`;
+                }
+                html += '</div>';
+            }
+            html += '<div class="analysis-sections">';
+            if (immediate)       html += buildSection('section-immediate',       '🚨','Immediate Actions Required',immediate,      'sec-immediate',      true);
+            if (warnings)        html += buildSection('section-warnings',        '⚠️','Warnings',                  warnings,       'sec-warnings',       true);
+            if (alertAnalysis)   html += buildSection('section-alerts',          '📡','Alert Analysis',            alertAnalysis,  'sec-alerts',         false);
+            if (trends)          html += buildSection('section-trends',          '📈','Trend Analysis',            trends,         'sec-trends',         false);
+            if (recommendations) html += buildSection('section-recommendations', '💡','Recommendations',           recommendations,'sec-recommendations',false);
+            html += '</div>';
+            document.getElementById('results').innerHTML = html;
+        }
+        async function loadCachedAnalysis() {
+            const res = await fetch(BASE + '/api/analyze');
+            const data = await res.json();
+            if (data.status === 'ok') {
+                document.getElementById('btn-analyze').textContent = '🔄 Run Fresh Analysis';
+                if (data.timestamp) {
+                    const info = document.querySelector('.info-box');
+                    if (info) info.innerHTML += '<br><strong>Last analysis: ' + data.timestamp + '</strong>';
+                }
+                renderAnalysis(data.analysis);
+                // Store analysis text for Q&A context
+                window._lastAnalysis = data.analysis;
+                // Update v2 analysis bar
+                _v2UpdateAnalysisBar('ok', data.timestamp || '');
+            }
+        }
+        loadCachedAnalysis();
+        async function runAnalysis(forceRefresh=false) {
+            const btn = document.getElementById('btn-analyze');
+            btn.disabled = true; btn.textContent = '⏳ Analyzing...';
+            _v2UpdateAnalysisBar('running', '');
+
+            const steps = [
+                'Step 1 of 4: Collecting VMware &amp; OpManager data...',
+                'Step 2 of 4: Collecting Active Directory, Citrix &amp; Certificate data...',
+                'Step 3 of 4: Running threshold and cross-reference analysis...',
+                'Step 4 of 4: Claude AI is analyzing &amp; generating deep dives...',
+            ];
+            const stepWidths = ['10%', '35%', '60%', '80%'];
+            let stepIdx = 0;
+
+            function showProgress(idx) {
+                document.getElementById('results').innerHTML = `
+                    <div class="progress-container">
+                        <div class="progress-label" id="progress-label">${steps[idx]}</div>
+                        <div class="progress-bar-wrap">
+                            <div class="progress-bar-fill" id="progress-fill" style="width:${stepWidths[idx]}"></div>
+                            <div class="progress-bar-text">Analyzing...</div>
+                        </div>
+                    </div>`;
+            }
+            showProgress(0);
+
+            // Kick off the analysis — returns immediately with {status: "running"}
+            try {
+                const kickoff = await fetch(BASE + '/api/analyze?refresh=' + forceRefresh);
+                const kickData = await kickoff.json();
+                if (kickData.status === 'error') {
+                    document.getElementById('results').innerHTML = `<div class="error-box">⚠️ Error: ${kickData.message}</div>`;
+                    btn.disabled = false; btn.textContent = '🔍 Run AI Analysis';
+                    return;
+                }
+                // If we got a full result back immediately (e.g. cached), render it now
+                if (kickData.status === 'ok' && kickData.analysis) {
+                    renderAnalysis(kickData.analysis);
+                    window._lastAnalysis = kickData.analysis;
+                    _v2UpdateAnalysisBar('ok', kickData.timestamp || '');
+                    btn.disabled = false; btn.textContent = '🔄 Run Fresh Analysis';
+                    return;
+                }
+            } catch (err) {
+                document.getElementById('results').innerHTML = `<div class="error-box">⚠️ Error: ${err.message}</div>`;
+                btn.disabled = false; btn.textContent = '🔍 Run AI Analysis';
+                return;
+            }
+
+            // Poll /api/analyze/status every 3 seconds until done
+            const stepIntervals = [2000, 5000, 9000, 20000];
+            let elapsed = 0;
+            const pollInterval = setInterval(async () => {
+                elapsed += 3000;
+                // Advance progress label based on elapsed time
+                const newStep = stepIntervals.findIndex(t => elapsed < t);
+                const nextStep = newStep === -1 ? 3 : newStep;
+                if (nextStep !== stepIdx) {
+                    stepIdx = nextStep;
+                    showProgress(stepIdx);
+                }
+
+                try {
+                    const res = await fetch(BASE + '/api/analyze/status');
+                    const data = await res.json();
+
+                    if (data.status === 'running') return; // still going — keep polling
+
+                    clearInterval(pollInterval);
+                    const fill = document.getElementById('progress-fill');
+                    if (fill) fill.style.width = '100%';
+
+                    if (data.status === 'error') {
+                        document.getElementById('results').innerHTML = `<div class="error-box">⚠️ Error: ${data.message}</div>`;
+                    } else if (data.status === 'ok' && data.analysis) {
+                        renderAnalysis(data.analysis);
+                        window._lastAnalysis = data.analysis;
+                        _v2UpdateAnalysisBar('ok', data.timestamp || '');
+                        const info = document.querySelector('.info-box');
+                        if (info && data.timestamp) info.innerHTML += '<br><strong>Last analysis: ' + data.timestamp + '</strong>';
+                    } else {
+                        document.getElementById('results').innerHTML = `<div class="error-box">⚠️ Analysis completed but returned no data. Check server logs.</div>`;
+                    }
+                    btn.disabled = false; btn.textContent = '🔄 Run Fresh Analysis';
+
+                } catch (err) {
+                    clearInterval(pollInterval);
+                    document.getElementById('results').innerHTML = `<div class="error-box">⚠️ Error polling status: ${err.message}</div>`;
+                    btn.disabled = false; btn.textContent = '🔍 Run AI Analysis';
+                }
+            }, 3000);
+        }
+
+        // ── Q&A engine ────────────────────────────────────────────────────────
+
+        let chatHistory   = [];   // [{role, content}]
+        let infraContext  = null; // built once per session (or on fresh)
+        let dataMode      = 'cached';
+        let isStreaming   = false;
+
+        function setDataMode(mode) {
+            dataMode = mode;
+            document.getElementById('toggle-cached').classList.toggle('active', mode === 'cached');
+            document.getElementById('toggle-fresh').classList.toggle('active',  mode === 'fresh');
+            // If switching to fresh, invalidate cached context so it rebuilds
+            if (mode === 'fresh') infraContext = null;
+        }
+
+        function useChip(el) {
+            const input = document.getElementById('qa-input');
+            input.value = el.textContent.trim();
+            autoResize(input);
+            input.focus();
+        }
+
+        function handleKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
+        }
+
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+        }
+
+        function clearChat() {
+            chatHistory  = [];
+            infraContext = null;
+            const win = document.getElementById('chat-window');
+            win.innerHTML = `<div class="chat-empty" id="chat-empty">
+                <span>🧠</span>
+                Ask anything about your infrastructure — alerts, servers, trends, applications, risks.
+                <br><br>
+                <span style="font-size:12px;color:#333">I have access to your VMware, OpManager, Active Directory, Citrix, Lansweeper, and Certificate data.</span>
+            </div>`;
+        }
+
+        function scrollChat() {
+            const win = document.getElementById('chat-window');
+            win.scrollTop = win.scrollHeight;
+        }
+
+        function appendMsg(role, content, streaming=false) {
+            const empty = document.getElementById('chat-empty');
+            if (empty) empty.remove();
+
+            const win  = document.getElementById('chat-window');
+            const id   = 'msg-' + Date.now();
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+            const div = document.createElement('div');
+            div.className = `msg ${role}`;
+            div.id = id;
+            div.innerHTML = `
+                <div class="msg-avatar">${role === 'user' ? '👤' : '🤖'}</div>
+                <div>
+                    <div class="msg-bubble${streaming ? ' streaming' : ''}" id="bubble-${id}">${escHtml(content)}</div>
+                    <div class="msg-meta">${time}</div>
+                </div>`;
+            win.appendChild(div);
+            scrollChat();
+            return id;
+        }
+
+        // ── lightweight markdown renderer (handles Claude's typical output) ────
+        function renderMarkdown(text) {
+            // Escape HTML entities first so we don't get XSS from injected content
+            const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+            // Extract and protect code blocks before other transforms
+            const codeBlocks = [];
+            text = text.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+                codeBlocks.push(`<pre><code>${esc(code.trim())}</code></pre>`);
+                return `\x00CODE${codeBlocks.length - 1}\x00`;
+            });
+
+            // Inline code
+            const inlineCodes = [];
+            text = text.replace(/`([^`]+)`/g, (_, code) => {
+                inlineCodes.push(`<code>${esc(code)}</code>`);
+                return `\x00INLINE${inlineCodes.length - 1}\x00`;
+            });
+
+            // Process line by line
+            const lines = text.split('\n');
+            let html = '';
+            let inList = false;
+            let listTag = '';
+
+            const flushList = () => {
+                if (inList) { html += `</${listTag}>`; inList = false; listTag = ''; }
+            };
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+
+                // Headers
+                if (/^### (.+)/.test(line))      { flushList(); html += `<h3>${esc(line.slice(4))}</h3>`; continue; }
+                if (/^## (.+)/.test(line))       { flushList(); html += `<h3>${esc(line.slice(3))}</h3>`; continue; }
+                if (/^#### (.+)/.test(line))     { flushList(); html += `<h4>${esc(line.slice(5))}</h4>`; continue; }
+
+                // Unordered list
+                if (/^[-*] (.+)/.test(line)) {
+                    if (!inList || listTag !== 'ul') { flushList(); html += '<ul>'; inList = true; listTag = 'ul'; }
+                    html += `<li>${inlineFormat(esc(line.replace(/^[-*] /, '')))}</li>`;
+                    continue;
+                }
+
+                // Ordered list
+                if (/^\d+\. (.+)/.test(line)) {
+                    if (!inList || listTag !== 'ol') { flushList(); html += '<ol>'; inList = true; listTag = 'ol'; }
+                    html += `<li>${inlineFormat(esc(line.replace(/^\d+\. /, '')))}</li>`;
+                    continue;
+                }
+
+                flushList();
+
+                // Blank line = paragraph break
+                if (line.trim() === '') { html += '</p><p>'; continue; }
+
+                html += inlineFormat(esc(line)) + ' ';
+            }
+            flushList();
+
+            // Wrap in paragraph, clean up empty tags
+            html = '<p>' + html + '</p>';
+            html = html.replace(/<p>\s*<\/p>/g, '');
+            html = html.replace(/<\/p><p>/g, '</p>\n<p>');
+
+            // Restore code blocks and inline code
+            codeBlocks.forEach((block, i)  => { html = html.replace(`\x00CODE${i}\x00`, block); });
+            inlineCodes.forEach((code, i)  => { html = html.replace(`\x00INLINE${i}\x00`, code); });
+
+            return html;
+        }
+
+        function inlineFormat(s) {
+            // Bold **text** or __text__
+            s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+            // Italic *text*
+            s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            return s;
+        }
+
+        function updateBubble(msgId, text, done=false) {
+            const bubble = document.getElementById('bubble-' + msgId);
+            if (!bubble) return;
+            // Render markdown for assistant messages; plain text while still streaming
+            if (done) {
+                bubble.innerHTML = renderMarkdown(text);
+                bubble.classList.remove('streaming');
+            } else {
+                bubble.textContent = text;
+            }
+            scrollChat();
+        }
+
+        // ── build infra context summary ───────────────────────────────────────
+
+        async function buildInfraContext(fresh) {
+            const refresh = fresh ? 'true' : 'false';
+            const [alertsRes, vmsRes, adRes, citrixRes, lsRes, certRes] = await Promise.all([
+                fetch(BASE + '/api/alerts?refresh='              + refresh).catch(() => null),
+                fetch(BASE + '/api/vms?refresh='                 + refresh).catch(() => null),
+                fetch(BASE + '/api/ad/summary?refresh='          + refresh).catch(() => null),
+                fetch(BASE + '/api/citrix/summary?refresh='      + refresh).catch(() => null),
+                fetch(BASE + '/api/lansweeper/summary?refresh='  + refresh).catch(() => null),
+                fetch(BASE + '/api/ca/summary?refresh='          + refresh).catch(() => null),
+            ]);
+
+            const alerts = alertsRes ? await alertsRes.json() : {};
+            const vms    = vmsRes    ? await vmsRes.json()    : {};
+            const ad     = adRes     ? await adRes.json()     : {};
+            const citrix = citrixRes ? await citrixRes.json() : {};
+            const ls     = lsRes     ? await lsRes.json()     : {};
+            const certs  = certRes   ? await certRes.json()   : {};
+
+            // Build a concise but rich context string
+            let ctx = `You are an expert infrastructure analyst for Zinnia. You have access to real-time data from multiple monitoring systems. Here is the current state of the infrastructure:\n\n`;
+
+            ctx += `## Server Naming Convention\n`;
+            ctx += `Server names follow the pattern: <LOCATION><ROLE><NUMBER><TIER>\n`;
+            ctx += `- Locations: TOP=Topeka, VMCE=VMC on AWS, AWS=AWS, CAN=Candor India\n`;
+            ctx += `- Tiers: P=Production (tier 1, highest urgency), Q=QA (tier 2), D/U/T=Dev/UAT/Test (tier 3)\n`;
+            ctx += `- Role codes in name: CTX=Citrix, IIS=IIS/Web, DB=Database, APP=Application, SQL=SQL Server\n`;
+            ctx += `- DB in name = SQL/Oracle server\n\n`;
+
+            // Alerts
+            if (alerts.status === 'ok') {
+                const alms    = alerts.alarms || [];
+                const active  = alms.filter(a => a.severity !== 'Clear');
+                const crit    = active.filter(a => a.severity === 'Critical');
+                const devices = [...new Set(active.map(a => a.device_name || a.ip_address))];
+                ctx += `## OpManager Alerts\n`;
+                ctx += `Total active: ${active.length} | Critical: ${crit.length} | Devices affected: ${devices.length}\n`;
+                ctx += `Top critical alerts:\n`;
+                crit.slice(0, 20).forEach(a => {
+                    ctx += `  - ${a.device_name || a.ip_address}: [${a.event_type}] ${a.message} (${a.time})\n`;
+                });
+                // Group by device for context
+                const byDev = {};
+                active.forEach(a => {
+                    const k = (a.device_name||a.ip_address||'unknown').split('.')[0].toUpperCase();
+                    if (!byDev[k]) byDev[k] = [];
+                    byDev[k].push(a.severity);
+                });
+                const topDevices = Object.entries(byDev)
+                    .sort((a,b) => b[1].length - a[1].length)
+                    .slice(0, 15);
+                ctx += `Devices with most alerts: ${topDevices.map(([d,s]) => `${d}(${s.length})`).join(', ')}\n\n`;
+            }
+
+            // VMware
+            if (vms.status === 'ok') {
+                const v = vms.vms || [];
+                const on  = v.filter(x => x.power_state === 'POWERED_ON').length;
+                const off = v.filter(x => x.power_state === 'POWERED_OFF').length;
+                const envs = {};
+                v.forEach(x => { envs[x.environment] = (envs[x.environment]||0)+1; });
+                ctx += `## VMware\n`;
+                ctx += `Total VMs: ${v.length} | Powered on: ${on} | Powered off: ${off}\n`;
+                ctx += `By environment: ${Object.entries(envs).map(([e,c])=>`${e}: ${c}`).join(', ')}\n\n`;
+            }
+
+            // Active Directory
+            if (ad.status === 'ok' && ad.data) {
+                const d = ad.data;
+                ctx += `## Active Directory\n`;
+                ctx += `Users: ${d.total_users} total, ${d.active_users} active, ${d.stale_users} stale (90d)\n`;
+                ctx += `Privileged: ${d.domain_admin_count} domain admins, ${d.enterprise_admin_count} enterprise admins\n`;
+                ctx += `Computers: ${d.stale_computers} stale computers | Groups: ${d.empty_groups} empty groups\n\n`;
+            }
+
+            // Citrix
+            if (citrix.status === 'ok' && citrix.data) {
+                const d = citrix.data;
+                ctx += `## Citrix Cloud\n`;
+                ctx += `Sessions: ${d.active_sessions} active, ${d.disconnected_sessions} disconnected\n`;
+                ctx += `Machines: ${d.total_machines} total, ${d.registered} registered, ${d.unregistered} unregistered\n`;
+                ctx += `Catalogs: ${d.total_catalogs} | With faults: ${d.with_faults}\n\n`;
+            }
+
+            // Lansweeper
+            if (ls.status === 'ok' && ls.data) {
+                const d = ls.data;
+                ctx += `## Asset Inventory (Lansweeper)\n`;
+                ctx += `Total assets: ${d.total} | EOL OS count: ${d.eol_count}\n`;
+                ctx += `Not seen 30d: ${d.not_seen_30d} | Not seen 90d: ${d.not_seen_90d}\n`;
+                ctx += `By type: ${Object.entries(d.by_type||{}).slice(0,8).map(([t,c])=>`${t}: ${c}`).join(', ')}\n`;
+                ctx += `By OS: ${Object.entries(d.by_os||{}).slice(0,10).map(([o,c])=>`${o}: ${c}`).join(', ')}\n\n`;
+            }
+
+            // Certificates
+            if (certs.status === 'ok' && certs.data) {
+                const d = certs.data;
+                ctx += `## Certificates\n`;
+                ctx += `Total: ${d.total_issued} | Expired: ${d.expired} | Expiring ≤30d: ${d.expiring_30} | Expiring ≤60d: ${d.expiring_60}\n\n`;
+            }
+
+            // Last AI analysis summary if available
+            if (window._lastAnalysis) {
+                const exec = parseSection(window._lastAnalysis, 'EXECUTIVE_SUMMARY');
+                const grades = parseSection(window._lastAnalysis, 'GRADES');
+                if (exec || grades) {
+                    ctx += `## Last AI Analysis\n`;
+                    if (grades) ctx += `Grades:\n${grades}\n`;
+                    if (exec)   ctx += `Summary: ${exec.slice(0, 500)}\n\n`;
+                }
+            }
+
+            ctx += `## Instructions\n`;
+            ctx += `Answer the admin's questions using this data. Be specific — name actual servers, cite actual numbers. `;
+            ctx += `Use the naming convention to infer tiers and roles. When identifying application groups, `;
+            ctx += `look for patterns in server names, alert messages, and categories. `;
+            ctx += `Flag urgent items clearly. Be concise but thorough. If you identify a pattern that suggests `;
+            ctx += `an impending issue, say so explicitly with supporting evidence.\n`;
+
+            return ctx;
+        }
+
+        // ── send question ─────────────────────────────────────────────────────
+
+        async function sendQuestion() {
+            const input = document.getElementById('qa-input');
+            const q     = input.value.trim();
+            if (!q || isStreaming) return;
+
+            input.value = '';
+            autoResize(input);
+            isStreaming = true;
+            document.getElementById('btn-send').disabled = true;
+
+            // Show user message
+            appendMsg('user', q);
+            chatHistory.push({role: 'user', content: q});
+
+            // Build context on first message or if fresh mode
+            if (!infraContext) {
+                const statusId = appendMsg('assistant', '⏳ Gathering infrastructure data...', true);
+                try {
+                    infraContext = await buildInfraContext(dataMode === 'fresh');
+                    const bubble = document.getElementById('bubble-' + statusId);
+                    if (bubble) bubble.closest('.msg').remove();
+                } catch(e) {
+                    updateBubble(statusId, `Error gathering data: ${e.message}`, true);
+                    isStreaming = false;
+                    document.getElementById('btn-send').disabled = false;
+                    return;
+                }
+            }
+
+            // Build messages array for API
+            // System context only on first turn — subsequent turns use history
+            const messages = chatHistory.length === 1
+                ? [{role: 'user', content: infraContext + '\n\n---\n\nAdmin question: ' + q}]
+                : [
+                    {role: 'user',      content: infraContext + '\n\n---\n\nAdmin question: ' + chatHistory[0].content},
+                    ...chatHistory.slice(1).map((m, i) => ({
+                        role:    m.role,
+                        content: m.content
+                    }))
+                  ];
+
+            // Stream response
+            const msgId = appendMsg('assistant', '', true);
+
+            try {
+                const res = await fetch(BASE + '/api/chat', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({messages}),
+                });
+                const data = await res.json();
+                if (data.status !== 'ok') {
+                    updateBubble(msgId, `Error: ${data.message}`, true);
+                    chatHistory.pop();
+                } else {
+                    updateBubble(msgId, data.response, true);
+                    chatHistory.push({role: 'assistant', content: data.response});
+                }
+            } catch(e) {
+                updateBubble(msgId, `Error: ${e.message}`, true);
+                chatHistory.pop();
+            }
+
+            isStreaming = false;
+            document.getElementById('btn-send').disabled = false;
+            document.getElementById('qa-input').focus();
+        }
+
+        function escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── V2 analysis bar helpers ───────────────────────────────────────────
+        function _v2UpdateAnalysisBar(status, timestamp) {
+            const dot   = document.getElementById('v2-abar-dot');
+            const label = document.getElementById('v2-abar-label');
+            const ts    = document.getElementById('v2-abar-ts');
+            const meta  = document.getElementById('v2-analysis-meta');
+            if (status === 'ok') {
+                if (dot)   { dot.style.background = 'var(--success)'; }
+                if (label) label.textContent = 'Analysis complete';
+                if (ts)    ts.textContent    = timestamp ? timestamp : '';
+                if (meta)  meta.textContent  = 'Cached · ' + (timestamp || new Date().toLocaleTimeString());
+            } else if (status === 'running') {
+                if (dot)   { dot.style.background = 'var(--warning)'; dot.style.animation = 'v2blink 1s infinite'; }
+                if (label) label.textContent = 'Analysis running…';
+                if (meta)  meta.textContent  = 'Running…';
+            } else {
+                if (dot)   dot.style.background = 'var(--danger)';
+                if (label) label.textContent = 'No analysis loaded — click Run to start';
+            }
+        }
+    </script>
+{% endblock %}

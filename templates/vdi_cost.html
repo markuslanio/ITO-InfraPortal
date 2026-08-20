@@ -1,0 +1,717 @@
+{% extends "base.html" %}
+{% block title %}VDI Cost Report{% endblock %}
+
+{% block content %}
+<style>
+  .vdi-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1rem 1.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .vdi-header h1 { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 0; }
+  .vdi-header .subtitle { font-size: 0.78rem; color: var(--text4); margin-top: 2px; }
+
+  .cost-config-bar {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem 1.5rem;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .cost-config-bar label { font-size: 0.8rem; color: var(--text3); white-space: nowrap; }
+  .cost-config-bar input[type=number] {
+    width: 90px; padding: 0.28rem 0.5rem; border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text); font-size: 0.82rem;
+  }
+  .cost-config-bar input[type=number]:focus { border-color: var(--accent); outline: none; }
+  .btn-run {
+    padding: 0.3rem 0.9rem; background: var(--accent); color: #fff;
+    border: none; border-radius: 5px; font-size: 0.8rem; cursor: pointer; transition: background 0.15s;
+  }
+  .btn-run:hover { background: var(--accent-dark); }
+  .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+  .refresh-badge { font-size: 0.75rem; color: var(--text4); margin-left: auto; }
+
+  /* Stat strip */
+  .stat-strip { display: flex; gap: 0.75rem; padding: 0.75rem 1.5rem; flex-wrap: wrap; }
+  .stat-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 7px; padding: 0.65rem 1.1rem; min-width: 130px; flex: 1;
+  }
+  .stat-card .s-label { font-size: 0.7rem; color: var(--text4); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+  .stat-card .s-value { font-size: 1.45rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .stat-card .s-sub   { font-size: 0.7rem; color: var(--text4); margin-top: 1px; }
+  .stat-card.accent  .s-value { color: var(--success); }
+  .stat-card.warn    .s-value { color: var(--warning); }
+  .stat-card.danger  .s-value { color: var(--danger); }
+  .stat-card.savings .s-value { color: var(--warning); }
+
+  /* Tabs */
+  .tab-bar {
+    display: flex; padding: 0 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .tab-btn {
+    padding: 0.55rem 1rem; font-size: 0.82rem; color: var(--text3);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    cursor: pointer; transition: color 0.15s, border-color 0.15s; white-space: nowrap;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .tab-pane { display: none; padding: 1rem 1.5rem; }
+  .tab-pane.active { display: block; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; }
+  table.report-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  table.report-table thead th {
+    padding: 0.55rem 0.75rem; text-align: left; font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text3);
+    background: var(--bg3); border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  table.report-table thead th:hover { color: var(--text); }
+  table.report-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  table.report-table tbody tr:hover { background: var(--surface); }
+  table.report-table tbody td { padding: 0.45rem 0.75rem; color: var(--text2); vertical-align: middle; }
+
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; }
+  .badge-green  { background: rgba(34,204,102,.15);  color: var(--success); border: 1px solid rgba(34,204,102,.3); }
+  .badge-red    { background: rgba(255,68,68,.15);   color: var(--danger);  border: 1px solid rgba(255,68,68,.3); }
+  .badge-yellow { background: rgba(255,170,0,.15);   color: var(--warning); border: 1px solid rgba(255,170,0,.3); }
+  .badge-orange { background: rgba(255,170,0,.15);   color: var(--warning); border: 1px solid rgba(255,170,0,.3); }
+  .badge-blue   { background: rgba(15,155,142,.15);  color: var(--accent);  border: 1px solid rgba(15,155,142,.3); }
+  .badge-gray   { background: var(--surface);        color: var(--text4); }
+
+  /* Group sections */
+  .group-section { margin-bottom: 1.2rem; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .group-header { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 1rem; background: var(--bg2); cursor: pointer; user-select: none; }
+  .group-header:hover { background: var(--surface); }
+  .group-header .gh-left { font-size: 0.85rem; color: var(--text); font-weight: 600; }
+  .group-header .gh-left span { font-size: 0.75rem; color: var(--text4); font-weight: 400; margin-left: 0.4rem; }
+  .group-header .gh-right { font-size: 0.82rem; color: var(--success); font-weight: 600; }
+  .group-body { display: none; }
+  .group-body.open { display: block; }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; align-items: center; }
+  .filter-bar input[type=search],
+  .filter-bar select {
+    padding: 0.3rem 0.6rem; border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text); font-size: 0.8rem;
+  }
+  .filter-bar input[type=search]:focus,
+  .filter-bar select:focus { border-color: var(--accent); outline: none; }
+  .filter-bar input[type=search] { min-width: 200px; }
+
+  /* Export */
+  .export-bar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; justify-content: flex-end; }
+  .btn-export {
+    padding: 0.3rem 0.8rem; font-size: 0.75rem; border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--surface); color: var(--text3);
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .btn-export:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Bar chart */
+  .bar-chart { display: flex; flex-direction: column; gap: 6px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.76rem; }
+  .bar-row .bar-label { width: 160px; text-align: right; color: var(--text4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+  .bar-row .bar-track { flex: 1; background: var(--bg3); border-radius: 3px; height: 16px; overflow: hidden; }
+  .bar-row .bar-fill  { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s ease; }
+  .bar-row .bar-val   { min-width: 60px; text-align: right; color: var(--success); font-weight: 600; }
+
+  /* Cleanup summary strip */
+  .cleanup-summary-strip { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .cleanup-stat { flex: 1; min-width: 140px; border-radius: 8px; padding: 0.75rem 1rem; border: 1px solid var(--border); background: var(--bg2); }
+  .cleanup-stat.crit { background: rgba(255,68,68,.08);   border-color: rgba(255,68,68,.3); }
+  .cleanup-stat.warn { background: rgba(255,170,0,.08);   border-color: rgba(255,170,0,.3); }
+  .cleanup-stat.info { background: rgba(15,155,142,.08);  border-color: rgba(15,155,142,.3); }
+  .cleanup-stat.save { background: rgba(34,204,102,.08);  border-color: rgba(34,204,102,.3); }
+  .cleanup-stat .cs-val        { font-size: 1.6rem; font-weight: 700; line-height: 1.1; color: var(--text); }
+  .cleanup-stat.crit .cs-val   { color: var(--danger); }
+  .cleanup-stat.warn .cs-val   { color: var(--warning); }
+  .cleanup-stat.info .cs-val   { color: var(--accent); }
+  .cleanup-stat.save .cs-val   { color: var(--success); }
+  .cleanup-stat .cs-label { font-size: 0.72rem; color: var(--text4); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+  .cleanup-stat .cs-sub   { font-size: 0.7rem; color: var(--text4); margin-top: 2px; }
+
+  /* Cleanup categories */
+  .cleanup-category { margin-bottom: 1.25rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .cleanup-cat-header {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.65rem 1rem; cursor: pointer; user-select: none;
+    background: var(--bg2);
+  }
+  .cleanup-cat-header:hover { background: var(--surface); }
+  .cleanup-cat-header .cch-icon  { font-size: 1rem; flex-shrink: 0; }
+  .cleanup-cat-header .cch-label { font-size: 0.88rem; font-weight: 600; color: var(--text); flex: 1; }
+  .cleanup-cat-header .cch-count { font-size: 0.78rem; }
+  .cleanup-cat-header .cch-count.crit { color: var(--danger);  font-weight: 700; }
+  .cleanup-cat-header .cch-count.warn { color: var(--warning); font-weight: 700; }
+  .cleanup-cat-header .cch-count.info { color: var(--accent); }
+  .cleanup-cat-body { display: none; }
+  .cleanup-cat-body.open { display: block; }
+  .cleanup-action-banner {
+    padding: 0.5rem 1rem; font-size: 0.78rem;
+    color: var(--text3);
+    border-top: 1px solid var(--border);
+    background: var(--bg3);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .cleanup-action-banner::before { content: "💡"; flex-shrink: 0; }
+
+  .loading-msg { text-align: center; padding: 3rem 1rem; color: var(--text3); font-size: 0.85rem; }
+  .error-msg   { color: var(--danger); font-size: 0.82rem; padding: 1rem; }
+  tr.unassigned td:nth-child(4) { color: var(--text4); font-style: italic; }
+</style>
+
+<!-- Page header -->
+<div class="vdi-header">
+  <div>
+    <h1>VDI Cost Report</h1>
+    <div class="subtitle">Citrix Windows 11 single-session desktops · Entra ID attribution · Monthly cost estimation</div>
+  </div>
+</div>
+
+<!-- Cost config bar -->
+<div class="cost-config-bar">
+  <label for="costInput">Monthly cost per machine ($)</label>
+  <input type="number" id="costInput" min="1" max="9999" step="0.01" value="35.00" />
+  <button class="btn-run" id="runBtn" onclick="loadReport()">▶ Run Report</button>
+  <button class="btn-run" style="background:#374151;" id="refreshBtn" onclick="loadReport(true)">↺ Refresh Data</button>
+  <span class="refresh-badge" id="refreshBadge"></span>
+</div>
+
+<!-- Stat strip -->
+<div class="stat-strip" id="statStrip" style="display:none;">
+  <div class="stat-card accent">
+    <div class="s-label">VDI Machines</div>
+    <div class="s-value" id="sTotalMachines">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-label">Monthly Total</div>
+    <div class="s-value" id="sGrandTotal">—</div>
+    <div class="s-sub">estimated</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-label">Assigned</div>
+    <div class="s-value" id="sAssigned">—</div>
+    <div class="s-sub" id="sAssignedPct"></div>
+  </div>
+  <div class="stat-card warn">
+    <div class="s-label">Unassigned</div>
+    <div class="s-value" id="sUnassigned">—</div>
+    <div class="s-sub" id="sUnassignedCost"></div>
+  </div>
+  <div class="stat-card danger">
+    <div class="s-label">Cleanup Issues</div>
+    <div class="s-value" id="sCleanupCritical">—</div>
+    <div class="s-sub" id="sCleanupSub"></div>
+  </div>
+  <div class="stat-card savings">
+    <div class="s-label">Potential Savings</div>
+    <div class="s-value" id="sPotentialSavings">—</div>
+    <div class="s-sub">if critical issues resolved</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar" id="tabBar" style="display:none;">
+  <button class="tab-btn active" onclick="switchTab('machines',this)">All Machines</button>
+  <button class="tab-btn" onclick="switchTab('byManager',this)">By Manager</button>
+  <button class="tab-btn" onclick="switchTab('byDept',this)">By Department</button>
+  <button class="tab-btn" onclick="switchTab('costBreakdown',this)">Cost Breakdown</button>
+  <button class="tab-btn" id="cleanupTabBtn" onclick="switchTab('cleanup',this)">🧹 Cleanup</button>
+</div>
+
+<!-- Tab panes -->
+<div id="tabContent" style="display:none;">
+
+  <!-- ALL MACHINES -->
+  <div id="tab-machines" class="tab-pane active">
+    <div class="filter-bar">
+      <input type="search" id="machineSearch" placeholder="Search machine, user, manager…" oninput="filterMachineTable()" />
+      <select id="machineRegFilter" onchange="filterMachineTable()">
+        <option value="">All Registration States</option>
+        <option value="Registered">Registered</option>
+        <option value="Unregistered">Unregistered</option>
+      </select>
+      <select id="machinePowerFilter" onchange="filterMachineTable()">
+        <option value="">All Power States</option>
+        <option value="On">On</option>
+        <option value="Off">Off</option>
+      </select>
+      <select id="machineAssignFilter" onchange="filterMachineTable()">
+        <option value="">All</option>
+        <option value="assigned">Assigned only</option>
+        <option value="unassigned">Unassigned only</option>
+      </select>
+    </div>
+    <div class="export-bar">
+      <button class="btn-export" onclick="exportCSV()">⬇ CSV</button>
+      <button class="btn-export" onclick="exportExcel()">⬇ Excel</button>
+    </div>
+    <div class="table-wrap">
+      <table class="report-table" id="machineTable">
+        <thead>
+          <tr>
+            <th onclick="sortTable(0)">Machine ↕</th>
+            <th onclick="sortTable(1)">Catalog ↕</th>
+            <th onclick="sortTable(2)">Delivery Group ↕</th>
+            <th onclick="sortTable(3)">Assigned User ↕</th>
+            <th onclick="sortTable(4)">Department ↕</th>
+            <th onclick="sortTable(5)">Job Title ↕</th>
+            <th onclick="sortTable(6)">Manager ↕</th>
+            <th onclick="sortTable(7)">Last Login ↕</th>
+            <th onclick="sortTable(8)">Reg State ↕</th>
+            <th onclick="sortTable(9)">Power ↕</th>
+            <th onclick="sortTable(10)">Monthly Cost ↕</th>
+          </tr>
+        </thead>
+        <tbody id="machineTbody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:0.75rem;color:var(--text-muted,#777);margin-top:0.4rem;" id="machineCount"></div>
+  </div>
+
+  <!-- BY MANAGER -->
+  <div id="tab-byManager" class="tab-pane">
+    <div id="managerGroups"></div>
+  </div>
+
+  <!-- BY DEPARTMENT -->
+  <div id="tab-byDept" class="tab-pane">
+    <div id="deptGroups"></div>
+  </div>
+
+  <!-- COST BREAKDOWN -->
+  <div id="tab-costBreakdown" class="tab-pane">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:900px;">
+      <div>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted,#888);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.6rem;">Cost by Department</div>
+        <div class="bar-chart" id="deptBarChart"></div>
+      </div>
+      <div>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted,#888);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.6rem;">Cost by Manager</div>
+        <div class="bar-chart" id="mgrBarChart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLEANUP -->
+  <div id="tab-cleanup" class="tab-pane">
+    <div class="cleanup-summary-strip" id="cleanupSummaryStrip"></div>
+    <div id="cleanupCategories"></div>
+  </div>
+
+</div>
+
+<!-- Initial / loading states -->
+<div id="initMsg" class="loading-msg">Configure a per-machine cost above and click <strong>▶ Run Report</strong>.</div>
+<div id="loadingMsg" class="loading-msg" style="display:none;">
+  ⏳ Fetching Citrix machines and Entra user data…<br>
+  <small style="color:var(--text-muted,#666);">This may take a moment for large environments.</small>
+</div>
+<div id="errorMsg" class="error-msg" style="display:none;"></div>
+
+<script>
+  let _reportData = null;
+  let _sortCol = -1;
+  let _sortAsc = true;
+  let _allRows = [];
+
+  function fmt(n) {
+    return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function daysLabel(d) {
+    if (d === null || d === undefined) return '—';
+    if (d === 0) return 'Today';
+    return d + 'd ago';
+  }
+
+  let _pollInterval = null;
+  let _pollCost = 35;
+
+  async function loadReport(forceRefresh = false) {
+    const cost = parseFloat(document.getElementById('costInput').value) || 35;
+    _pollCost = cost;
+
+    document.getElementById('initMsg').style.display    = 'none';
+    document.getElementById('errorMsg').style.display   = 'none';
+    document.getElementById('loadingMsg').style.display = 'block';
+    document.getElementById('statStrip').style.display  = 'none';
+    document.getElementById('tabBar').style.display     = 'none';
+    document.getElementById('tabContent').style.display = 'none';
+    document.getElementById('runBtn').disabled     = true;
+    document.getElementById('refreshBtn').disabled = true;
+
+    // Clear any existing poll
+    if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+
+    try {
+      const params = new URLSearchParams({ cost_per_machine: cost });
+      if (forceRefresh) params.set('refresh', '1');
+
+      const r = await fetch(`/infraportal/api/vdi-cost/report?${params}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+
+      if (data.status === 'running') {
+        // Background job started — poll for completion
+        _setLoadingMsg('⏳ Building report — fetching Citrix assignments and Entra user data…');
+        _pollInterval = setInterval(_pollStatus, 4000);
+      } else if (data.status === 'error') {
+        throw new Error(data.message || 'Report generation failed');
+      } else if (data.machines) {
+        // Cached result returned immediately
+        _finishReport(data);
+      } else {
+        throw new Error('Unexpected response from server');
+      }
+    } catch(e) {
+      _showError('⚠ Failed to load report: ' + e.message);
+    }
+  }
+
+  async function _pollStatus() {
+    try {
+      const r = await fetch(`/infraportal/api/vdi-cost/report/status?cost_per_machine=${_pollCost}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+
+      if (data.status === 'running') {
+        return; // keep polling
+      }
+      clearInterval(_pollInterval); _pollInterval = null;
+
+      if (data.status === 'error') {
+        _showError('⚠ Report failed: ' + (data.message || 'Unknown error'));
+      } else if (data.status === 'idle') {
+        _showError('⚠ Report timed out — please try again');
+      } else if (data.machines) {
+        _finishReport(data);
+      } else {
+        _showError('⚠ Unexpected response from server');
+      }
+    } catch(e) {
+      clearInterval(_pollInterval); _pollInterval = null;
+      _showError('⚠ Polling error: ' + e.message);
+    }
+  }
+
+  function _finishReport(data) {
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('runBtn').disabled     = false;
+    document.getElementById('refreshBtn').disabled = false;
+    _reportData = data;
+    renderReport(data);
+    document.getElementById('refreshBadge').textContent = 'Last run: ' + new Date().toLocaleTimeString();
+  }
+
+  function _showError(msg) {
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('errorMsg').style.display   = 'block';
+    document.getElementById('errorMsg').textContent     = msg;
+    document.getElementById('runBtn').disabled     = false;
+    document.getElementById('refreshBtn').disabled = false;
+  }
+
+  function _setLoadingMsg(msg) {
+    const el = document.getElementById('loadingMsg');
+    el.style.display = 'block';
+    el.innerHTML = msg + '<br><small style="color:var(--text-muted,#666)">This takes 2–4 minutes on first run. The page will update automatically.</small>';
+  }
+
+  function renderReport(data) {
+    const { summary, machines, by_manager, by_department, cleanup } = data;
+
+    // Stat strip
+    document.getElementById('sTotalMachines').textContent  = summary.total_machines;
+    document.getElementById('sGrandTotal').textContent     = fmt(summary.grand_total);
+    document.getElementById('sAssigned').textContent       = summary.assigned;
+    document.getElementById('sAssignedPct').textContent    = Math.round(100 * summary.assigned / (summary.total_machines || 1)) + '% of machines';
+    document.getElementById('sUnassigned').textContent     = summary.unassigned;
+    document.getElementById('sUnassignedCost').textContent = fmt(summary.unassigned * summary.cost_per_machine) + ' idle';
+    document.getElementById('sCleanupCritical').textContent= (summary.cleanup_critical || 0) + ' critical';
+    document.getElementById('sCleanupSub').textContent     = (summary.cleanup_warning || 0) + ' warnings';
+    document.getElementById('sPotentialSavings').textContent = fmt(summary.potential_savings || 0) + '/mo';
+
+    // Update cleanup tab badge
+    const critCount = summary.cleanup_critical || 0;
+    document.getElementById('cleanupTabBtn').textContent =
+      critCount > 0 ? `🧹 Cleanup (${critCount})` : '🧹 Cleanup';
+
+    document.getElementById('statStrip').style.display  = '';
+    document.getElementById('tabBar').style.display     = '';
+    document.getElementById('tabContent').style.display = '';
+
+    _allRows = machines;
+    renderMachineTable(machines);
+
+    renderGroups('managerGroups', Object.values(by_manager).sort((a,b) => b.total - a.total),
+      g => g.managerName || g.managerUpn || 'Unassigned');
+
+    renderGroups('deptGroups', Object.values(by_department).sort((a,b) => b.total - a.total),
+      g => g.department || 'Unknown');
+
+    renderBarChart('deptBarChart',
+      Object.entries(by_department).map(([k,v]) => ({ label: k||'Unknown', value: v.total }))
+        .sort((a,b) => b.value - a.value).slice(0,15));
+    renderBarChart('mgrBarChart',
+      Object.values(by_manager)
+        .map(v => ({ label: v.managerName || v.managerUpn || 'Unassigned', value: v.total }))
+        .sort((a,b) => b.value - a.value).slice(0,15));
+
+    if (cleanup) renderCleanup(cleanup, summary.cost_per_machine);
+  }
+
+  function renderCleanup(cleanup, costPerMachine) {
+    // Summary strip
+    document.getElementById('cleanupSummaryStrip').innerHTML = `
+      <div class="cleanup-stat crit">
+        <div class="cs-label">Critical Issues</div>
+        <div class="cs-val">${cleanup.critical_count}</div>
+        <div class="cs-sub">Immediate action needed</div>
+      </div>
+      <div class="cleanup-stat warn">
+        <div class="cs-label">Warnings</div>
+        <div class="cs-val">${cleanup.warning_count}</div>
+        <div class="cs-sub">Review recommended</div>
+      </div>
+      <div class="cleanup-stat info">
+        <div class="cs-label">Info</div>
+        <div class="cs-val">${cleanup.info_count}</div>
+        <div class="cs-sub">Monitor</div>
+      </div>
+      <div class="cleanup-stat save">
+        <div class="cs-label">Potential Monthly Savings</div>
+        <div class="cs-val">${fmt(cleanup.potential_savings)}</div>
+        <div class="cs-sub">From reclaiming critical machines</div>
+      </div>`;
+
+    const ORDER   = ['disabled_user','orphaned_on','unregistered_on','stale_90d','stale_60d','stale_30d','unassigned_off'];
+    const SEV_CLS = { critical: 'crit', warning: 'warn', info: 'info' };
+
+    let html = '';
+    ORDER.forEach((key, idx) => {
+      const cat = cleanup.categories[key];
+      if (!cat) return;
+      const count    = cat.machines.length;
+      const sevCls   = SEV_CLS[cat.severity] || 'info';
+      const bodyId   = `cleanup-body-${idx}`;
+      const savings  = (cat.severity === 'critical') ? `<span style="color:#34d399;font-size:.75rem;font-weight:600;margin-left:.5rem;">− ${fmt(count * costPerMachine)}/mo if reclaimed</span>` : '';
+
+      const rows = cat.machines.map(m => {
+        const daysStr = m.daysSinceConnection !== null && m.daysSinceConnection !== undefined
+          ? daysLabel(m.daysSinceConnection)
+          : '—';
+        const disabledBadge = (key === 'disabled_user')
+          ? '<span class="badge badge-red" style="margin-left:4px">Disabled</span>' : '';
+        return `
+          <tr>
+            <td><code style="font-size:.78rem;">${m.machine}</code></td>
+            <td>${m.assignedUpn
+              ? `<span title="${m.assignedUpn}">${m.userDisplay || m.assignedUpn}</span>${disabledBadge}`
+              : '<em style="color:var(--text-muted,#777)">Unassigned</em>'}</td>
+            <td>${m.department}</td>
+            <td>${m.managerName}</td>
+            <td>${daysStr}</td>
+            <td>${regBadge(m.registrationState)}</td>
+            <td>${powerBadge(m.powerState)}</td>
+            <td style="color:#34d399;font-weight:600;">${fmt(m.monthlyCost)}</td>
+          </tr>`;
+      }).join('');
+
+      html += `
+        <div class="cleanup-category">
+          <div class="cleanup-cat-header" onclick="toggleCleanupCat('${bodyId}')">
+            <span class="cch-icon">${cat.icon}</span>
+            <span class="cch-label">${cat.label}</span>
+            <span class="cch-count ${sevCls}">${count} machine${count !== 1 ? 's' : ''}${savings}</span>
+          </div>
+          <div class="cleanup-cat-body ${count > 0 && cat.severity === 'critical' ? 'open' : ''}" id="${bodyId}">
+            <div class="cleanup-action-banner">${cat.action}</div>
+            ${count > 0 ? `
+            <div class="table-wrap" style="border-radius:0;border:none;border-top:1px solid var(--border-color,#222);">
+              <table class="report-table">
+                <thead><tr>
+                  <th>Machine</th><th>Assigned User</th><th>Department</th>
+                  <th>Manager</th><th>Last Login</th><th>Reg State</th><th>Power</th><th>Monthly Cost</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>` : `<div style="padding:.75rem 1rem;font-size:.8rem;color:var(--text-muted,#777);">✓ No issues in this category</div>`}
+          </div>
+        </div>`;
+    });
+
+    document.getElementById('cleanupCategories').innerHTML = html;
+  }
+
+  function toggleCleanupCat(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('open');
+  }
+
+  function regBadge(s) {
+    if (!s || s === '—') return '<span class="badge badge-gray">—</span>';
+    const cls = s === 'Registered' ? 'badge-green' : s.toLowerCase().includes('fault') ? 'badge-red' : 'badge-yellow';
+    return `<span class="badge ${cls}">${s}</span>`;
+  }
+  function powerBadge(s) {
+    if (!s || s === '—') return '<span class="badge badge-gray">—</span>';
+    const cls = s === 'On' ? 'badge-green' : s === 'Off' ? 'badge-gray' : 'badge-yellow';
+    return `<span class="badge ${cls}">${s}</span>`;
+  }
+
+  function renderMachineTable(rows) {
+    const tbody = document.getElementById('machineTbody');
+    tbody.innerHTML = rows.map(r => `
+      <tr class="${r.assignedUpn ? '' : 'unassigned'}">
+        <td><code style="font-size:.78rem;">${r.machine}</code></td>
+        <td>${r.catalog || '—'}</td>
+        <td>${r.deliveryGroup || '—'}</td>
+        <td>${r.assignedUpn
+          ? `<span title="${r.assignedUpn}">${r.userDisplay || r.assignedUpn}</span>`
+          : '<em style="color:var(--text-muted,#777)">Unassigned</em>'}</td>
+        <td>${r.department || '—'}</td>
+        <td style="font-size:.75rem;color:var(--text-muted,#999);">${r.jobTitle || '—'}</td>
+        <td>${r.managerName ? `<span title="${r.managerUpn}">${r.managerName}</span>` : '—'}</td>
+        <td style="font-size:.75rem;">${r.daysSinceConnection !== null && r.daysSinceConnection !== undefined ? daysLabel(r.daysSinceConnection) : '—'}</td>
+        <td>${regBadge(r.registrationState)}</td>
+        <td>${powerBadge(r.powerState)}</td>
+        <td style="color:#34d399;font-weight:600;">${fmt(r.monthlyCost)}</td>
+      </tr>`).join('');
+    document.getElementById('machineCount').textContent =
+      `Showing ${rows.length} machine${rows.length !== 1 ? 's' : ''}`;
+  }
+
+  function filterMachineTable() {
+    const q    = document.getElementById('machineSearch').value.toLowerCase();
+    const reg  = document.getElementById('machineRegFilter').value;
+    const pwr  = document.getElementById('machinePowerFilter').value;
+    const asgn = document.getElementById('machineAssignFilter').value;
+    const rows = _allRows.filter(r => {
+      if (q && ![r.machine,r.userDisplay,r.assignedUpn,r.managerName,r.department,r.catalog]
+                 .join(' ').toLowerCase().includes(q)) return false;
+      if (reg  && r.registrationState !== reg) return false;
+      if (pwr  && r.powerState        !== pwr) return false;
+      if (asgn === 'assigned'   && !r.assignedUpn) return false;
+      if (asgn === 'unassigned' &&  r.assignedUpn) return false;
+      return true;
+    });
+    renderMachineTable(rows);
+  }
+
+  function sortTable(col) {
+    if (_sortCol === col) _sortAsc = !_sortAsc;
+    else { _sortCol = col; _sortAsc = true; }
+    const keys = ['machine','catalog','deliveryGroup','userDisplay','department','jobTitle','managerName','daysSinceConnection','registrationState','powerState','monthlyCost'];
+    const k = keys[col];
+    _allRows.sort((a, b) => {
+      const av = a[k] ?? (typeof a[k] === 'number' ? Infinity : '');
+      const bv = b[k] ?? (typeof b[k] === 'number' ? Infinity : '');
+      return typeof av === 'number'
+        ? (_sortAsc ? av - bv : bv - av)
+        : (_sortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av)));
+    });
+    filterMachineTable();
+  }
+
+  function renderGroups(containerId, groups, labelFn) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = groups.map((g, idx) => {
+      const label = labelFn(g);
+      const count = g.machines.length;
+      const rows = g.machines.map(r => `
+        <tr>
+          <td><code style="font-size:.78rem;">${r.machine}</code></td>
+          <td>${r.assignedUpn
+            ? `<span title="${r.assignedUpn}">${r.userDisplay || r.assignedUpn}</span>`
+            : '<em style="color:var(--text-muted,#777)">Unassigned</em>'}</td>
+          <td>${r.department || '—'}</td>
+          <td>${r.registrationState ? regBadge(r.registrationState) : '—'}</td>
+          <td>${r.powerState ? powerBadge(r.powerState) : '—'}</td>
+          <td style="color:#34d399;font-weight:600;">${fmt(r.monthlyCost)}</td>
+        </tr>`).join('');
+      return `
+        <div class="group-section">
+          <div class="group-header" onclick="toggleGroup('grp-${containerId}-${idx}')">
+            <div class="gh-left">${label} <span>${count} machine${count!==1?'s':''}</span></div>
+            <div class="gh-right">${fmt(g.total)} / mo</div>
+          </div>
+          <div class="group-body" id="grp-${containerId}-${idx}">
+            <div class="table-wrap" style="border-radius:0;border-top:1px solid var(--border-color,#2a2a2a);border-left:none;border-right:none;border-bottom:none;">
+              <table class="report-table">
+                <thead><tr>
+                  <th>Machine</th><th>Assigned User</th><th>Department</th>
+                  <th>Reg State</th><th>Power</th><th>Monthly Cost</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function toggleGroup(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('open');
+  }
+
+  function renderBarChart(containerId, items) {
+    const el = document.getElementById(containerId);
+    if (!items.length) { el.innerHTML = '<div style="color:var(--text-muted,#777);font-size:.78rem;">No data</div>'; return; }
+    const max = items[0].value;
+    el.innerHTML = items.map(item => `
+      <div class="bar-row">
+        <div class="bar-label" title="${item.label}">${item.label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(100*item.value/max)}%"></div></div>
+        <div class="bar-val">${fmt(item.value)}</div>
+      </div>`).join('');
+  }
+
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  function exportCSV() {
+    if (!_allRows.length) return;
+    const cols = ['machine','catalog','deliveryGroup','assignedUpn','userDisplay','department','jobTitle','managerName','managerUpn','daysSinceConnection','lastConnectionTime','registrationState','powerState','monthlyCost'];
+    const hdr  = ['Machine','Catalog','Delivery Group','Assigned UPN','User Display','Department','Job Title','Manager','Manager UPN','Days Since Login','Last Login','Reg State','Power State','Monthly Cost ($)'];
+    const csv  = [hdr.join(','), ..._allRows.map(r =>
+      cols.map(c => JSON.stringify(r[c] ?? '')).join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    a.download = 'vdi-cost-report.csv';
+    a.click();
+  }
+
+  async function exportExcel() {
+    if (!_allRows.length) return;
+    const cols    = ['machine','catalog','deliveryGroup','assignedUpn','userDisplay','department','jobTitle','managerName','managerUpn','daysSinceConnection','lastConnectionTime','registrationState','powerState','monthlyCost'];
+    const headers = ['Machine','Catalog','Delivery Group','Assigned UPN','User Display','Department','Job Title','Manager','Manager UPN','Days Since Login','Last Login','Reg State','Power State','Monthly Cost ($)'];
+    const rows    = _allRows.map(r => cols.map(c => r[c] ?? ''));
+    const r = await fetch('/infraportal/api/export/excel', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({filename:'vdi-cost-report', title:'VDI Cost Report', columns: headers, rows})
+    });
+    if (r.ok) {
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'vdi-cost-report.xlsx';
+      a.click();
+    }
+  }
+</script>
+{% endblock %}

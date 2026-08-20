@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block title %}Scheduler — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+<style>
+.sched-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+.sched-title  { font-size:22px; font-weight:700; color:var(--text); margin:0; }
+
+/* Stat strip */
+.sched-stats  { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px; }
+.sched-stat   { background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+                padding:12px 20px; min-width:110px; text-align:center; }
+.sched-stat .sv { font-size:26px; font-weight:700; line-height:1; }
+.sched-stat .sl { font-size:11px; color:var(--text3); margin-top:4px; }
+.sv.ok   { color:var(--success); }
+.sv.err  { color:var(--danger); }
+.sv.warn { color:var(--warning); }
+.sv.mute { color:var(--text4); }
+
+/* Group card */
+.sched-group       { background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+                     margin-bottom:16px; overflow:hidden; }
+.sched-group-head  { display:flex; align-items:center; gap:12px; padding:12px 18px;
+                     background:var(--bg3); cursor:pointer; user-select:none;
+                     border-bottom:1px solid var(--border); }
+.sched-group-head:hover { background:var(--surface); }
+.sched-group-name  { font-size:13px; font-weight:600; color:var(--text2); flex:1; }
+.sched-group-badge { font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600; }
+.sg-err  { background:rgba(255,68,68,.12); color:var(--danger); border:1px solid rgba(255,68,68,.25); }
+.sg-ok   { background:rgba(34,204,102,.10); color:var(--success); border:1px solid rgba(34,204,102,.25); }
+.sg-warn { background:rgba(255,170,0,.10); color:var(--warning); border:1px solid rgba(255,170,0,.25); }
+.sg-mute { background:rgba(136,136,136,.10); color:var(--text4); border:1px solid var(--border); }
+.sg-chevron { color:var(--text4); font-size:11px; transition:transform .2s; }
+.sched-group.collapsed .sg-chevron { transform:rotate(-90deg); }
+.sched-group-body { transition:none; }
+.sched-group.collapsed .sched-group-body { display:none; }
+
+/* Job rows */
+.sched-table       { width:100%; border-collapse:collapse; font-size:13px; }
+.sched-table th    { text-align:left; padding:8px 16px; font-size:11px; font-weight:600;
+                     color:var(--text4); border-bottom:1px solid var(--border); background:var(--bg3); }
+.sched-table td    { padding:10px 16px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.sched-table tr:last-child td { border-bottom:none; }
+.sched-table tr:hover td { background:rgba(15,155,142,.04); }
+.sched-table tr.paused td { opacity:.55; }
+
+/* Status badge */
+.job-status { display:inline-flex; align-items:center; gap:5px; padding:3px 8px;
+              border-radius:10px; font-size:11px; font-weight:600; white-space:nowrap; }
+.js-ok   { background:rgba(34,204,102,.10); color:var(--success); border:1px solid rgba(34,204,102,.25); }
+.js-err  { background:rgba(255,68,68,.10);  color:var(--danger);  border:1px solid rgba(255,68,68,.25); }
+.js-pend { background:rgba(136,136,136,.10); color:var(--text4); border:1px solid var(--border); }
+.js-paused { background:rgba(255,170,0,.10); color:var(--warning); border:1px solid rgba(255,170,0,.25); }
+
+/* Interval display */
+.interval-display { display:flex; align-items:center; gap:6px; }
+.interval-val     { font-size:12px; color:var(--text3); font-family:monospace; }
+.interval-edit    { display:none; align-items:center; gap:6px; }
+.interval-edit input { width:68px; padding:3px 7px; font-size:12px; background:var(--bg3);
+                       border:1px solid var(--border); border-radius:4px; color:var(--text);
+                       font-family:monospace; }
+.interval-edit input:focus { border-color:var(--accent); outline:none; }
+
+/* Action buttons */
+.act-btn { background:var(--surface); color:var(--text3); border:1px solid var(--border);
+           padding:4px 10px; border-radius:5px; cursor:pointer; font-size:11px;
+           transition:background .15s, color .15s; white-space:nowrap; }
+.act-btn:hover { background:var(--bg3); color:var(--text); }
+.act-btn.run   { color:var(--accent); border-color:rgba(15,155,142,.35); }
+.act-btn.run:hover { background:rgba(15,155,142,.12); }
+.act-btn.pause { color:var(--warning); border-color:rgba(255,170,0,.35); }
+.act-btn.pause:hover { background:rgba(255,170,0,.12); }
+.act-btn.resume { color:var(--success); border-color:rgba(34,204,102,.35); }
+.act-btn.resume:hover { background:rgba(34,204,102,.12); }
+.act-btn.danger { color:var(--danger); border-color:rgba(255,68,68,.35); }
+.act-btn.small { padding:2px 7px; font-size:10px; }
+
+.act-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+/* Error tooltip */
+.err-detail { font-size:11px; color:var(--danger); max-width:280px;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+              cursor:pointer; }
+.err-detail:hover { white-space:normal; word-break:break-all; }
+
+/* Spinner inline */
+.spin-sm { display:inline-block; width:12px; height:12px; border:2px solid var(--accent);
+           border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite;
+           vertical-align:middle; margin-left:4px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Auto-refresh indicator */
+.refresh-note { font-size:11px; color:var(--text4); display:flex; align-items:center; gap:6px; }
+.refresh-dot  { width:6px; height:6px; border-radius:50%; background:var(--success);
+                animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+         background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+         padding:10px 20px; font-size:13px; color:var(--text); z-index:9999;
+         box-shadow:0 4px 16px rgba(0,0,0,.25); display:none; }
+.toast.show { display:block; animation:fadeIn .2s; }
+@keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="sched-header">
+    <h1 class="sched-title">Background Scheduler</h1>
+    <div class="refresh-note">
+      <div class="refresh-dot"></div>
+      <span id="refreshNote">Auto-refreshing every 30s</span>
+    </div>
+  </div>
+
+  {% if load_error %}
+  <div class="error-box">Failed to load scheduler: {{ load_error }}</div>
+  {% endif %}
+
+  <!-- Stats strip -->
+  <div class="sched-stats">
+    <div class="sched-stat">
+      <div class="sv mute">{{ total }}</div>
+      <div class="sl">Total Jobs</div>
+    </div>
+    <div class="sched-stat">
+      <div class="sv ok">{{ total - errors - paused - never_run }}</div>
+      <div class="sl">Running OK</div>
+    </div>
+    <div class="sched-stat">
+      <div class="sv {% if errors > 0 %}err{% else %}ok{% endif %}">{{ errors }}</div>
+      <div class="sl">Errors</div>
+    </div>
+    <div class="sched-stat">
+      <div class="sv {% if paused > 0 %}warn{% else %}mute{% endif %}">{{ paused }}</div>
+      <div class="sl">Paused</div>
+    </div>
+    <div class="sched-stat">
+      <div class="sv mute">{{ never_run }}</div>
+      <div class="sl">Never Run</div>
+    </div>
+  </div>
+
+  <!-- Job groups -->
+  {% for group_name, jobs in grouped_jobs.items() %}
+  {% set grp_errors = jobs | selectattr("last_status", "equalto", "error") | list | length %}
+  {% set grp_paused = jobs | selectattr("paused") | list | length %}
+  <div class="sched-group" id="grp-{{ group_name | replace(' ', '_') }}">
+    <div class="sched-group-head" onclick="toggleGroup(this)">
+      <span class="sched-group-name">{{ group_name }}</span>
+      <span class="sched-group-badge {% if grp_errors > 0 %}sg-err{% elif grp_paused > 0 %}sg-warn{% else %}sg-ok{% endif %}">
+        {{ jobs | length }} job{{ 's' if jobs | length != 1 else '' }}
+        {% if grp_errors > 0 %} · {{ grp_errors }} error{{ 's' if grp_errors != 1 else '' }}{% endif %}
+        {% if grp_paused > 0 %} · {{ grp_paused }} paused{% endif %}
+      </span>
+      <span class="sg-chevron">▼</span>
+    </div>
+    <div class="sched-group-body">
+      <table class="sched-table">
+        <thead>
+          <tr>
+            <th style="width:220px">Job</th>
+            <th style="width:90px">Status</th>
+            <th style="width:140px">Last Run</th>
+            <th style="width:140px">Next Run</th>
+            <th style="width:80px">Interval</th>
+            <th style="width:50px">Runs</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for job in jobs %}
+        <tr id="row-{{ job.id }}" {% if job.paused %}class="paused"{% endif %}>
+          <td>
+            <div style="font-weight:500;color:var(--text)">{{ job.label }}</div>
+            {% if job.last_error and job.last_status == 'error' %}
+            <div class="err-detail" title="{{ job.last_error }}">{{ job.last_error }}</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if job.paused %}
+              <span class="job-status js-paused">⏸ Paused</span>
+            {% elif job.last_status == 'ok' %}
+              <span class="job-status js-ok">✓ OK</span>
+            {% elif job.last_status == 'error' %}
+              <span class="job-status js-err">✗ Error</span>
+            {% else %}
+              <span class="job-status js-pend">— Never</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--text3);font-family:monospace">
+            {{ job.last_run or '—' }}
+          </td>
+          <td style="font-size:12px;color:var(--text3);font-family:monospace" id="next-{{ job.id }}">
+            {% if job.paused %}—{% else %}{{ job.next_run or '—' }}{% endif %}
+          </td>
+          <td>
+            {% if job.trigger and job.trigger.type == 'interval' %}
+            <div class="interval-display" id="iview-{{ job.id }}">
+              <span class="interval-val" id="ival-{{ job.id }}">
+                {% set m = job.db_interval or job.trigger.minutes or job.default_minutes %}
+                {% if m %}
+                  {% if m >= 60 %}{{ (m // 60) }}h{% if m % 60 != 0 %} {{ m % 60 }}m{% endif %}
+                  {% else %}{{ m }}m{% endif %}
+                {% else %}—{% endif %}
+              </span>
+              <button class="act-btn small" onclick="showIntervalEdit('{{ job.id }}', {{ job.db_interval or job.trigger.minutes or job.default_minutes or 0 }})" title="Edit interval">✎</button>
+            </div>
+            <div class="interval-edit" id="iedit-{{ job.id }}">
+              <input type="number" id="imin-{{ job.id }}" min="1" max="14400" placeholder="min">
+              <button class="act-btn small run" onclick="saveInterval('{{ job.id }}')">✓</button>
+              <button class="act-btn small" onclick="cancelIntervalEdit('{{ job.id }}')">✕</button>
+            </div>
+            {% elif job.trigger and job.trigger.type == 'cron' %}
+            <span class="interval-val">{{ job.default_minutes and 'cron' or 'cron' }}</span>
+            {% else %}
+            <span class="interval-val">—</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text3);font-size:12px">{{ job.run_count }}</td>
+          <td>
+            <div class="act-row">
+              <button class="act-btn run" onclick="runNow('{{ job.id }}', this)">▶ Run Now</button>
+              {% if job.paused %}
+              <button class="act-btn resume" onclick="setPaused('{{ job.id }}', false, this)">▶ Resume</button>
+              {% else %}
+              <button class="act-btn pause" onclick="setPaused('{{ job.id }}', true, this)">⏸ Pause</button>
+              {% endif %}
+              {% if job.db_interval %}
+              <button class="act-btn small danger" onclick="resetInterval('{{ job.id }}')">Reset</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function toggleGroup(head) {
+  head.closest('.sched-group').classList.toggle('collapsed');
+}
+
+// Start collapsed groups that have no errors
+document.querySelectorAll('.sched-group').forEach(g => {
+  const hasError = g.querySelector('.js-err');
+  const hasPaused = g.querySelector('.js-paused');
+  if (!hasError && !hasPaused) g.classList.add('collapsed');
+});
+
+function showToast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+async function runNow(jobId, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '▶ Running<span class="spin-sm"></span>';
+  try {
+    const r = await fetch(`/infraportal/api/scheduler/run/${jobId}`, {method:'POST'});
+    const d = await r.json();
+    showToast(d.status === 'started' ? `Started ${jobId}` : `Error: ${d.status}`);
+    btn.innerHTML = '▶ Run Now';
+    btn.disabled = false;
+    setTimeout(() => refreshStatus(), 3000);
+  } catch(e) {
+    showToast('Request failed');
+    btn.innerHTML = '▶ Run Now';
+    btn.disabled = false;
+  }
+}
+
+async function setPaused(jobId, paused, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch('/infraportal/api/scheduler/config', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: jobId, action: paused ? 'pause' : 'resume'})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showToast(paused ? `Paused ${jobId}` : `Resumed ${jobId}`);
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast('Failed: ' + (d.error || d.status));
+      btn.disabled = false;
+    }
+  } catch(e) {
+    showToast('Request failed');
+    btn.disabled = false;
+  }
+}
+
+function showIntervalEdit(jobId, currentMinutes) {
+  document.getElementById('iview-' + jobId).style.display = 'none';
+  const edit = document.getElementById('iedit-' + jobId);
+  edit.style.display = 'flex';
+  const inp = document.getElementById('imin-' + jobId);
+  inp.value = currentMinutes || '';
+  inp.focus();
+}
+
+function cancelIntervalEdit(jobId) {
+  document.getElementById('iedit-' + jobId).style.display = 'none';
+  document.getElementById('iview-' + jobId).style.display = 'flex';
+}
+
+async function saveInterval(jobId) {
+  const minutes = parseInt(document.getElementById('imin-' + jobId).value);
+  if (!minutes || minutes < 1) { showToast('Enter a valid number of minutes'); return; }
+  try {
+    const r = await fetch('/infraportal/api/scheduler/config', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: jobId, action: 'set_interval', minutes})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showToast(`Interval updated to ${minutes}m`);
+      const ivalEl = document.getElementById('ival-' + jobId);
+      if (ivalEl) ivalEl.textContent = minutes >= 60 ?
+        `${Math.floor(minutes/60)}h${minutes%60?` ${minutes%60}m`:''}` : `${minutes}m`;
+      cancelIntervalEdit(jobId);
+    } else {
+      showToast('Failed: ' + (d.error || d.status));
+    }
+  } catch(e) {
+    showToast('Request failed');
+  }
+}
+
+async function resetInterval(jobId) {
+  try {
+    const r = await fetch('/infraportal/api/scheduler/config', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: jobId, action: 'reset_interval'})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showToast('Interval reset to default');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast('Failed: ' + (d.error || d.status));
+    }
+  } catch(e) {
+    showToast('Request failed');
+  }
+}
+
+// Auto-refresh: update last-run / next-run cells without full reload
+async function refreshStatus() {
+  try {
+    const r = await fetch('/infraportal/api/scheduler-status');
+    const d = await r.json();
+    if (d.status !== 'ok') return;
+    d.jobs.forEach(j => {
+      const row = document.getElementById('row-' + j.id);
+      if (!row) return;
+      // Update next run
+      const nc = document.getElementById('next-' + j.id);
+      if (nc) nc.textContent = j.paused ? '—' : (j.next_run ? j.next_run.substring(0,19) : '—');
+      // Update status badge
+      const sbadge = row.querySelector('.job-status');
+      if (sbadge) {
+        if (j.paused) { sbadge.className = 'job-status js-paused'; sbadge.textContent = '⏸ Paused'; }
+        else if (j.last_status === 'ok') { sbadge.className = 'job-status js-ok'; sbadge.textContent = '✓ OK'; }
+        else if (j.last_status === 'error') { sbadge.className = 'job-status js-err'; sbadge.textContent = '✗ Error'; }
+        else { sbadge.className = 'job-status js-pend'; sbadge.textContent = '— Never'; }
+      }
+    });
+  } catch(e) { /* ignore */ }
+}
+
+let countdown = 30;
+const refNote = document.getElementById('refreshNote');
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) {
+    countdown = 30;
+    refreshStatus();
+    refNote.textContent = 'Auto-refreshing every 30s';
+  } else {
+    refNote.textContent = `Next refresh in ${countdown}s`;
+  }
+}, 1000);
+</script>
+{% endblock %}

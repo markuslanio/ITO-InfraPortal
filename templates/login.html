@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — Zinnia Infrastructure Portal</title>
+    <link rel="icon" type="image/svg+xml" href="/infraportal/static/favicon.svg">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: #ffffff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-card { background-color: #16213e; border-radius: 12px; padding: 48px 40px; width: 100%; max-width: 420px; text-align: center; }
+        .logo-wrap { margin-bottom: 24px; }
+        .logo-wrap img { height: 56px; }
+        h1 { font-size: 20px; color: #ffffff; margin-bottom: 6px; }
+        .subtitle { font-size: 13px; color: #888888; margin-bottom: 36px; }
+        .ms-btn {
+            display: inline-flex; align-items: center; gap: 12px;
+            background-color: #2a2a4a; color: #ffffff;
+            border: 1px solid #444466; border-radius: 6px;
+            padding: 12px 24px; font-size: 14px; font-weight: 500;
+            text-decoration: none; cursor: pointer; transition: background 0.15s;
+            width: 100%; justify-content: center;
+        }
+        .ms-btn:hover { background-color: #3a3a5a; border-color: #0f9b8e; }
+        .ms-logo { width: 20px; height: 20px; flex-shrink: 0; }
+        .divider { border: none; border-top: 1px solid #2a2a4a; margin: 32px 0; }
+        .footer-note { font-size: 11px; color: #555555; }
+        .portal-name { color: #0f9b8e; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo-wrap">
+            <img src="/infraportal/static/zinnia-logo.png" alt="Zinnia">
+        </div>
+        <h1>Zinnia <span class="portal-name">Infrastructure Portal</span></h1>
+        <p class="subtitle">Sign in with your Zinnia account to continue</p>
+
+        <a class="ms-btn" href="/infraportal/auth/login">
+            <svg class="ms-logo" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+            </svg>
+            Sign in with Microsoft
+        </a>
+
+        <hr class="divider">
+        <p class="footer-note">Access is restricted to authorized Zinnia IT staff.<br>Contact your IT administrator if you need access.</p>
+    </div>
+</body>
+</html>

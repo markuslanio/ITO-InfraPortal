@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+{% block title %}VMware - Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/infraportal/static/tableutils.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.section { background-color: var(--bg2); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+.section h2 { color: var(--accent); margin-top: 0; }
+.env-filter { margin-bottom: 15px; }
+.env-filter label { margin-right: 15px; font-size: 14px; cursor: pointer; }
+.env-filter input { margin-right: 5px; }
+.env-badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; background-color: #2a2a6a; }
+.env-badge.vmc { background-color: #4a2a6a; }
+.env-badge.candor { background-color: #2a4a6a; }
+.loading { color: var(--text3); font-style: italic; }
+.progress-container { margin-top: 20px; }
+.progress-label { color: var(--text3); font-size: 14px; margin-bottom: 8px; }
+.progress-bar-wrap { background-color: var(--surface); border-radius: 10px; height: 24px; overflow: hidden; position: relative; }
+.progress-bar-fill { height: 100%; width: 0%; background-color: var(--accent); border-radius: 10px; transition: width 0.2s ease; }
+.progress-bar-text { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; color: var(--text); }
+.tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--surface); flex-wrap: wrap; }
+.tab { padding: 10px 18px; cursor: pointer; font-size: 14px; color: var(--text3); border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.stat-strip { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat-chip { background: var(--bg3); border-radius: 8px; padding: 10px 16px; min-width: 80px; }
+.stat-chip .val { font-size: 22px; font-weight: bold; display: block; }
+.stat-chip .lbl { font-size: 11px; color: var(--text4); display: block; }
+.stat-chip.crit .val { color: #f87171; }
+.stat-chip.warn .val { color: #fbbf24; }
+.stat-chip.ok .val   { color: #4ade80; }
+.ds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.ds-card { background: var(--bg3); border-radius: 8px; padding: 14px 16px; border-left: 4px solid var(--border); }
+.ds-card.critical { border-left-color: #f87171; }
+.ds-card.warning  { border-left-color: #fbbf24; }
+.ds-card.ok       { border-left-color: #4ade80; }
+.ds-card.inaccessible { border-left-color: #888; opacity: 0.6; }
+.ds-name { font-size: 13px; font-weight: bold; color: var(--text); margin-bottom: 4px; }
+.ds-meta { font-size: 11px; color: var(--text4); margin-bottom: 10px; display: flex; gap: 10px; }
+.ds-bar-track { background: var(--bg); border-radius: 4px; height: 10px; overflow: hidden; margin-bottom: 6px; }
+.ds-bar-fill  { height: 100%; border-radius: 4px; }
+.ds-stats { display: flex; justify-content: space-between; font-size: 11px; color: var(--text3); }
+.age-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+.age-old   { background: #3a0f0f; color: #f87171; }
+.age-week  { background: #3a2a0a; color: #fbbf24; }
+.age-day   { background: #0f2744; color: #60a5fa; }
+.age-fresh { background: #14352a; color: #4ade80; }
+.tier-badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+.tier-prod  { background: #3a0f0f; color: #f87171; }
+.tier-qa    { background: #3a2a0a; color: #fbbf24; }
+.tier-dev   { background: #0f2744; color: #60a5fa; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="section">
+        <h2>VMware Reports</h2>
+        <div class="env-filter">
+            <label><input type="checkbox" id="filter-topeka" checked> Topeka</label>
+            <label><input type="checkbox" id="filter-vmc" checked> VMC on AWS</label>
+            <label><input type="checkbox" id="filter-candor" checked> Candor India</label>
+        </div>
+        <div class="tab-bar">
+            <div class="tab active" id="tab-vms"        onclick="switchTab('vms')"       >🖥️ VMs</div>
+            <div class="tab"        id="tab-hosts"      onclick="switchTab('hosts')"     >🗄️ Hosts</div>
+            <div class="tab"        id="tab-untagged"   onclick="switchTab('untagged')"  >🏷️ Untagged</div>
+            <div class="tab"        id="tab-storage"    onclick="switchTab('storage')"   >💾 Disk Space</div>
+            <div class="tab"        id="tab-datastores" onclick="switchTab('datastores')">🗃️ Datastores</div>
+            <div class="tab"        id="tab-snapshots"  onclick="switchTab('snapshots')" >📸 Snapshots</div>
+            <div class="tab"        id="tab-ai-lens"    onclick="switchTab('ai-lens')"   >🧠 AI Insights</div>
+        </div>
+        <div id="tab-content">
+            <p class="loading">Loading...</p>
+        </div>
+    </div>
+</div>
+
+<script src="/infraportal/static/tableutils.js"></script>
+<script>
+const BASE = '/infraportal';
+let activeTab = null;
+
+function switchTab(tab) {
+    if (activeTab === tab) return;
+    activeTab = tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    if      (tab === 'vms')        loadVMs(false);
+    else if (tab === 'hosts')      loadHosts(false);
+    else if (tab === 'untagged')   loadUntagged(false);
+    else if (tab === 'storage')    loadStorage(false);
+    else if (tab === 'datastores') loadDatastores(false);
+    else if (tab === 'snapshots')  loadSnapshots(false);
+    else if (tab === 'ai-lens')    renderAiLens();
+}
+
+function showProgress(msg, cur, tot) {
+    const pct = tot > 0 ? Math.round((cur/tot)*100) : 0;
+    document.getElementById('tab-content').innerHTML =
+        '<div class="progress-container">' +
+        '<div class="progress-label">' + msg + ' (' + cur + ' of ' + tot + ')</div>' +
+        '<div class="progress-bar-wrap">' +
+        '<div class="progress-bar-fill" id="progress-fill" style="width:' + pct + '%"></div>' +
+        '<div class="progress-bar-text">' + pct + '%</div>' +
+        '</div></div>';
+}
+
+function updateProgress(cur, tot, msg) {
+    const pct = Math.round((cur/tot)*100);
+    const fill = document.getElementById('progress-fill');
+    const text = document.querySelector('.progress-bar-text');
+    const lbl  = document.querySelector('.progress-label');
+    if (fill) fill.style.width = pct + '%';
+    if (text) text.textContent = pct + '%';
+    if (lbl)  lbl.textContent  = msg || 'Processing... (' + cur + ' of ' + tot + ')';
+}
+
+function filterByEnv(items) {
+    return items.filter(item => {
+        if (item.environment === 'VMC on AWS')   return document.getElementById('filter-vmc').checked;
+        if (item.environment === 'Candor India') return document.getElementById('filter-candor').checked;
+        return document.getElementById('filter-topeka').checked;
+    });
+}
+
+function envBadge(env) {
+    let cls = env === 'VMC on AWS' ? 'vmc' : env === 'Candor India' ? 'candor' : '';
+    return '<span class="env-badge ' + cls + '">' + env + '</span>';
+}
+
+function tsBar(ts, fn) {
+    return '<div class="timestamp">Last updated: ' + ts + '<button class="btn-refresh" onclick="' + fn + '">Refresh</button></div>';
+}
+
+function streamLoad(url, onDone) {
+    const es = new EventSource(url);
+    es.onmessage = function(e) {
+        const d = JSON.parse(e.data);
+        if      (d.type === 'cached')   { es.close(); onDone(d); }
+        else if (d.type === 'progress') { updateProgress(d.current, d.total, d.message); }
+        else if (d.type === 'complete') { es.close(); onDone(d); }
+        else if (d.type === 'error')    { document.getElementById('tab-content').innerHTML += '<div class="error-box">' + d.message + '</div>'; }
+    };
+    es.onerror = function() { es.close(); document.getElementById('tab-content').innerHTML = '<p style="color:red">Connection error.</p>'; };
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── VMs ───────────────────────────────────────────────────────────────────────
+
+function loadVMs(r) { showProgress('Loading VMs...', 0, 1); streamLoad(BASE + '/api/detailed-vms?refresh=' + r, renderVMs); }
+function renderVMs(data) {
+    const f = filterByEnv(data.vms);
+    let html = tsBar(data.timestamp, 'loadVMs(true)');
+    html += '<p>Total VMs: <strong>' + f.length + '</strong></p><div id="vm-table-container"></div>';
+    document.getElementById('tab-content').innerHTML = html;
+    new SmartTable('vm-table-container', { filename: 'zinnia-vms-' + new Date().toISOString().slice(0,10), title: 'VM Inventory' })
+        .setData(
+            ['Name','Environment','Power State','IP Address','OS','EOL','CPUs','NICs','Tools Version','Tools Status'],
+            f.map(vm => [vm.name, vm.environment, vm.power_state, vm.ip_address||'', vm.os_name||'',
+                vm.eol ? 'EOL '+vm.eol.eol : '', vm.cpu_count||'', vm.nic_count||'', vm.tools_version||'',
+                vm.tools_upgrade_needed ? 'Update needed' : (vm.tools_version ? 'OK' : '')])
+        );
+}
+
+// ── Hosts ─────────────────────────────────────────────────────────────────────
+
+function loadHosts(r) { showProgress('Loading hosts...', 0, 1); streamLoad(BASE + '/api/detailed-hosts?refresh=' + r, renderHosts); }
+function renderHosts(data) {
+    const f = filterByEnv(data.hosts);
+    let html = tsBar(data.timestamp, 'loadHosts(true)');
+    html += '<p>Total Hosts: <strong>' + f.length + '</strong></p><div id="hosts-table-container"></div>';
+    document.getElementById('tab-content').innerHTML = html;
+    new SmartTable('hosts-table-container', { filename: 'zinnia-hosts-' + new Date().toISOString().slice(0,10), title: 'Host Inventory' })
+        .setData(
+            ['Name','Environment','Power State','Maintenance','IP','ESXi Version','EOL','Build','CPU Model','Sockets','Cores','Threads','Memory (GB)','VMs','Uptime','Datastores'],
+            f.map(h => [h.name, h.environment, h.power_state, h.maintenance_mode?'YES':'No',
+                h.ip_address||'', h.esxi_version||'', h.eol?'EOL '+h.eol.eol:'', h.build_number||'',
+                h.cpu_model||'', h.cpu_packages||'', h.cpu_cores||'', h.cpu_threads||'',
+                h.memory_gb||'', h.vm_count||'', h.uptime||'', h.datastore_count||''])
+        );
+}
+
+// ── Untagged ──────────────────────────────────────────────────────────────────
+
+function loadUntagged(r) { showProgress('Checking tags...', 0, 1); streamLoad(BASE + '/api/untagged-vms?refresh=' + r, renderUntagged); }
+function renderUntagged(data) {
+    const f = filterByEnv(data.vms);
+    let html = tsBar(data.timestamp, 'loadUntagged(true)');
+    html += '<p>Untagged VMs: <strong>' + f.length + '</strong></p>';
+    if (!f.length) { html += '<p style="color:var(--accent)">All VMs are tagged!</p>'; }
+    else {
+        html += '<table style="width:100%;border-collapse:collapse;margin-top:15px"><tr style="background:var(--accent)"><th style="padding:10px;text-align:left">Name</th><th style="padding:10px;text-align:left">Environment</th><th style="padding:10px;text-align:left">VM ID</th></tr>';
+        f.forEach(vm => { html += '<tr style="border-bottom:1px solid var(--surface)"><td style="padding:8px 10px;font-size:13px">' + escHtml(vm.name) + '</td><td style="padding:8px 10px;font-size:13px">' + envBadge(vm.environment) + '</td><td style="padding:8px 10px;font-size:13px">' + escHtml(vm.vm) + '</td></tr>'; });
+        html += '</table>';
+    }
+    document.getElementById('tab-content').innerHTML = html;
+}
+
+// ── Disk Space ────────────────────────────────────────────────────────────────
+
+function loadStorage(r) { showProgress('Loading disk space...', 0, 1); streamLoad(BASE + '/api/vm-storage?refresh=' + r, renderStorage); }
+function renderStorage(data) {
+    const f = filterByEnv(data.vms);
+    const low = f.filter(v => v.has_low_disk);
+    let html = tsBar(data.timestamp, 'loadStorage(true)');
+    if (low.length) html += '<div style="background:#4a1a1a;border-radius:8px;padding:12px;margin-bottom:15px"><strong style="color:#ff4444">⚠️ ' + low.length + ' VM(s) below 15% free</strong></div>';
+    html += '<p>VMs with disk data: <strong>' + f.length + '</strong></p><div id="storage-table-container"></div>';
+    document.getElementById('tab-content').innerHTML = html;
+    const rows = [];
+    f.forEach(vm => {
+        if (!vm.drives.length) { rows.push([vm.name, vm.environment, 'N/A','','','','','','No data']); }
+        else vm.drives.forEach(d => {
+            const s = d.pct_free<=10 ? 'Critical' : d.pct_free<=15 ? 'Warning' : d.pct_free<=25 ? 'Watch' : 'OK';
+            rows.push([vm.name, vm.environment, d.letter, d.filesystem, d.capacity_gb, d.used_gb, d.free_gb, d.pct_free, s]);
+        });
+    });
+    new SmartTable('storage-table-container', { filename: 'zinnia-disk-space-' + new Date().toISOString().slice(0,10), title: 'Disk Space' })
+        .setData(['VM Name','Environment','Drive','Filesystem','Capacity (GB)','Used (GB)','Free (GB)','% Free','Status'], rows);
+}
+
+// ── Datastores ────────────────────────────────────────────────────────────────
+
+function loadDatastores(r) { showProgress('Loading datastores...', 0, 1); streamLoad(BASE + '/api/datastores?refresh=' + r, renderDatastores); }
+function renderDatastores(data) {
+    const f = filterByEnv(data.datastores || []);
+    const crit  = f.filter(d => d.pct_free !== null && d.pct_free <= 10);
+    const warn  = f.filter(d => d.pct_free !== null && d.pct_free > 10 && d.pct_free <= 20);
+    const inacc = f.filter(d => d.accessible === false);
+
+    let html = tsBar(data.timestamp, 'loadDatastores(true)');
+    html += '<div class="stat-strip">';
+    html += '<div class="stat-chip"><span class="val">' + f.length + '</span><span class="lbl">Total</span></div>';
+    html += '<div class="stat-chip crit"><span class="val">' + crit.length + '</span><span class="lbl">Critical (&lt;10%)</span></div>';
+    html += '<div class="stat-chip warn"><span class="val">' + warn.length + '</span><span class="lbl">Warning (&lt;20%)</span></div>';
+    if (inacc.length) html += '<div class="stat-chip crit"><span class="val">' + inacc.length + '</span><span class="lbl">Inaccessible</span></div>';
+    html += '</div>';
+
+    // Cards
+    html += '<div class="ds-grid">';
+    f.forEach(ds => {
+        const cls = ds.accessible===false ? 'inaccessible' : ds.pct_free!==null&&ds.pct_free<=10 ? 'critical' : ds.pct_free!==null&&ds.pct_free<=20 ? 'warning' : 'ok';
+        const barColor = cls==='critical' ? '#f87171' : cls==='warning' ? '#fbbf24' : '#4ade80';
+        const usedPct  = ds.pct_free !== null ? (100 - ds.pct_free) : 0;
+        html += '<div class="ds-card ' + cls + '">';
+        html += '<div class="ds-name">' + escHtml(ds.name) + (ds.accessible===false ? ' <span style="color:#888;font-size:11px">⚠ Inaccessible</span>' : '') + '</div>';
+        html += '<div class="ds-meta"><span>' + escHtml(ds.type||'') + '</span>' + envBadge(ds.environment) + '</div>';
+        if (ds.capacity_gb !== null) {
+            html += '<div class="ds-bar-track"><div class="ds-bar-fill" style="width:' + Math.min(usedPct,100) + '%;background:' + barColor + '"></div></div>';
+            html += '<div class="ds-stats"><span>Used: <strong>' + ds.used_gb + ' GB</strong></span><span>Free: <strong>' + ds.free_gb + ' GB (' + ds.pct_free + '%)</strong></span><span>Total: <strong>' + ds.capacity_gb + ' GB</strong></span></div>';
+        } else { html += '<div style="font-size:12px;color:var(--text4)">No capacity data</div>'; }
+        html += '</div>';
+    });
+    html += '</div>';
+    html += '<div id="ds-table-container"></div>';
+    document.getElementById('tab-content').innerHTML = html;
+
+    new SmartTable('ds-table-container', { filename: 'zinnia-datastores-' + new Date().toISOString().slice(0,10), title: 'Datastores' })
+        .setData(
+            ['Name','Environment','Type','Capacity (GB)','Used (GB)','Free (GB)','% Free','Status'],
+            f.map(ds => {
+                const s = ds.accessible===false ? 'Inaccessible' : ds.pct_free===null ? '' : ds.pct_free<=10 ? 'Critical' : ds.pct_free<=20 ? 'Warning' : ds.pct_free<=30 ? 'Watch' : 'OK';
+                return [ds.name, ds.environment, ds.type||'', ds.capacity_gb??'', ds.used_gb??'', ds.free_gb??'', ds.pct_free??'', s];
+            })
+        );
+}
+
+// ── Snapshots ─────────────────────────────────────────────────────────────────
+
+function loadSnapshots(r) { showProgress('Scanning for snapshots...', 0, 1); streamLoad(BASE + '/api/snapshots?refresh=' + r, renderSnapshots); }
+function renderSnapshots(data) {
+    const all = (data.snapshots || []).filter(s => {
+        const env = s.environment || '';
+        if (env === 'VMC on AWS')   return document.getElementById('filter-vmc').checked;
+        if (env === 'Candor India') return document.getElementById('filter-candor').checked;
+        return document.getElementById('filter-topeka').checked;
+    });
+    const old7  = all.filter(s => s.age_days !== null && s.age_days >= 7);
+    const old1  = all.filter(s => s.age_days !== null && s.age_days >= 1 && s.age_days < 7);
+    const prod  = all.filter(s => s.tier === 'Production');
+
+    let html = tsBar(data.timestamp, 'loadSnapshots(true)');
+    html += '<div class="stat-strip">';
+    html += '<div class="stat-chip"><span class="val">' + all.length + '</span><span class="lbl">Total Snapshots</span></div>';
+    html += '<div class="stat-chip"><span class="val">' + new Set(all.map(s => s.vm_name)).size + '</span><span class="lbl">VMs Affected</span></div>';
+    html += '<div class="stat-chip crit"><span class="val">' + old7.length + '</span><span class="lbl">Older than 7d</span></div>';
+    html += '<div class="stat-chip warn"><span class="val">' + old1.length + '</span><span class="lbl">1–7 days</span></div>';
+    html += '<div class="stat-chip crit"><span class="val">' + prod.length + '</span><span class="lbl">On Prod VMs</span></div>';
+    html += '</div>';
+
+    if (!all.length) { html += '<p style="color:var(--accent)">No snapshots found!</p>'; document.getElementById('tab-content').innerHTML = html; return; }
+
+    // Group by VM, sort snaps oldest→newest within each group
+    const groups = {};
+    all.forEach(s => {
+        if (!groups[s.vm_name]) groups[s.vm_name] = { snaps: [], tier: s.tier, environment: s.environment };
+        groups[s.vm_name].snaps.push(s);
+    });
+    Object.values(groups).forEach(g => {
+        g.snaps.sort((a, b) => (a.age_days || 0) - (b.age_days || 0));
+    });
+
+    // Sort VMs: oldest snap first (most urgent at top), then prod before qa before dev
+    const tierOrder = { 'Production': 0, 'QA': 1, 'Dev/UAT/Test': 2 };
+    const sortedVMs = Object.entries(groups).sort((a, b) => {
+        const maxA = Math.max(...a[1].snaps.map(s => s.age_days || 0));
+        const maxB = Math.max(...b[1].snaps.map(s => s.age_days || 0));
+        return maxB - maxA;
+    });
+
+    html += '<div class="snap-groups">';
+    sortedVMs.forEach(([vmName, group]) => {
+        const maxAge    = Math.max(...group.snaps.map(s => s.age_days || 0));
+        const hasCrit   = maxAge >= 7;
+        const hasWarn   = maxAge >= 1 && maxAge < 7;
+        const tierCls   = group.tier === 'Production' ? 'tier-prod' : group.tier === 'QA' ? 'tier-qa' : 'tier-dev';
+        const borderClr = hasCrit ? '#f87171' : hasWarn ? '#fbbf24' : '#4ade80';
+
+        html += '<div class="snap-vm-group" style="background:var(--bg3);border-radius:8px;margin-bottom:10px;overflow:hidden;border-left:4px solid ' + borderClr + '">';
+
+        // VM header
+        html += '<div class="snap-vm-header" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;user-select:none" onclick="this.nextElementSibling.classList.toggle(\'hidden\')">';
+        html += '<span style="font-size:13px;font-weight:bold;color:var(--text);flex:1">' + escHtml(vmName) + '</span>';
+        html += '<span class="tier-badge ' + tierCls + '">' + group.tier + '</span>';
+        html += envBadge(group.environment);
+        html += '<span style="font-size:12px;color:var(--text4)">' + group.snaps.length + ' snapshot' + (group.snaps.length > 1 ? 's' : '') + '</span>';
+        if (hasCrit) html += '<span class="age-badge age-old">oldest: ' + maxAge + 'd</span>';
+        else if (hasWarn) html += '<span class="age-badge age-week">oldest: ' + maxAge + 'd</span>';
+        html += '<span style="color:var(--text4);font-size:12px">▾</span>';
+        html += '</div>';
+
+        // Snapshot rows
+        html += '<div style="padding:0 16px 12px 16px">';
+        group.snaps.forEach((s, i) => {
+            const ageCls = s.age_days >= 7 ? 'age-old' : s.age_days >= 1 ? 'age-week' : 'age-day';
+            const isOldest = i === 0;
+            html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--bg);font-size:13px' + (i === group.snaps.length - 1 ? ';border-bottom:none' : '') + '">';
+            html += '<span style="color:var(--text4);font-size:11px;width:20px;flex-shrink:0;margin-top:2px">' + (i + 1) + '</span>';
+            html += '<div style="flex:1">';
+            html += '<div style="color:var(--text);margin-bottom:2px">' + escHtml(s.name || 'Unnamed') + '</div>';
+            if (s.description && s.description !== s.name) html += '<div style="font-size:11px;color:var(--text4)">' + escHtml(s.description) + '</div>';
+            if (s.created) html += '<div style="font-size:11px;color:var(--text4);margin-top:2px">' + new Date(s.created).toLocaleString() + '</div>';
+            html += '</div>';
+            if (s.age_days !== null) html += '<span class="age-badge ' + ageCls + '">' + s.age_days + 'd</span>';
+            html += '</div>';
+        });
+        html += '</div></div>';
+    });
+    html += '</div>';
+
+    document.getElementById('tab-content').innerHTML = html;
+}
+
+// ── VMware AI Lens ────────────────────────────────────────────────────────────
+
+let vmAiLensState = 'idle';
+
+function gradeColor(l) { return {'A':'#4ade80','B':'#a3e635','C':'#fbbf24','D':'#fb923c','F':'#f87171'}[l]||'#888'; }
+function gradeBg(l)    { return {'A':'#0d2a1a','B':'#1a2a0d','C':'#2a220d','D':'#2a150d','F':'#2a0d0d'}[l]||'var(--bg3)'; }
+
+function renderAiLens() {
+    const el = document.getElementById('tab-content');
+    el.innerHTML = `
+        <div style="padding:4px 0 0">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+                <button class="btn" style="padding:6px 16px;font-size:13px;margin:0" onclick="runVmAiLens(true)">🔄 Refresh Analysis</button>
+                <span style="font-size:12px;color:var(--text4)" id="vm-ai-ts"></span>
+            </div>
+            <div id="vm-ai-body">
+                <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+                    <span style="font-size:32px;display:block;margin-bottom:12px">🧠</span>
+                    Loading cached analysis...
+                </div>
+            </div>
+        </div>`;
+
+    fetch(BASE + '/api/vmware/ai-analysis', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({refresh: false})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            document.getElementById('vm-ai-ts').textContent = 'Last run: ' + data.timestamp;
+            paintVmAiLens(data.result);
+        } else {
+            document.getElementById('vm-ai-body').innerHTML = `
+                <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+                    <span style="font-size:32px;display:block;margin-bottom:12px">🧠</span>
+                    No analysis yet. Load VMs, Datastores, and Snapshots first, then click <strong>Refresh Analysis</strong>.
+                </div>`;
+        }
+    })
+    .catch(() => {
+        document.getElementById('vm-ai-body').innerHTML = '<div style="background:var(--bg3);border-left:3px solid #cc2222;border-radius:8px;padding:16px;color:#ff8888;font-size:13px">Could not load analysis.</div>';
+    });
+}
+
+async function runVmAiLens(refresh) {
+    if (vmAiLensState === 'running') return;
+    vmAiLensState = 'running';
+    const body = document.getElementById('vm-ai-body');
+    const ts   = document.getElementById('vm-ai-ts');
+    if (body) body.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text3)"><span style="font-size:32px;display:block;margin-bottom:12px">⚙️</span>Analyzing VMware infrastructure with Claude...</div>';
+    if (ts)   ts.textContent = '';
+
+    try {
+        const kick = await fetch(BASE + '/api/vmware/ai-analysis', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({refresh: true})
+        });
+        const kickData = await kick.json();
+        if (kickData.status === 'ok') { vmAiLensState = 'done'; if (ts) ts.textContent = 'Just now'; paintVmAiLens(kickData.result); return; }
+        if (kickData.status !== 'running') throw new Error(kickData.message || 'Unknown error');
+    } catch(e) {
+        vmAiLensState = 'error';
+        if (body) body.innerHTML = '<div style="background:var(--bg3);border-left:3px solid #cc2222;border-radius:8px;padding:16px;color:#ff8888;font-size:13px">Error: ' + escHtml(e.message) + '</div>';
+        return;
+    }
+
+    const poll = setInterval(async () => {
+        try {
+            const res  = await fetch(BASE + '/api/vmware/ai-analysis/status');
+            const data = await res.json();
+            if (data.status === 'running') return;
+            clearInterval(poll);
+            vmAiLensState = data.status;
+            if (data.status === 'ok') { if (ts) ts.textContent = 'Just now'; paintVmAiLens(data.result); }
+            else if (body) body.innerHTML = '<div style="background:var(--bg3);border-left:3px solid #cc2222;border-radius:8px;padding:16px;color:#ff8888;font-size:13px">Error: ' + escHtml(data.message||'Analysis failed') + '</div>';
+        } catch(e) { clearInterval(poll); vmAiLensState = 'error'; }
+    }, 3000);
+}
+
+function paintVmAiLens(r) {
+    const body = document.getElementById('vm-ai-body');
+    if (!body) return;
+    vmAiLensState = 'done';
+
+    const gc = gradeColor(r.grade);
+    const gb = gradeBg(r.grade);
+
+    // Grade banner
+    let html = `<div style="display:flex;align-items:center;gap:20px;background:var(--bg3);border-radius:10px;padding:18px 22px;margin-bottom:20px;border-left:4px solid ${gc}">
+        <div style="font-size:52px;font-weight:bold;line-height:1;color:${gc};background:${gb};padding:8px 14px;border-radius:8px">${escHtml(r.grade)}</div>
+        <div>
+            <div style="font-size:16px;font-weight:500;margin-bottom:4px">${escHtml(r.grade_note||'')}</div>
+            <div style="font-size:13px;color:var(--text3)">${escHtml(r.summary||'')}</div>
+        </div>
+    </div>`;
+
+    // Charts grid
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">';
+
+    function barChart(title, data) {
+        const max = Math.max(...Object.values(data), 1);
+        const colors = ['#60a5fa','#4ade80','#fbbf24','#f87171','#c084fc','#34d399','#fb923c'];
+        let h = '<div style="background:var(--bg3);border-radius:10px;padding:16px"><div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">' + title + '</div>';
+        Object.entries(data).forEach(([k, v], i) => {
+            const pct = Math.round((v / max) * 100);
+            const color = colors[i % colors.length];
+            h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px">';
+            h += '<div style="width:120px;flex-shrink:0;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(k) + '">' + escHtml(k) + '</div>';
+            h += '<div style="flex:1;background:var(--bg);border-radius:4px;height:14px;overflow:hidden"><div style="height:100%;border-radius:4px;background:' + color + ';width:' + pct + '%"></div></div>';
+            h += '<div style="width:30px;text-align:right;color:var(--text3)">' + v + '</div>';
+            h += '</div>';
+        });
+        h += '</div>';
+        return h;
+    }
+
+    if (r.chart_health) html += barChart('VM Health Breakdown', r.chart_health);
+    if (r.chart_tiers)  html += barChart('VMs by Tier', r.chart_tiers);
+    if (r.chart_envs)   html += barChart('VMs by Environment', r.chart_envs);
+
+    // Key stats
+    const stats = [];
+    if (r.total_vms !== undefined)      stats.push(['Total VMs', r.total_vms, '']);
+    if (r.powered_on !== undefined)     stats.push(['Powered On', r.powered_on, 'ok']);
+    if (r.eol_count)                    stats.push(['EOL OS', r.eol_count, 'crit']);
+    if (r.tools_count)                  stats.push(['Tools Outdated', r.tools_count, 'warn']);
+    if (r.low_disk_count)               stats.push(['Low Disk VMs', r.low_disk_count, 'warn']);
+    if (r.ds_crit_count)                stats.push(['Critical Datastores', r.ds_crit_count, 'crit']);
+    if (r.snap_old_count)               stats.push(['Snapshots 7d+', r.snap_old_count, 'warn']);
+    if (r.snap_prod_count)              stats.push(['Prod Snapshots', r.snap_prod_count, 'crit']);
+    if (stats.length) {
+        let sh = '<div style="background:var(--bg3);border-radius:10px;padding:16px"><div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">Key Metrics</div><div style="display:flex;gap:10px;flex-wrap:wrap">';
+        stats.forEach(([lbl, val, cls]) => {
+            const color = cls==='crit'?'#f87171':cls==='warn'?'#fbbf24':cls==='ok'?'#4ade80':'var(--text)';
+            sh += '<div style="background:var(--bg);border-radius:8px;padding:10px 14px;min-width:80px">';
+            sh += '<span style="font-size:22px;font-weight:bold;color:' + color + ';display:block">' + val + '</span>';
+            sh += '<span style="font-size:11px;color:var(--text4)">' + lbl + '</span></div>';
+        });
+        sh += '</div></div>';
+        html += sh;
+    }
+    html += '</div>'; // end charts grid
+
+    // Patterns
+    if (r.patterns && r.patterns.length) {
+        html += '<div style="margin-bottom:20px"><div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">🔍 Detected Patterns</div>';
+        r.patterns.forEach(p => {
+            const border = p.severity==='critical'?'#f87171':p.severity==='warning'?'#fbbf24':'#60a5fa';
+            html += '<div style="background:var(--bg3);border-radius:8px;padding:12px 14px;margin-bottom:8px;border-left:3px solid ' + border + '">';
+            html += '<div style="font-size:13px;font-weight:bold;color:var(--text);margin-bottom:3px">' + escHtml(p.title||'') + '</div>';
+            html += '<div style="font-size:12px;color:var(--text3);line-height:1.5">' + escHtml(p.detail||'') + '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    // Recommendations
+    if (r.recommendations && r.recommendations.length) {
+        html += '<div><div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">🎯 Recommendations</div>';
+        r.recommendations.forEach(rec => {
+            const pri = (rec.priority||'medium').toLowerCase();
+            const priColor = pri==='high'?'#f87171':pri==='medium'?'#fbbf24':'#60a5fa';
+            const priBg    = pri==='high'?'#3a0f0f':pri==='medium'?'#3a2a0a':'#0f2744';
+            html += '<div style="display:flex;gap:12px;align-items:flex-start;background:var(--bg3);border-radius:8px;padding:12px 14px;margin-bottom:8px">';
+            html += '<span style="font-size:11px;font-weight:bold;padding:2px 8px;border-radius:10px;flex-shrink:0;margin-top:2px;background:' + priBg + ';color:' + priColor + '">' + pri.toUpperCase() + '</span>';
+            html += '<div style="font-size:13px;color:var(--text2);line-height:1.5">' + escHtml(rec.action||'');
+            if (rec.devices) html += '<div style="font-size:11px;color:var(--text4);margin-top:3px">📍 ' + escHtml(rec.devices) + '</div>';
+            html += '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    body.innerHTML = html;
+}
+
+switchTab('vms');
+</script>
+{% endblock %}

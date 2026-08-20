@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Zinnia Infrastructure Portal{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/infraportal/static/favicon.svg">
+    <link rel="shortcut icon" href="/infraportal/static/favicon.svg">
+    {% block extra_head %}{% endblock %}
+    <style>
+        /* ── Theme variables ── */
+        :root {
+            --bg:          #1a1a2e;
+            --bg2:         #16213e;
+            --bg3:         #0d1117;
+            --surface:     #2a2a4a;
+            --border:      #444466;
+            --text:        #ffffff;
+            --text2:       #cccccc;
+            --text3:       #aaaaaa;
+            --text4:       #888888;
+            --accent:      #0f9b8e;
+            --accent-dark: #0d8a7e;
+            --danger:      #ff4444;
+            --warning:     #ffaa00;
+            --success:     #22cc66;
+        }
+        body.light-mode {
+            --bg:          #f5f5f3;
+            --bg2:         #ffffff;
+            --bg3:         #f1efe8;
+            --surface:     #e8e6df;
+            --border:      #d3d1c7;
+            --text:        #1a1a18;
+            --text2:       #3a3a38;
+            --text3:       #5f5e5a;
+            --text4:       #888780;
+            --accent:      #0a7a70;
+            --accent-dark: #086b62;
+            --danger:      #cc2222;
+            --warning:     #996600;
+            --success:     #2a7a2a;
+        }
+
+        /* ── Reset & base ── */
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: var(--bg); color: var(--text); transition: background-color 0.2s, color 0.2s; }
+
+        /* ── Theme toggle switch (used in v2 user dropdown) ── */
+        .toggle-switch { position: relative; width: 36px; height: 20px; cursor: pointer; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; inset: 0; background: var(--surface); border-radius: 20px; transition: background 0.2s; border: 1px solid var(--border); }
+        .toggle-slider:before { content: ''; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px; background: var(--text4); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+        .toggle-switch input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); background: #fff; }
+
+        /* ── Common page elements ── */
+        .container { padding: 30px; }
+        .section { background-color: var(--bg2); border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+        .section h2 { color: var(--accent); margin-top: 0; }
+        .btn { background-color: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; margin-right: 10px; margin-bottom: 10px; transition: background 0.15s; }
+        .btn:hover { background-color: var(--accent-dark); }
+        .btn:disabled { background-color: var(--text4); cursor: not-allowed; }
+        .btn-secondary { background-color: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .btn-secondary:hover { color: var(--text); }
+        .btn-refresh { background-color: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-left: 10px; }
+        .btn-refresh:hover { background-color: var(--bg3); color: var(--text); }
+        .loading { color: var(--text3); font-style: italic; }
+        .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--accent); border-radius: 50%; border-top-color: transparent; animation: spin 0.8s linear infinite; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-box { background-color: rgba(255,68,68,0.15); border-radius: 5px; padding: 10px; margin-bottom: 10px; font-size: 13px; color: var(--danger); border: 1px solid var(--danger); }
+        .timestamp { font-size: 12px; color: var(--text4); margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+
+        /* ─────────────────────────────────────────────────────────────────────
+           V2 UI — the "ui-v2" class is always present on <body> (see below);
+           everything below is scoped under body.ui-v2.
+           ───────────────────────────────────────────────────────────────────── */
+
+        /* ── V2 extra semantic variables (reuse existing theme vars) ── */
+        body.ui-v2 {
+            --v2-mono:   'Consolas', 'SF Mono', 'Fira Code', monospace;
+            --v2-inp:    var(--bg3);
+            --v2-ok-bg:  rgba(34,204,102,0.1);  --v2-ok-bd: rgba(34,204,102,0.3);
+            --v2-w-bg:   rgba(255,170,0,0.1);   --v2-w-bd:  rgba(255,170,0,0.3);
+            --v2-e-bg:   rgba(255,68,68,0.1);   --v2-e-bd:  rgba(255,68,68,0.3);
+            --v2-i-bg:   rgba(68,136,255,0.1);  --v2-i-bd:  rgba(68,136,255,0.3);
+            --v2-inf:    #4488ff;
+        }
+        body.ui-v2.light-mode {
+            --v2-inp:   #ffffff;
+            --v2-ok-bg: #edfaf3; --v2-ok-bd: #bbf7d0;
+            --v2-w-bg:  #fffbeb; --v2-w-bd:  #fde68a;
+            --v2-e-bg:  #fff1f2; --v2-e-bd:  #fecdd3;
+            --v2-i-bg:  #eff6ff; --v2-i-bd:  #bfdbfe;
+            --v2-inf:   #1e40af;
+        }
+
+        /* ── V2 show/hide mechanics ── */
+        .v2-only             { display: none !important; }
+        body.ui-v2 .v2-only  { display: block !important; }
+        .v2-only.v2-flex     { display: none !important; }
+        body.ui-v2 .v2-only.v2-flex { display: flex !important; }
+        body.ui-v2 .v2-hide  { display: none !important; }
+
+        /* ── V2 Navbar ── */
+        .navbar-v2 {
+            display: flex;
+            background: var(--bg2); border-bottom: 1px solid var(--border);
+            height: 42px; align-items: center; padding: 0 14px;
+            position: sticky; top: 0; z-index: 500; gap: 0;
+        }
+        .v2-brand {
+            display: flex; align-items: center; gap: 7px;
+            text-decoration: none; margin-right: 18px; flex-shrink: 0;
+        }
+        .v2-brand-name { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; }
+        .v2-brand-sub  { font-size: 11px; color: var(--text4); font-weight: 400; }
+        .v2-navgroups  { display: flex; align-items: center; flex: 1; overflow: hidden; gap: 1px; }
+        .v2-navgroup   {
+            display: flex; align-items: center; gap: 1px;
+            padding-right: 10px; margin-right: 6px;
+            border-right: 1px solid var(--border);
+        }
+        .v2-navgroup:last-child { border-right: none; padding-right: 0; margin-right: 0; }
+        .v2-nglabel {
+            font-size: 9px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text4); padding: 0 5px; white-space: nowrap;
+        }
+        body.ui-v2.light-mode .v2-nglabel { color: var(--text3); }
+        .v2-navlink {
+            display: flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: 4px; font-size: 12px;
+            color: var(--text3); text-decoration: none; white-space: nowrap;
+            transition: color 0.1s, background 0.1s;
+        }
+        .v2-navlink:hover  { color: var(--text); background: var(--surface); }
+        .v2-navlink.active { color: var(--accent); background: rgba(15,155,142,0.12); }
+        .v2-alert-badge {
+            font-size: 9px; font-family: var(--v2-mono);
+            background: rgba(255,68,68,0.15); color: var(--danger);
+            border: 1px solid rgba(255,68,68,0.3);
+            padding: 1px 4px; border-radius: 8px;
+        }
+        .v2-navright { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+        .v2-avatar {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--accent); color: #fff;
+            font-size: 11px; font-weight: bold;
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s;
+        }
+        .v2-avatar:hover { background: var(--accent-dark); }
+
+        /* ── V2 User menu & dropdown ── */
+        .v2-user-menu { position: relative; }
+        .v2-user-dropdown {
+            display: none;
+            position: absolute; top: calc(100% + 8px); right: 0;
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 10px; min-width: 220px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            z-index: 1000; overflow: hidden;
+        }
+        .v2-user-dropdown.open { display: block; }
+        .v2-dd-header {
+            padding: 14px 16px; border-bottom: 1px solid var(--border);
+        }
+        .v2-dd-name  { font-size: 13px; font-weight: bold; color: var(--text); margin-bottom: 3px; }
+        .v2-dd-email { font-size: 11px; color: var(--text4); word-break: break-all; }
+        .v2-dd-items { padding: 5px 0; }
+        .v2-dd-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 16px; font-size: 13px; color: var(--text2);
+            text-decoration: none; cursor: pointer;
+            transition: background 0.1s; border: none;
+            background: none; width: 100%; text-align: left;
+            font-family: inherit;
+        }
+        .v2-dd-item:hover { background: var(--surface); color: var(--text); }
+        .v2-dd-item.danger { color: var(--danger); }
+        .v2-dd-item.danger:hover { background: rgba(255,68,68,0.1); }
+        .v2-dd-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+        body.ui-v2 .container { padding: 16px 16px 36px; }
+        body.ui-v2 .section   { border-radius: 8px; margin-bottom: 8px; }
+        body.ui-v2 .welcome-box { display: none !important; }
+
+        /* ── V2 Page header ── */
+        .v2-page-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+        }
+        .v2-page-title { font-size: 14px; font-weight: 600; }
+        .v2-page-meta  { font-size: 11px; color: var(--text4); font-family: var(--v2-mono); }
+
+        /* ── V2 Stat strip ── */
+        .v2-stat-strip {
+            display: flex; background: var(--bg2);
+            border: 1px solid var(--border); border-radius: 8px;
+            overflow: hidden; margin-bottom: 12px;
+        }
+        .v2-stat { flex: 1; padding: 9px 13px; border-right: 1px solid var(--border); }
+        .v2-stat:last-child { border-right: none; }
+        .v2-sv {
+            font-family: var(--v2-mono); font-size: 19px; font-weight: 500;
+            line-height: 1; letter-spacing: -0.02em;
+        }
+        .v2-sl { font-size: 9px; color: var(--text4); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+        .v2-sd { font-family: var(--v2-mono); font-size: 9px; margin-top: 2px; }
+        .v2-err { color: var(--danger); }  .v2-warn { color: var(--warning); }
+        .v2-ok  { color: var(--success); } .v2-acc  { color: var(--accent); }
+        .v2-du  { color: var(--danger); }  .v2-dd   { color: var(--success); }
+        .v2-dn  { color: var(--text4); }
+
+        /* ── V2 Grade cards (restyle existing .grade-card elements) ── */
+        /* dashboard uses .grade-overview, analysis uses .grade-cards — handle both */
+        body.ui-v2 .grade-overview,
+        body.ui-v2 .grade-cards {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(122px, 1fr));
+            gap: 5px; margin-bottom: 12px;
+        }
+        body.ui-v2 .grade-card {
+            display: grid !important;
+            grid-template-columns: 1fr auto;
+            grid-template-rows: auto auto;
+            align-items: start;
+            padding: 8px 10px; border-top: none !important;
+            border-left: 3px solid var(--text4);
+            text-align: left; border-radius: 6px; cursor: pointer;
+            transition: background-color 0.15s, transform 0.1s;
+        }
+        body.ui-v2 .grade-card:hover { background-color: var(--surface); transform: translateY(-1px); }
+        body.ui-v2 .grade-card h3 {
+            grid-column: 1; grid-row: 1;
+            font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--text3); margin: 0; padding-top: 1px;
+        }
+        body.ui-v2 .grade-letter {
+            grid-column: 2; grid-row: 1 / 3;
+            font-size: 22px !important; font-family: var(--v2-mono);
+            font-weight: 700; line-height: 1; float: none !important;
+            margin: 0; padding-left: 6px; align-self: center;
+        }
+        body.ui-v2 .grade-card p {
+            grid-column: 1; grid-row: 2;
+            font-size: 9px; color: var(--text4); margin: 3px 0 0 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        /* preserve grade letter colors; restyle border-left to match */
+        body.ui-v2 .grade-a { border-left-color: #22cc66; }
+        body.ui-v2 .grade-b { border-left-color: #88cc22; }
+        body.ui-v2 .grade-c { border-left-color: #ccaa22; }
+        body.ui-v2 .grade-d { border-left-color: #cc6622; }
+        body.ui-v2 .grade-f { border-left-color: var(--danger); }
+        body.ui-v2 .grade-pending { border-left-color: var(--text4); }
+        /* v2 grade header row (shows above grade-overview) */
+        .v2-grades-header {
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+        }
+        .v2-grades-header h3 { font-size: 11px; font-weight: 500; color: var(--text3); margin: 0; }
+
+        /* ── V2 Analysis bar ── */
+        .v2-analysis-bar {
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 8px 12px;
+            display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+        }
+        .v2-analysis-bar .v2-status-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0;
+        }
+        .v2-analysis-bar .v2-ts { font-family: var(--v2-mono); font-size: 10px; color: var(--text4); }
+
+        /* ── V2 Accordion ── */
+        .v2-accordion {
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 8px; overflow: hidden; margin-bottom: 6px;
+        }
+        .v2-acc-hdr {
+            display: flex; align-items: center; padding: 8px 12px;
+            cursor: pointer; gap: 8px; transition: background 0.1s; user-select: none;
+        }
+        .v2-acc-hdr:hover { background: var(--surface); }
+        .v2-acc-title  { font-size: 12px; font-weight: 600; flex: 1; }
+        .v2-acc-count  {
+            font-family: var(--v2-mono); font-size: 9px; padding: 2px 6px;
+            border-radius: 8px; border: 1px solid var(--border);
+            background: var(--bg3); color: var(--text3);
+        }
+        .v2-acc-count.crit { background: var(--v2-e-bg); color: var(--danger);  border-color: var(--v2-e-bd); }
+        .v2-acc-count.warn { background: var(--v2-w-bg); color: var(--warning); border-color: var(--v2-w-bd); }
+        .v2-acc-count.ok   { background: var(--v2-ok-bg);color: var(--success); border-color: var(--v2-ok-bd); }
+        .v2-acc-chev   { font-size: 8px; color: var(--text4); transition: transform 0.2s; }
+        .v2-accordion.v2-open .v2-acc-chev { transform: rotate(180deg); }
+        .v2-acc-body   { display: none; padding: 0 12px 12px; border-top: 1px solid var(--border); }
+        .v2-accordion.v2-open .v2-acc-body { display: block; }
+        .v2-acc-body pre {
+            font-family: var(--v2-mono); font-size: 11px; color: var(--text2);
+            line-height: 1.7; white-space: pre-wrap; padding-top: 10px; margin: 0;
+        }
+        .v2-jira-btns { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
+        .v2-jira-btn {
+            background: none; border: 1px solid var(--border); color: var(--text3);
+            padding: 3px 9px; border-radius: 4px; font-size: 10px;
+            cursor: pointer; font-family: inherit; transition: all 0.1s;
+        }
+        .v2-jira-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── V2 Scheduler (used in dashboard) ── */
+        .v2-sched-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+            gap: 5px; padding-top: 9px;
+        }
+        .v2-sched-item {
+            background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 7px 9px;
+        }
+        .v2-sched-name   { font-size: 11px; font-weight: 600; }
+        .v2-sched-time   { font-size: 10px; color: var(--text4); font-family: var(--v2-mono); }
+        .v2-sched-status { font-size: 10px; margin-top: 1px; }
+        .v2-sched-status.ok   { color: var(--success); }
+        .v2-sched-status.warn { color: var(--warning); }
+        .v2-sched-status.err  { color: var(--danger); }
+
+        /* ── V2 Table / Toolbar ── */
+        .v2-table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        .v2-toolbar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 7px 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+        }
+        .v2-search {
+            flex: 1; min-width: 140px; max-width: 220px;
+            background: var(--v2-inp); border: 1px solid var(--border);
+            border-radius: 4px; padding: 4px 9px; font-size: 12px;
+            color: var(--text); outline: none; font-family: inherit;
+        }
+        .v2-search:focus { border-color: var(--accent); }
+        .v2-search::placeholder { color: var(--text4); }
+        .v2-filter-btn {
+            background: none; border: 1px solid var(--border); color: var(--text3);
+            padding: 3px 9px; border-radius: 4px; font-size: 11px;
+            cursor: pointer; white-space: nowrap; font-family: inherit; transition: all 0.1s;
+        }
+        .v2-filter-btn:hover { border-color: var(--accent); color: var(--text); }
+        .v2-filter-btn.active {
+            background: rgba(15,155,142,0.12); border-color: var(--accent); color: var(--accent);
+        }
+        .v2-toolbar-spacer { flex: 1; }
+
+        /* ── V2 Tabs ── */
+        .v2-tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+        .v2-tab {
+            padding: 7px 12px; font-size: 12px; font-weight: 500; color: var(--text3);
+            cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+            transition: all 0.1s; display: flex; align-items: center; gap: 5px;
+            background: none; border-top: none; border-left: none; border-right: none;
+            font-family: inherit;
+        }
+        .v2-tab:hover { color: var(--text); }
+        .v2-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .v2-tab-count {
+            font-family: var(--v2-mono); font-size: 9px;
+            background: var(--bg3); color: var(--text4); padding: 1px 4px; border-radius: 7px;
+        }
+        .v2-tab.active .v2-tab-count { background: rgba(15,155,142,0.12); color: var(--accent); }
+        .v2-tab-panel { display: none; }
+        .v2-tab-panel.active { display: block; }
+
+        /* ── V2 Buttons ── */
+        .v2-btn {
+            background: var(--accent); border: none; color: #fff;
+            padding: 5px 11px; border-radius: 4px; font-size: 11px;
+            cursor: pointer; font-weight: 600; font-family: inherit; transition: background 0.1s;
+        }
+        .v2-btn:hover { background: var(--accent-dark); }
+        .v2-ghost-btn {
+            background: none; border: 1px solid var(--border); color: var(--text3);
+            padding: 5px 11px; border-radius: 4px; font-size: 11px;
+            cursor: pointer; font-family: inherit; transition: all 0.1s;
+        }
+        .v2-ghost-btn:hover { border-color: var(--accent); color: var(--text); }
+
+        /* ── V2 Status badges ── */
+        .v2-badge {
+            font-family: var(--v2-mono); font-size: 9px; font-weight: 600;
+            padding: 2px 6px; border-radius: 3px; border: 1px solid; white-space: nowrap;
+        }
+        .v2-badge-err  { background: var(--v2-e-bg);  color: var(--danger);  border-color: var(--v2-e-bd); }
+        .v2-badge-warn { background: var(--v2-w-bg);  color: var(--warning); border-color: var(--v2-w-bd); }
+        .v2-badge-ok   { background: var(--v2-ok-bg); color: var(--success); border-color: var(--v2-ok-bd); }
+        .v2-badge-info { background: var(--v2-i-bg);  color: var(--v2-inf);  border-color: var(--v2-i-bd); }
+        .v2-badge-gray { background: var(--bg3); color: var(--text3); border-color: var(--border); }
+
+        /* ── V2 Load bar (Citrix) ── */
+        .v2-load-bar-wrap { height: 3px; background: var(--surface); border-radius: 2px; margin-top: 3px; }
+        .v2-load-bar-fill { height: 100%; border-radius: 2px; }
+        .v2-load-bar-fill.lo { background: var(--success); }
+        .v2-load-bar-fill.mi { background: var(--warning); }
+        .v2-load-bar-fill.hi { background: var(--danger); }
+
+        /* ── V2 Floating chat widget ── */
+        .v2-chat-fab {
+            display: none;
+            position: fixed; bottom: 24px; right: 24px; z-index: 600;
+            flex-direction: column; align-items: flex-end; gap: 10px;
+        }
+        body.ui-v2 .v2-chat-fab { display: flex; }
+        .v2-fab-btn {
+            width: 46px; height: 46px; border-radius: 50%;
+            background: var(--accent); border: none; color: #fff; font-size: 20px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 3px 14px rgba(15,155,142,0.4);
+            transition: transform 0.15s, box-shadow 0.15s; font-family: inherit;
+        }
+        .v2-fab-btn:hover { transform: scale(1.06); box-shadow: 0 5px 20px rgba(15,155,142,0.5); }
+        .v2-chat-panel {
+            display: none; width: 340px; background: var(--bg2);
+            border: 1px solid var(--border); border-radius: 12px;
+            overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+            flex-direction: column; max-height: 540px;
+        }
+        .v2-chat-panel.open { display: flex; }
+        .v2-chat-head {
+            background: var(--bg3); border-bottom: 1px solid var(--border);
+            padding: 10px 14px; display: flex; align-items: center;
+            justify-content: space-between; flex-shrink: 0;
+        }
+        .v2-chat-head-title {
+            font-size: 12px; font-weight: 600;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .v2-chat-sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+        .v2-chat-close {
+            background: none; border: none; color: var(--text4); cursor: pointer;
+            font-size: 16px; line-height: 1; padding: 2px 4px; transition: color 0.1s; font-family: inherit;
+        }
+        .v2-chat-close:hover { color: var(--text); }
+        .v2-chat-mode-bar {
+            display: flex; gap: 4px; padding: 6px 12px;
+            border-bottom: 1px solid var(--border); background: var(--bg); flex-shrink: 0;
+        }
+        .v2-mode-btn {
+            font-size: 10px; padding: 2px 9px; border-radius: 9px;
+            border: 1px solid var(--border); background: none; color: var(--text4);
+            cursor: pointer; transition: all 0.1s; font-family: inherit;
+        }
+        .v2-mode-btn.active { background: rgba(15,155,142,0.12); border-color: var(--accent); color: var(--accent); }
+        .v2-mode-clear {
+            margin-left: auto; font-size: 10px; color: var(--text4);
+            background: none; border: none; cursor: pointer; font-family: inherit; transition: color 0.1s;
+        }
+        .v2-mode-clear:hover { color: var(--text); }
+        .v2-chat-chips {
+            padding: 7px 12px; display: flex; flex-wrap: wrap; gap: 5px;
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .v2-chat-chip {
+            font-size: 10px; padding: 3px 9px; border-radius: 10px;
+            background: var(--bg3); border: 1px solid var(--border); color: var(--text3);
+            cursor: pointer; transition: all 0.1s; white-space: nowrap;
+        }
+        .v2-chat-chip:hover { border-color: var(--accent); color: var(--accent); }
+        .v2-chat-msgs {
+            flex: 1; overflow-y: auto; padding: 12px;
+            min-height: 120px; display: flex; flex-direction: column; gap: 10px;
+        }
+        .v2-chat-empty { text-align: center; color: var(--text4); font-size: 12px; padding: 16px 0; line-height: 1.6; }
+        .v2-chat-msg { display: flex; gap: 8px; max-width: 92%; }
+        .v2-chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .v2-chat-msg.assistant { align-self: flex-start; }
+        .v2-chat-bubble {
+            padding: 9px 12px; border-radius: 10px; font-size: 12px; line-height: 1.6;
+        }
+        .v2-chat-msg.user      .v2-chat-bubble { background: rgba(15,155,142,0.15); color: var(--text); border-bottom-right-radius: 3px; }
+        .v2-chat-msg.assistant .v2-chat-bubble { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); border-bottom-left-radius: 3px; }
+        .v2-chat-bubble.streaming::after { content: '▋'; animation: v2blink 0.7s infinite; color: var(--accent); }
+        @keyframes v2blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .v2-chat-bubble p  { margin: 0 0 8px; }
+        .v2-chat-bubble p:last-child { margin-bottom: 0; }
+        .v2-chat-bubble h3 { font-size: 12px; font-weight: 600; color: var(--accent); margin: 10px 0 4px; }
+        .v2-chat-bubble ul, .v2-chat-bubble ol { margin: 4px 0 8px 16px; padding: 0; }
+        .v2-chat-bubble li { margin-bottom: 3px; }
+        .v2-chat-bubble code { background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; font-size: 11px; font-family: var(--v2-mono); }
+        .v2-chat-bubble strong { color: var(--text); }
+        .v2-chat-input-row {
+            display: flex; gap: 6px; padding: 9px 12px;
+            border-top: 1px solid var(--border); flex-shrink: 0;
+        }
+        .v2-chat-input {
+            flex: 1; background: var(--v2-inp); border: 1px solid var(--border);
+            border-radius: 5px; padding: 7px 10px; font-size: 12px; color: var(--text);
+            outline: none; resize: none; height: 36px; font-family: inherit; line-height: 1.4;
+        }
+        .v2-chat-input:focus { border-color: var(--accent); }
+        .v2-chat-input::placeholder { color: var(--text4); }
+        .v2-chat-send {
+            background: var(--accent); border: none; color: #fff;
+            width: 36px; height: 36px; border-radius: 5px; cursor: pointer;
+            font-size: 14px; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: background 0.1s; font-family: inherit;
+        }
+        .v2-chat-send:hover { background: var(--accent-dark); }
+        .v2-chat-send:disabled { background: var(--surface); cursor: not-allowed; }
+
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="ui-v2">
+
+<!-- ══════════════════════════════════════════════════════
+     NAVBAR
+     ══════════════════════════════════════════════════════ -->
+<nav class="navbar-v2">
+    <a class="v2-brand" href="/infraportal/">
+        <svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="4" fill="#0f9b8e"/>
+            <path d="M11 2L13 8L11 6.5L9 8Z" fill="#ef4444" opacity=".9"/>
+            <path d="M11 2L13 8L11 6.5L9 8Z" fill="#f97316" opacity=".9" transform="rotate(120 11 11)"/>
+            <path d="M11 2L13 8L11 6.5L9 8Z" fill="#facc15" opacity=".9" transform="rotate(240 11 11)"/>
+        </svg>
+        <span class="v2-brand-name">zinnia<span class="v2-brand-sub">/infra</span></span>
+    </a>
+
+    <div class="v2-navgroups">
+        <!-- Ops group -->
+        <div class="v2-navgroup">
+            <span class="v2-nglabel">Ops</span>
+            <a href="/infraportal/alerts" class="v2-navlink{% if active_page == 'alerts' %} active{% endif %}">
+                Alerts
+                <span class="v2-alert-badge" id="v2-nav-alert-badge" style="display:none">0</span>
+            </a>
+            <a href="/infraportal/noc"    class="v2-navlink{% if active_page == 'noc' %} active{% endif %}">NOC</a>
+            <a href="/infraportal/assets" class="v2-navlink{% if active_page == 'assets' %} active{% endif %}">Assets</a>
+        </div>
+        <!-- Infra group -->
+        <div class="v2-navgroup">
+            <span class="v2-nglabel">Infra</span>
+            {% if user_groups and ('bb53132b-09b1-4dfb-b715-a486d0c2774c' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
+            <a href="/infraportal/vmware" class="v2-navlink{% if active_page == 'vmware' %} active{% endif %}">VMware</a>
+            {% endif %}
+            {% if user_groups and ('933f504e-a287-465e-bf85-72dd5ba33873' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
+            <a href="/infraportal/citrix" class="v2-navlink{% if active_page == 'citrix' %} active{% endif %}">Citrix</a>
+            {% endif %}
+            {% if user_groups and ('bcd7ed0d-7b7b-4c06-85d0-788298946288' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
+            <a href="/infraportal/network" class="v2-navlink{% if active_page == 'network' %} active{% endif %}">Network</a>
+            {% endif %}
+        </div>
+        <!-- Directory group -->
+        <div class="v2-navgroup">
+            <span class="v2-nglabel">Directory</span>
+            <a href="/infraportal/active-directory" class="v2-navlink{% if active_page == 'active-directory' %} active{% endif %}">AD</a>
+            <a href="/infraportal/entra"            class="v2-navlink{% if active_page == 'entra' %} active{% endif %}">Entra / M365</a>
+            <a href="/infraportal/certificates"     class="v2-navlink{% if active_page == 'certificates' %} active{% endif %}">Certs</a>
+        </div>
+        <!-- Tools group -->
+        <div class="v2-navgroup">
+            <span class="v2-nglabel">Tools</span>
+            <a href="/infraportal/analysis"          class="v2-navlink{% if active_page == 'analysis' %} active{% endif %}">Analysis</a>
+            <a href="/infraportal/jira-intelligence" class="v2-navlink{% if active_page == 'jira-intelligence' %} active{% endif %}">Jira Intel</a>
+            <a href="/infraportal/soc-reports"       class="v2-navlink{% if active_page == 'soc-reports' %} active{% endif %}">SOC Reports</a>
+            <a href="/infraportal/my-dashboard"      class="v2-navlink{% if active_page == 'my-dashboard' %} active{% endif %}">My Dashboard</a>
+            {% if user_groups and '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups %}
+            <a href="/infraportal/citrix/app-manager" class="v2-navlink{% if active_page == 'app-manager' %} active{% endif %}">App Cloner</a>
+            <a href="/infraportal/settings"           class="v2-navlink{% if active_page == 'settings' %} active{% endif %}">⚙️ Settings</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="v2-navright">
+        {% if user %}
+        <!-- Self-contained user menu -->
+        <div class="v2-user-menu" id="v2UserMenu">
+            <button class="v2-avatar" onclick="toggleV2UserMenu()" title="{{ user.name }}">
+                {{ (user.given_name or user.name or '?')[0] | upper }}{% if ',' in user.name %}{{ user.name.split(',')[0][0] | upper }}{% elif ' ' in user.name %}{{ user.name.split(' ')[-1][0] | upper }}{% endif %}
+            </button>
+            <div class="v2-user-dropdown" id="v2UserDropdown">
+                <div class="v2-dd-header">
+                    <div class="v2-dd-name">{{ user.given_name }} {% if ',' in user.name %}{{ user.name.split(',')[0] }}{% else %}{{ user.name }}{% endif %}</div>
+                    <div class="v2-dd-email">{{ user.email }}</div>
+                </div>
+                <div class="v2-dd-items">
+                    <a href="/infraportal/my-dashboard" class="v2-dd-item">📊 My Dashboard</a>
+                    <hr class="v2-dd-divider">
+                    <div class="v2-dd-item" onclick="toggleThemeUnified()">
+                        <span id="v2-theme-icon">☀️</span>
+                        <span id="v2-theme-label">Light Mode</span>
+                        <label class="toggle-switch" style="margin-left:auto" onclick="event.stopPropagation()">
+                            <input type="checkbox" id="v2-theme-toggle" onchange="toggleTheme(this)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <hr class="v2-dd-divider">
+                    <a href="/infraportal/auth/logout" class="v2-dd-item danger">⬡ Sign out</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</nav>
+
+{% block content %}{% endblock %}
+
+<!-- ══════════════════════════════════════════════════════
+     V2 FLOATING CHAT WIDGET
+     Shown only in ui-v2 mode (CSS controlled).
+     Calls the same /api/chat endpoint as analysis.html.
+     ══════════════════════════════════════════════════════ -->
+<div class="v2-chat-fab" id="v2ChatFab" role="complementary" aria-label="Infrastructure chat assistant">
+    <div class="v2-chat-panel" id="v2ChatPanel">
+        <div class="v2-chat-head">
+            <div class="v2-chat-head-title">
+                <span class="v2-chat-sdot"></span>
+                Ask your infrastructure
+            </div>
+            <button class="v2-chat-close" onclick="v2ToggleChat()" aria-label="Close chat">✕</button>
+        </div>
+        <div class="v2-chat-mode-bar">
+            <button class="v2-mode-btn active" id="v2ModeCache" onclick="v2SetMode('cached')">⚡ Cached</button>
+            <button class="v2-mode-btn"        id="v2ModeFresh" onclick="v2SetMode('fresh')">↻ Fresh</button>
+            <button class="v2-mode-clear" onclick="v2ClearChat()">Clear</button>
+        </div>
+        <div class="v2-chat-chips">
+            <span class="v2-chat-chip" onclick="v2UseChip(this)">What needs attention now?</span>
+            <span class="v2-chat-chip" onclick="v2UseChip(this)">Top 5 fixes this week</span>
+            <span class="v2-chat-chip" onclick="v2UseChip(this)">Storage risk?</span>
+            <span class="v2-chat-chip" onclick="v2UseChip(this)">Which VMs are oversized?</span>
+            <span class="v2-chat-chip" onclick="v2UseChip(this)">Expiring certs?</span>
+        </div>
+        <div class="v2-chat-msgs" id="v2ChatMsgs">
+            <div class="v2-chat-empty" id="v2ChatEmpty">
+                Ask anything about your infrastructure.<br>
+                <span style="font-size:11px;opacity:0.7">VMware · OpManager · AD · Citrix · Lansweeper · Certs</span>
+            </div>
+        </div>
+        <div class="v2-chat-input-row">
+            <textarea class="v2-chat-input" id="v2ChatInput" rows="1"
+                placeholder="Ask about your infrastructure..."
+                onkeydown="v2HandleKey(event)"
+                oninput="v2AutoResize(this)"></textarea>
+            <button class="v2-chat-send" id="v2ChatSend" onclick="v2SendChat()">&#x27A4;</button>
+        </div>
+    </div>
+    <button class="v2-fab-btn" onclick="v2ToggleChat()" id="v2FabBtn" aria-label="Open infrastructure chat">&#x1F4AC;</button>
+</div>
+
+<script>
+// ── Theme ──────────────────────────────────────────────────────────────────
+function applyTheme(isLight) {
+    document.body.classList.toggle('light-mode', isLight);
+    const v2icon  = document.getElementById('v2-theme-icon');
+    const v2label = document.getElementById('v2-theme-label');
+    const v2input = document.getElementById('v2-theme-toggle');
+    if (v2icon)  v2icon.textContent  = isLight ? '🌙' : '☀️';
+    if (v2label) v2label.textContent = isLight ? 'Dark Mode' : 'Light Mode';
+    if (v2input) v2input.checked = isLight;
+    localStorage.setItem('infraportal-theme', isLight ? 'light' : 'dark');
+}
+
+function toggleTheme(input) { applyTheme(input.checked); }
+
+// Called from dropdown item click (reads body state directly — no hidden-input dependency)
+function toggleThemeUnified() {
+    applyTheme(!document.body.classList.contains('light-mode'));
+}
+(function() {
+    const saved = localStorage.getItem('infraportal-theme');
+    if (saved === 'light') applyTheme(true);
+})();
+
+// ── User menu ────────────────────────────────────────────────────────────
+function toggleV2UserMenu() {
+    const dd = document.getElementById('v2UserDropdown');
+    if (dd) dd.classList.toggle('open');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+    const v2Menu = document.getElementById('v2UserMenu');
+    if (v2Menu && !v2Menu.contains(e.target)) {
+        const dd = document.getElementById('v2UserDropdown');
+        if (dd) dd.classList.remove('open');
+    }
+});
+
+// ── V2 Tab system helper ───────────────────────────────────────────────────
+function v2InitTabs(containerSelector) {
+    const container = typeof containerSelector === 'string'
+        ? document.querySelector(containerSelector)
+        : containerSelector;
+    if (!container) return;
+    container.querySelectorAll('.v2-tab-bar').forEach(function(bar) {
+        bar.querySelectorAll('.v2-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                bar.querySelectorAll('.v2-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const tid = tab.dataset.tab;
+                if (!tid) return;
+                const page = bar.closest('[data-v2-tabs-scope]') || bar.parentElement;
+                page.querySelectorAll('.v2-tab-panel').forEach(p => p.classList.remove('active'));
+                const panel = document.getElementById(tid);
+                if (panel) panel.classList.add('active');
+            });
+        });
+    });
+}
+
+// ── V2 Accordion helper ────────────────────────────────────────────────────
+function v2ToggleAcc(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('v2-open');
+}
+
+// ── V2 Floating chat ───────────────────────────────────────────────────────
+var _v2ChatHistory   = [];
+var _v2Context       = null;
+var _v2DataMode      = 'cached';
+var _v2Streaming     = false;
+var _v2BASE          = '/infraportal';
+
+function v2ToggleChat() {
+    var panel = document.getElementById('v2ChatPanel');
+    var btn   = document.getElementById('v2FabBtn');
+    if (!panel) return;
+    var isOpen = panel.classList.toggle('open');
+    if (btn) btn.innerHTML = isOpen ? '&#x2715;' : '&#x1F4AC;';
+}
+
+function v2SetMode(mode) {
+    _v2DataMode = mode;
+    var c = document.getElementById('v2ModeCache');
+    var f = document.getElementById('v2ModeFresh');
+    if (c) c.classList.toggle('active', mode === 'cached');
+    if (f) f.classList.toggle('active', mode === 'fresh');
+    if (mode === 'fresh') _v2Context = null;
+}
+
+function v2UseChip(el) {
+    var inp = document.getElementById('v2ChatInput');
+    if (inp) { inp.value = el.textContent.trim(); v2AutoResize(inp); inp.focus(); }
+}
+
+function v2AutoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function v2HandleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); v2SendChat(); }
+}
+
+function v2ClearChat() {
+    _v2ChatHistory = [];
+    _v2Context = null;
+    var msgs = document.getElementById('v2ChatMsgs');
+    if (msgs) msgs.innerHTML = '<div class="v2-chat-empty" id="v2ChatEmpty">Ask anything about your infrastructure.<br><span style="font-size:11px;opacity:0.7">VMware · OpManager · AD · Citrix · Lansweeper · Certs</span></div>';
+}
+
+function v2ScrollChat() {
+    var msgs = document.getElementById('v2ChatMsgs');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+
+function v2EscHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function v2AppendMsg(role, content, streaming) {
+    var empty = document.getElementById('v2ChatEmpty');
+    if (empty) empty.remove();
+    var msgs = document.getElementById('v2ChatMsgs');
+    if (!msgs) return null;
+    var id   = 'v2msg' + Date.now();
+    var div  = document.createElement('div');
+    div.className = 'v2-chat-msg ' + role;
+    div.id = id;
+    div.innerHTML = '<div class="v2-chat-bubble' + (streaming ? ' streaming' : '') + '" id="v2b' + id + '">'
+        + (role === 'user' ? v2EscHtml(content) : (content || ''))
+        + '</div>';
+    msgs.appendChild(div);
+    v2ScrollChat();
+    return id;
+}
+
+function v2UpdateBubble(msgId, text, done) {
+    var bubble = document.getElementById('v2b' + msgId);
+    if (!bubble) return;
+    if (done) {
+        bubble.innerHTML = v2RenderMd(text);
+        bubble.classList.remove('streaming');
+    } else {
+        bubble.textContent = text;
+    }
+    v2ScrollChat();
+}
+
+function v2RenderMd(text) {
+    var esc = function(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var codeBlocks = [], inlineCodes = [];
+    text = text.replace(/```[\w]*\n?([\s\S]*?)```/g, function(_, c) {
+        codeBlocks.push('<pre><code>' + esc(c.trim()) + '</code></pre>');
+        return '\x00CODE' + (codeBlocks.length-1) + '\x00';
+    });
+    text = text.replace(/`([^`]+)`/g, function(_, c) {
+        inlineCodes.push('<code>' + esc(c) + '</code>');
+        return '\x00INLINE' + (inlineCodes.length-1) + '\x00';
+    });
+    var lines = text.split('\n'), html = '', inList = false, listTag = '';
+    var flushList = function() { if (inList) { html += '</' + listTag + '>'; inList = false; listTag = ''; } };
+    var inlineFmt = function(s) {
+        s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        return s;
+    };
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (/^#{1,3} (.+)/.test(line)) { flushList(); html += '<h3>' + esc(line.replace(/^#{1,3} /, '')) + '</h3>'; continue; }
+        if (/^[-*] (.+)/.test(line)) {
+            if (!inList || listTag !== 'ul') { flushList(); html += '<ul>'; inList = true; listTag = 'ul'; }
+            html += '<li>' + inlineFmt(esc(line.replace(/^[-*] /, ''))) + '</li>'; continue;
+        }
+        if (/^\d+\. (.+)/.test(line)) {
+            if (!inList || listTag !== 'ol') { flushList(); html += '<ol>'; inList = true; listTag = 'ol'; }
+            html += '<li>' + inlineFmt(esc(line.replace(/^\d+\. /, ''))) + '</li>'; continue;
+        }
+        flushList();
+        if (line.trim() === '') { html += '</p><p>'; continue; }
+        html += inlineFmt(esc(line)) + ' ';
+    }
+    flushList();
+    html = '<p>' + html + '</p>';
+    html = html.replace(/<p>\s*<\/p>/g, '').replace(/<\/p><p>/g, '</p>\n<p>');
+    codeBlocks.forEach(function(b, i)  { html = html.replace('\x00CODE' + i + '\x00', b); });
+    inlineCodes.forEach(function(c, i) { html = html.replace('\x00INLINE' + i + '\x00', c); });
+    return html;
+}
+
+async function v2BuildContext(fresh) {
+    var refresh = fresh ? 'true' : 'false';
+    var ctx = 'You are an expert infrastructure analyst for Zinnia. Answer admin questions concisely and specifically — cite actual server names and numbers.\n\n';
+    ctx += 'Server naming: LOCATION+ROLE+NUMBER+TIER. Locations: TOP=Topeka, VMCE=VMC on AWS, CAN=Candor India. Tiers: P=Prod (priority 1), Q=QA (2), D/U/T=Dev/UAT/Test (3).\n\n';
+
+    // Use last AI analysis if available on the page
+    if (window._lastAnalysis) {
+        var execIdx = window._lastAnalysis.indexOf('[EXECUTIVE_SUMMARY]');
+        var gradesIdx = window._lastAnalysis.indexOf('[GRADES]');
+        if (gradesIdx !== -1) {
+            var gradesEnd = window._lastAnalysis.indexOf('[', gradesIdx + 8);
+            var grades = gradesEnd !== -1
+                ? window._lastAnalysis.slice(gradesIdx + 8, gradesEnd)
+                : window._lastAnalysis.slice(gradesIdx + 8, gradesIdx + 500);
+            ctx += '## Last AI Analysis Grades\n' + grades.trim() + '\n\n';
+        }
+        if (execIdx !== -1) {
+            var execEnd = window._lastAnalysis.indexOf('[', execIdx + 18);
+            var exec = execEnd !== -1
+                ? window._lastAnalysis.slice(execIdx + 18, execEnd)
+                : window._lastAnalysis.slice(execIdx + 18, execIdx + 600);
+            ctx += '## Executive Summary\n' + exec.trim().slice(0, 500) + '\n\n';
+        }
+    }
+
+    // Fetch alerts summary
+    try {
+        var res = await fetch(_v2BASE + '/api/alerts?refresh=' + refresh);
+        var data = await res.json();
+        if (data.status === 'ok') {
+            var alarms  = data.alarms || [];
+            var active  = alarms.filter(function(a) { return a.severity !== 'Clear'; });
+            var crit    = active.filter(function(a) { return a.severity === 'Critical'; });
+            ctx += '## Current Alerts\nTotal active: ' + active.length + ' | Critical: ' + crit.length + '\n';
+            crit.slice(0, 12).forEach(function(a) {
+                ctx += '  - ' + (a.device_name || a.ip_address) + ': [' + a.event_type + '] ' + a.message + '\n';
+            });
+            ctx += '\n';
+            // Update v2 nav alert badge
+            if (active.length > 0) {
+                var badge = document.getElementById('v2-nav-alert-badge');
+                if (badge) { badge.textContent = active.length; badge.style.display = ''; }
+            }
+        }
+    } catch(e) { /* silently skip if page can't reach alerts */ }
+
+    ctx += 'Answer with specific names, counts, and urgency. Flag anything that needs immediate action clearly.';
+    return ctx;
+}
+
+async function v2SendChat() {
+    var input = document.getElementById('v2ChatInput');
+    var q = input ? input.value.trim() : '';
+    if (!q || _v2Streaming) return;
+    if (input) { input.value = ''; v2AutoResize(input); }
+    _v2Streaming = true;
+    var sendBtn = document.getElementById('v2ChatSend');
+    if (sendBtn) sendBtn.disabled = true;
+
+    v2AppendMsg('user', q, false);
+    _v2ChatHistory.push({ role: 'user', content: q });
+
+    // Build context on first message or after clear/fresh
+    if (!_v2Context) {
+        var loadId = v2AppendMsg('assistant', '⏳ Gathering infrastructure data...', true);
+        try {
+            _v2Context = await v2BuildContext(_v2DataMode === 'fresh');
+            var loadBubble = loadId ? document.getElementById('v2b' + loadId) : null;
+            if (loadBubble) loadBubble.closest('.v2-chat-msg').remove();
+        } catch(e) {
+            if (loadId) v2UpdateBubble(loadId, 'Error gathering data: ' + e.message, true);
+            _v2Streaming = false;
+            if (sendBtn) sendBtn.disabled = false;
+            return;
+        }
+    }
+
+    // Build messages array — inject context into first user turn
+    var messages;
+    if (_v2ChatHistory.length === 1) {
+        messages = [{ role: 'user', content: _v2Context + '\n\n---\n\nAdmin question: ' + q }];
+    } else {
+        messages = [
+            { role: 'user', content: _v2Context + '\n\n---\n\nAdmin question: ' + _v2ChatHistory[0].content }
+        ].concat(_v2ChatHistory.slice(1));
+    }
+
+    var msgId = v2AppendMsg('assistant', '', true);
+    try {
+        var res = await fetch(_v2BASE + '/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: messages })
+        });
+        var data = await res.json();
+        if (data.status !== 'ok') {
+            v2UpdateBubble(msgId, 'Error: ' + (data.message || 'Unknown error'), true);
+            _v2ChatHistory.pop();
+        } else {
+            v2UpdateBubble(msgId, data.response, true);
+            _v2ChatHistory.push({ role: 'assistant', content: data.response });
+        }
+    } catch(e) {
+        v2UpdateBubble(msgId, 'Error: ' + e.message, true);
+        _v2ChatHistory.pop();
+    }
+
+    _v2Streaming = false;
+    if (sendBtn) sendBtn.disabled = false;
+    var inp = document.getElementById('v2ChatInput');
+    if (inp) inp.focus();
+}
+
+// Close chat if clicking outside the widget
+document.addEventListener('click', function(e) {
+    var fab = document.getElementById('v2ChatFab');
+    var panel = document.getElementById('v2ChatPanel');
+    if (fab && panel && panel.classList.contains('open') && !fab.contains(e.target)) {
+        // Keep open — user may want to read response while doing other things
+    }
+});
+
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

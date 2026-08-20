@@ -1,0 +1,704 @@
+{% extends "base.html" %}
+{% block title %}Jira Intelligence — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ji-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px; }
+  .ji-header h2 { margin:0; color:var(--accent); font-size:22px; }
+  .ji-meta { font-size:12px; color:var(--text4); }
+
+  /* ── Stat strip ── */
+  .stat-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px; }
+  .stat-card { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:14px 16px; text-align:center; }
+  .stat-card .stat-num { font-size:28px; font-weight:700; color:var(--accent); line-height:1; }
+  .stat-card .stat-num.danger  { color:var(--danger); }
+  .stat-card .stat-num.warning { color:var(--warning); }
+  .stat-card .stat-num.success { color:var(--success); }
+  .stat-card .stat-label { font-size:11px; color:var(--text4); margin-top:5px; text-transform:uppercase; letter-spacing:.04em; }
+
+  /* ── Tabs ── */
+  .tab-bar { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:20px; flex-wrap:wrap; }
+  .tab-btn { background:none; border:none; color:var(--text3); padding:8px 16px; font-size:13px; cursor:pointer; border-bottom:2px solid transparent; transition:color .15s,border-color .15s; white-space:nowrap; }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+
+  /* ── Narrative ── */
+  .narrative { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:20px 24px; font-size:14px; line-height:1.7; color:var(--text2); white-space:pre-wrap; }
+  .narrative h2, .narrative h3 { color:var(--accent); margin-top:18px; margin-bottom:6px; font-size:15px; }
+  .narrative strong { color:var(--text); }
+
+  /* ── Tables ── */
+  .ji-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .ji-table th { background:var(--bg3); color:var(--text3); padding:8px 12px; text-align:left; font-weight:600; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .ji-table td { padding:8px 12px; border-bottom:1px solid var(--border); color:var(--text2); vertical-align:top; }
+  .ji-table tr:last-child td { border-bottom:none; }
+  .ji-table tr:hover td { background:var(--surface); }
+  .jira-link { color:var(--accent); text-decoration:none; font-weight:600; font-size:12px; }
+  .jira-link:hover { text-decoration:underline; }
+
+  /* ── Pills ── */
+  .pill { display:inline-block; border-radius:4px; padding:2px 7px; font-size:11px; font-weight:600; margin:1px; }
+  .pill-danger  { background:rgba(255,68,68,.12);  color:var(--danger);  border:1px solid rgba(255,68,68,.3); }
+  .pill-warning { background:rgba(255,170,0,.12); color:var(--warning); border:1px solid rgba(255,170,0,.3); }
+  .pill-success { background:rgba(34,204,102,.12);color:var(--success); border:1px solid rgba(34,204,102,.3); }
+  .pill-accent  { background:rgba(15,155,142,.12); color:var(--accent);  border:1px solid rgba(15,155,142,.3); }
+  .pill-muted   { background:var(--bg3); color:var(--text4); border:1px solid var(--border); }
+
+  /* ── Bar chart ── */
+  .bar-row { display:flex; align-items:center; gap:8px; margin:5px 0; font-size:12px; }
+  .bar-label { width:190px; color:var(--text3); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+  .bar-track { flex:1; background:var(--bg3); border-radius:3px; height:10px; overflow:hidden; }
+  .bar-fill  { height:100%; border-radius:3px; background:var(--accent); transition:width .4s; }
+  .bar-fill.danger  { background:var(--danger); }
+  .bar-fill.warning { background:var(--warning); }
+  .bar-count { width:36px; color:var(--text4); font-size:11px; text-align:right; flex-shrink:0; }
+
+  /* ── Empty / running states ── */
+  .ji-empty { text-align:center; padding:60px 20px; color:var(--text4); }
+  .ji-empty p { margin:8px 0; }
+  .spin { display:inline-block; width:32px; height:32px; border:3px solid var(--accent); border-top-color:transparent; border-radius:50%; animation:spin .8s linear infinite; margin-bottom:12px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .corr-item { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:12px 14px; margin-bottom:10px; }
+  .corr-item .corr-title { font-size:13px; color:var(--text); font-weight:600; margin-bottom:6px; }
+  .corr-item .corr-sub { font-size:12px; color:var(--text3); }
+  .corr-incidents { margin-top:8px; display:flex; flex-wrap:wrap; gap:5px; }
+
+  /* ── Period toggle ── */
+  .period-toggle { display:flex; gap:2px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:3px; }
+  .period-btn { background:none; border:none; color:var(--text3); padding:5px 13px; font-size:12px; cursor:pointer; border-radius:4px; transition:all .15s; white-space:nowrap; }
+  .period-btn.active { background:var(--accent); color:#fff; }
+  .period-btn:hover:not(.active) { color:var(--text); background:var(--surface); }
+
+  /* ── Weekly trend sparkline ── */
+  .week-chart { display:flex; align-items:flex-end; gap:3px; height:56px; margin:10px 0 4px; }
+  .week-col { display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end; gap:2px; }
+  .week-bar { width:100%; border-radius:2px 2px 0 0; min-height:2px; background:var(--accent); }
+  .week-lbl { font-size:9px; color:var(--text4); white-space:nowrap; }
+
+  .period-note { font-size:11px; color:var(--text4); background:var(--bg3); border:1px solid var(--border); border-radius:4px; padding:6px 10px; margin-bottom:12px; }
+
+  /* ── Line chart (ITSD team trend) ── */
+  .team-select { background:var(--bg3); border:1px solid var(--border); color:var(--text2); border-radius:6px; padding:5px 10px; font-size:12px; }
+  .line-chart-svg { width:100%; height:130px; display:block; overflow:visible; }
+  .line-chart-path  { fill:none; stroke:var(--accent); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .line-chart-area  { fill:var(--accent); opacity:.08; }
+  .line-chart-point { fill:var(--accent); stroke:var(--bg2); stroke-width:2; }
+  .line-chart-baseline { stroke:var(--border); stroke-width:1; }
+  .line-chart-label { fill:var(--text4); font-size:9px; }
+  .line-chart-value { fill:var(--text2); font-size:11px; font-weight:600; }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="ji-header">
+    <div>
+      <h2>Jira Intelligence</h2>
+      <div class="ji-meta" id="ji-meta">Loading...</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div class="period-toggle">
+        <button class="period-btn active" onclick="setPeriod(14,this)">Last 2 Weeks</button>
+        <button class="period-btn" onclick="setPeriod(30,this)">Last Month</button>
+        <button class="period-btn" onclick="setPeriod(90,this)">Last 90 Days</button>
+      </div>
+      <button class="btn" id="run-btn" onclick="runAnalysis()">Run Analysis Now</button>
+    </div>
+  </div>
+
+  <!-- Running state -->
+  <div id="ji-running" style="display:none" class="section ji-empty">
+    <div class="spin"></div>
+    <p style="color:var(--text2);font-size:15px;">Fetching tickets from ITSD · TASI · ITO and synthesizing patterns…</p>
+    <p>This takes 30–90 seconds.</p>
+  </div>
+
+  <!-- Never run state -->
+  <div id="ji-never" style="display:none" class="section ji-empty">
+    <p style="color:var(--text2);font-size:15px;">No analysis has been run yet.</p>
+    <p>Click <strong>Run Analysis Now</strong> to fetch 90 days of tickets from all three projects and generate the first intelligence report.</p>
+    <p>The scheduler will run this automatically every morning at 7 am.</p>
+  </div>
+
+  <!-- Results -->
+  <div id="ji-results" style="display:none">
+
+    <!-- Top stat strip -->
+    <div class="stat-strip" id="top-stats"></div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('ai')">AI Summary</button>
+      <button class="tab-btn" onclick="switchTab('itsd')">ITSD Incidents</button>
+      <button class="tab-btn" onclick="switchTab('tasi')">TASI Changes</button>
+      <button class="tab-btn" onclick="switchTab('ito')">ITO Projects</button>
+      <button class="tab-btn" onclick="switchTab('corr')">Correlations</button>
+    </div>
+
+    <!-- AI Summary tab -->
+    <div class="tab-pane active" id="tab-ai">
+      <div class="period-note" id="ai-period-note" style="display:none">
+        AI summary is based on the full 90-day analysis. Switch to <strong>Last 90 Days</strong> to match the narrative to the stats below.
+      </div>
+      <div class="narrative" id="ai-narrative"></div>
+    </div>
+
+    <!-- ITSD tab -->
+    <div class="tab-pane" id="tab-itsd">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">By Severity</h3>
+          <div id="itsd-by-severity"></div>
+        </div>
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">By Operational Category</h3>
+          <div id="itsd-by-category"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">By Team</h3>
+          <div id="itsd-by-team"></div>
+        </div>
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">By Source</h3>
+          <div id="itsd-by-source"></div>
+        </div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Weekly Incident Volume</h3>
+        <div id="itsd-weekly-trend"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
+          <h3 style="margin:0;color:var(--accent);font-size:14px;">Tickets Open Over Time</h3>
+          <select class="team-select" id="itsd-team-select" onchange="renderTeamTrendChart()">
+            <option value="__all__">All Teams</option>
+          </select>
+        </div>
+        <div id="itsd-team-trend-chart"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Top Devices by Ticket Count</h3>
+        <div id="itsd-top-devices"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--danger);font-size:14px;">Sev-1 / Sev-2 Incidents</h3>
+        <table class="ji-table" id="itsd-sev12"></table>
+      </div>
+      <div class="section">
+        <h3 style="margin-top:0;color:var(--warning);font-size:14px;">Stuck Tickets (Open &gt; 30 Days)</h3>
+        <table class="ji-table" id="itsd-stuck"></table>
+      </div>
+    </div>
+
+    <!-- TASI tab -->
+    <div class="tab-pane" id="tab-tasi">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Changes by Resource Group</h3>
+          <div id="tasi-by-group"></div>
+        </div>
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Production Changes by Group</h3>
+          <div id="tasi-prod-group"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">By TAS Type</h3>
+          <div id="tasi-by-type"></div>
+        </div>
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">By Environment</h3>
+          <div id="tasi-by-env"></div>
+        </div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Weekly Change Volume</h3>
+        <div id="tasi-weekly-trend"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--danger);font-size:14px;">Emergency Changes (eTAS)</h3>
+        <table class="ji-table" id="tasi-emergency"></table>
+      </div>
+      <div class="section">
+        <h3 style="margin-top:0;color:var(--warning);font-size:14px;">Rolled Back Changes</h3>
+        <table class="ji-table" id="tasi-rollback"></table>
+      </div>
+    </div>
+
+    <!-- ITO tab -->
+    <div class="tab-pane" id="tab-ito">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Epics by Status</h3>
+          <div id="ito-by-status"></div>
+        </div>
+        <div class="section" style="margin:0">
+          <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Epics by Objective</h3>
+          <div id="ito-by-objective"></div>
+        </div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--accent);font-size:14px;">Projects Closed (2-Week Trend)</h3>
+        <div id="ito-closed-trend"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--danger);font-size:14px;">Overdue Epics</h3>
+        <table class="ji-table" id="ito-overdue"></table>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--warning);font-size:14px;">Stalled Epics (No Update &gt; 30 Days)</h3>
+        <table class="ji-table" id="ito-stalled"></table>
+      </div>
+      <div class="section">
+        <h3 style="margin-top:0;color:var(--success);font-size:14px;">Recently Completed</h3>
+        <table class="ji-table" id="ito-done"></table>
+      </div>
+    </div>
+
+    <!-- Correlations tab -->
+    <div class="tab-pane" id="tab-corr">
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--warning);font-size:14px;">Production Changes Followed by Incidents (within 7 days)</h3>
+        <p style="font-size:12px;color:var(--text4);margin-top:0">Changes where ITSD tickets mentioning the same system were opened within 7 days post-change.</p>
+        <div id="corr-tasi-itsd"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <h3 style="margin-top:0;color:var(--danger);font-size:14px;">Chronic Devices With No ITO Project</h3>
+        <p style="font-size:12px;color:var(--text4);margin-top:0">Devices appearing in 3+ ITSD incidents but not mentioned in any ITO Epic — reactive firefighting that should become tracked work.</p>
+        <div id="corr-untracked"></div>
+      </div>
+      <div class="section">
+        <h3 style="margin-top:0;color:var(--accent);font-size:14px;">High-Volume Incident Categories With No Matching ITO Objective</h3>
+        <p style="font-size:12px;color:var(--text4);margin-top:0">Incident categories generating significant ticket volume that no current ITO objective is addressing.</p>
+        <div id="corr-gaps"></div>
+      </div>
+    </div>
+
+  </div><!-- /ji-results -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BROWSE = 'https://zinnia.atlassian.net/browse/';
+let _data = null;
+let _pollTimer = null;
+let _period = 14;
+let _teamTrend = null;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'itsd') renderTeamTrendChart();
+}
+
+function setPeriod(days, btn) {
+  if (_period === days) return;
+  _period = days;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const res = document.getElementById('ji-results');
+  if (res) res.style.opacity = '0.5';
+  pollStatus();
+}
+
+function runAnalysis() {
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('run-btn').textContent = 'Running…';
+  fetch('/infraportal/api/jira-intelligence/run', {method:'POST'})
+    .then(() => pollStatus());
+}
+
+function pollStatus() {
+  clearTimeout(_pollTimer);
+  fetch(`/infraportal/api/jira-intelligence/status?days=${_period}`)
+    .then(r => r.json())
+    .then(resp => {
+      if (resp.status === 'running') {
+        showRunning();
+        _pollTimer = setTimeout(pollStatus, 5000);
+      } else if (resp.status === 'ready' && resp.data) {
+        renderAll(resp.data);
+      } else if (resp.status === 'never_run') {
+        showNever();
+      } else {
+        _pollTimer = setTimeout(pollStatus, 5000);
+      }
+    })
+    .catch(() => { _pollTimer = setTimeout(pollStatus, 8000); });
+}
+
+function showRunning() {
+  document.getElementById('ji-never').style.display   = 'none';
+  document.getElementById('ji-results').style.display = 'none';
+  document.getElementById('ji-running').style.display = 'block';
+  document.getElementById('ji-meta').textContent = 'Analysis in progress…';
+}
+
+function showNever() {
+  document.getElementById('ji-running').style.display = 'none';
+  document.getElementById('ji-results').style.display = 'none';
+  document.getElementById('ji-never').style.display   = 'block';
+  document.getElementById('ji-meta').textContent = 'Never run';
+  resetRunBtn();
+}
+
+function resetRunBtn() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = false;
+  btn.textContent = 'Run Analysis Now';
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+
+function renderAll(payload) {
+  _data = payload;
+  const d = payload.analysis_json || payload;
+  const stats  = d.stats  || {};
+  const itsd   = stats.itsd  || {};
+  const tasi   = stats.tasi  || {};
+  const ito    = stats.ito   || {};
+  const corr   = stats.correlations || {};
+
+  document.getElementById('ji-running').style.display = 'none';
+  document.getElementById('ji-never').style.display   = 'none';
+  document.getElementById('ji-results').style.display = 'block';
+
+  const gen = d.generated_at || payload.generated_at || stats.generated_at || '';
+  const periodLabel = _period === 14 ? '2 Weeks' : _period === 30 ? '1 Month' : '90 Days';
+  document.getElementById('ji-meta').textContent =
+    `Last ${periodLabel}: ${gen} · ${stats.counts ? `ITSD: ${stats.counts.itsd} · TASI: ${stats.counts.tasi} · ITO: ${stats.counts.ito} tickets` : ''}`;
+  document.getElementById('ji-results').style.opacity = '1';
+
+  // Stat strip
+  const stuck   = (itsd.stuck_tickets  || []).length;
+  const overdue = ito.overdue_count || 0;
+  const emerg   = tasi.emergency_count || 0;
+  const rb      = tasi.rolled_back_count || 0;
+  document.getElementById('top-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${itsd.total||0}</div><div class="stat-label">ITSD Incidents (${periodLabel})</div></div>
+    <div class="stat-card"><div class="stat-num">${itsd.open||0}</div><div class="stat-label">Currently Open</div></div>
+    <div class="stat-card"><div class="stat-num ${stuck>0?'warning':''}">${stuck}</div><div class="stat-label">Stuck &gt;30 Days</div></div>
+    <div class="stat-card"><div class="stat-num">${tasi.total||0}</div><div class="stat-label">TASI Changes (${periodLabel})</div></div>
+    <div class="stat-card"><div class="stat-num ${emerg>0?'warning':''}">${emerg}</div><div class="stat-label">Emergency (eTAS)</div></div>
+    <div class="stat-card"><div class="stat-num ${rb>0?'danger':''}">${rb}</div><div class="stat-label">Rolled Back</div></div>
+    <div class="stat-card"><div class="stat-num">${ito.open_epics||0}</div><div class="stat-label">Open ITO Epics</div></div>
+    <div class="stat-card"><div class="stat-num ${overdue>0?'danger':''}">${overdue}</div><div class="stat-label">Overdue Epics</div></div>
+  `;
+
+  // AI narrative + period note
+  document.getElementById('ai-period-note').style.display = _period !== 90 ? 'block' : 'none';
+  const raw = (d.narrative || '').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/## (.*)/g,'<h2>$1</h2>').replace(/### (.*)/g,'<h3>$1</h3>');
+  document.getElementById('ai-narrative').innerHTML = raw;
+
+  // ITSD charts
+  renderBars('itsd-by-severity', itsd.by_severity || {}, sevClass);
+  renderBars('itsd-by-category', itsd.by_operational_category || {});
+  renderBars('itsd-by-team',     itsd.by_team   || {});
+  renderBars('itsd-by-source',   itsd.by_source || {});
+  renderWeekTrend('itsd-weekly-trend', itsd.weekly_volume || []);
+  renderDeviceBars('itsd-top-devices', itsd.top_devices || []);
+
+  renderTable('itsd-sev12',
+    ['Key','Summary','Severity','Status','Created'],
+    (itsd.sev1_sev2 || []).map(t => [
+      jLink(t.key), esc(t.summary),
+      `<span class="pill pill-danger">${esc(t.severity)}</span>`,
+      esc(t.status), t.created
+    ])
+  );
+
+  renderTable('itsd-stuck',
+    ['Key','Summary','Days Open','Team','Severity'],
+    (itsd.stuck_tickets || []).map(t => [
+      jLink(t.key), esc(t.summary),
+      `<span class="pill ${t.days_open>60?'pill-danger':'pill-warning'}">${t.days_open}d</span>`,
+      esc(t.team||'—'), esc(t.severity||'—')
+    ])
+  );
+
+  // TASI charts
+  renderBars('tasi-by-group', tasi.by_resource_group || {});
+  renderBars('tasi-prod-group', tasi.production_by_group || {});
+  renderBars('tasi-by-type',  tasi.by_type || {});
+  renderBars('tasi-by-env',   tasi.by_environment || {});
+  renderWeekTrend('tasi-weekly-trend', tasi.weekly_volume || []);
+
+  renderTable('tasi-emergency',
+    ['Key','Summary','Resource Group','Environment','Date'],
+    (tasi.emergency_changes || []).map(t => [
+      jLink(t.key), esc(t.summary),
+      `<span class="pill pill-warning">${esc(t.resource_group||'—')}</span>`,
+      esc(t.environment||'—'), t.created
+    ])
+  );
+
+  renderTable('tasi-rollback',
+    ['Key','Summary','Resource Group'],
+    (tasi.rolled_back || []).map(t => [
+      jLink(t.key), esc(t.summary),
+      `<span class="pill pill-danger">${esc(t.resource_group||'—')}</span>`
+    ])
+  );
+
+  // ITO charts
+  renderBars('ito-by-status',    ito.by_status    || {});
+  renderBars('ito-by-objective', ito.by_objective || {});
+
+  renderTable('ito-overdue',
+    ['Key','Summary','Due','Days Overdue','Status','Team'],
+    (ito.overdue_epics || []).map(t => [
+      jLink(t.key), esc(t.summary), t.due||'—',
+      `<span class="pill pill-danger">${t.days_overdue}d</span>`,
+      esc(t.status), esc(t.team||'—')
+    ])
+  );
+
+  renderTable('ito-stalled',
+    ['Key','Summary','Days Since Update','Status','Team'],
+    (ito.stalled_epics || []).map(t => [
+      jLink(t.key), esc(t.summary),
+      `<span class="pill pill-warning">${t.days_stalled}d</span>`,
+      esc(t.status), esc(t.team||'—')
+    ])
+  );
+
+  renderTable('ito-done',
+    ['Key','Summary','Team'],
+    (ito.recent_completions || []).map(t => [
+      jLink(t.key), esc(t.summary), esc(t.team||'—')
+    ])
+  );
+
+  // Correlations
+  const corrTasiEl = document.getElementById('corr-tasi-itsd');
+  const tasiItsd = corr.tasi_to_itsd || [];
+  if (!tasiItsd.length) {
+    corrTasiEl.innerHTML = '<p style="color:var(--text4);font-size:13px">No change-to-incident correlations detected in this period.</p>';
+  } else {
+    corrTasiEl.innerHTML = tasiItsd.map(c => `
+      <div class="corr-item">
+        <div class="corr-title">${jLink(c.change_key)} — ${esc(c.change_summary)}</div>
+        <div class="corr-sub">
+          <span class="pill pill-accent">${esc(c.resource_group||'')}</span>
+          Changed: ${c.change_date} &nbsp;·&nbsp; <strong>${c.incident_count}</strong> incident(s) followed within 7 days
+        </div>
+        <div class="corr-incidents">
+          ${(c.related_incidents||[]).map(i => `${jLink(i.key)} <span style="color:var(--text4);font-size:11px">${esc(i.summary)}</span>`).join(' &nbsp; ')}
+        </div>
+      </div>`).join('');
+  }
+
+  const untrackedEl = document.getElementById('corr-untracked');
+  const untracked = corr.chronic_untracked || [];
+  if (!untracked.length) {
+    untrackedEl.innerHTML = '<p style="color:var(--text4);font-size:13px">All high-volume devices appear to have ITO project coverage.</p>';
+  } else {
+    untrackedEl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+      untracked.map(d =>
+        `<div class="corr-item" style="min-width:160px;flex:0 0 auto">
+           <div class="stat-num warning" style="font-size:22px">${d.ticket_count}</div>
+           <div style="font-size:12px;color:var(--text2);margin-top:4px">${esc(d.device)}</div>
+           <div style="font-size:11px;color:var(--text4)">tickets, no ITO Epic</div>
+         </div>`
+      ).join('') + '</div>';
+  }
+
+  const gapEl = document.getElementById('corr-gaps');
+  const gaps = corr.category_gaps || [];
+  if (!gaps.length) {
+    gapEl.innerHTML = '<p style="color:var(--text4);font-size:13px">All high-volume incident categories have ITO objective coverage.</p>';
+  } else {
+    gapEl.innerHTML = gaps.map(g =>
+      `<div class="bar-row">
+         <div class="bar-label">${esc(g.category)}</div>
+         <div class="bar-track"><div class="bar-fill warning" style="width:${Math.min(100,g.ticket_count*4)}%"></div></div>
+         <div class="bar-count">${g.ticket_count}</div>
+       </div>`
+    ).join('');
+  }
+
+  resetRunBtn();
+}
+
+// ── Chart helpers ──────────────────────────────────────────────────────────────
+
+function sevClass(key) {
+  if (key==='Sev-1'||key==='Sev-2') return 'danger';
+  if (key==='Sev-3') return 'warning';
+  return '';
+}
+
+function renderBars(elId, obj, colorFn) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+  if (!entries.length) { el.innerHTML = '<p style="color:var(--text4);font-size:12px">No data</p>'; return; }
+  const max = entries[0][1] || 1;
+  el.innerHTML = entries.map(([k,v]) => {
+    const cls = colorFn ? colorFn(k) : '';
+    return `<div class="bar-row">
+      <div class="bar-label" title="${esc(k)}">${esc(k)}</div>
+      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.round(v/max*100)}%"></div></div>
+      <div class="bar-count">${v}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderWeekTrend(elId, weeklyData) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!weeklyData.length) { el.innerHTML = '<p style="color:var(--text4);font-size:12px">No data</p>'; return; }
+  const max = Math.max(...weeklyData.map(w => w.count), 1);
+  el.innerHTML = '<div class="week-chart">' +
+    weeklyData.map(w => {
+      const pct = Math.round(w.count / max * 100);
+      const lbl = w.week.replace(/^\d{4}-W0?/, 'W');
+      return `<div class="week-col">
+        <div class="week-bar" style="height:${pct}%"></div>
+        <div class="week-lbl">${lbl}</div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function loadItsdTeamTrend() {
+  fetch('/infraportal/api/jira-intelligence/itsd-team-trend?weeks=8')
+    .then(r => r.json())
+    .then(resp => {
+      if (resp.status !== 'ready') return;
+      _teamTrend = resp.data;
+      const sel = document.getElementById('itsd-team-select');
+      sel.innerHTML = '<option value="__all__">All Teams</option>' +
+        _teamTrend.teams.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      renderTeamTrendChart();
+    })
+    .catch(() => {});
+}
+
+function renderTeamTrendChart() {
+  if (!_teamTrend) return;
+  const sel = document.getElementById('itsd-team-select').value;
+  const values = sel === '__all__' ? _teamTrend.all_teams : (_teamTrend.by_team[sel] || []);
+  renderLineChart('itsd-team-trend-chart', _teamTrend.labels, values);
+}
+
+function loadItoClosedTrend() {
+  fetch('/infraportal/api/jira-intelligence/ito-closed-trend?bucket_weeks=2&num_buckets=4')
+    .then(r => r.json())
+    .then(resp => {
+      if (resp.status !== 'ready') return;
+      const obj = {};
+      resp.data.labels.forEach((lbl, i) => obj[lbl] = resp.data.counts[i]);
+      renderBars('ito-closed-trend', obj);
+    })
+    .catch(() => {});
+}
+
+function renderLineChart(elId, labels, values) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!labels || !labels.length) { el.innerHTML = '<p style="color:var(--text4);font-size:12px">No data</p>'; return; }
+
+  const W = Math.max(300, el.clientWidth || el.parentElement.clientWidth || 600), H = 130;
+  const padX = 24, padTop = 22, padBottom = 22;
+  const chartW = W - padX * 2, chartH = H - padTop - padBottom;
+  const max = Math.max(...values, 1);
+  const n = values.length;
+  const stepX = n > 1 ? chartW / (n - 1) : 0;
+  const xAt = i => padX + stepX * i;
+  const yAt = v => padTop + chartH - (v / max) * chartH;
+
+  const pts = values.map((v, i) => [xAt(i), yAt(v)]);
+  const linePts = pts.map(p => p.join(',')).join(' ');
+  const areaPts = `${padX},${padTop + chartH} ${linePts} ${xAt(n - 1)},${padTop + chartH}`;
+  const baselineY = padTop + chartH;
+
+  const circles = pts.map(([x, y], i) => `
+    <circle class="line-chart-point" cx="${x}" cy="${y}" r="4">
+      <title>${esc(labels[i])}: ${values[i]}</title>
+    </circle>`).join('');
+
+  const xLabels = labels.map((lbl, i) => `
+    <text class="line-chart-label" x="${xAt(i)}" y="${H - 4}" text-anchor="middle">${esc(lbl)}</text>`).join('');
+
+  const lastX = xAt(n - 1), lastY = yAt(values[n - 1]);
+  const lastLabel = `<text class="line-chart-value" x="${lastX}" y="${Math.max(12, lastY - 10)}" text-anchor="middle">${values[n - 1]}</text>`;
+
+  el.innerHTML = `
+    <svg class="line-chart-svg" viewBox="0 0 ${W} ${H}">
+      <line class="line-chart-baseline" x1="${padX}" y1="${baselineY}" x2="${W - padX}" y2="${baselineY}" />
+      <polygon class="line-chart-area" points="${areaPts}" />
+      <polyline class="line-chart-path" points="${linePts}" />
+      ${circles}
+      ${xLabels}
+      ${lastLabel}
+    </svg>`;
+}
+
+function renderDeviceBars(elId, arr) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!arr.length) { el.innerHTML = '<p style="color:var(--text4);font-size:12px">No named devices found in server_name field</p>'; return; }
+  const max = arr[0].count || 1;
+  el.innerHTML = arr.slice(0,15).map(d => `
+    <div class="bar-row">
+      <div class="bar-label">${esc(d.device)}</div>
+      <div class="bar-track"><div class="bar-fill ${d.count>=5?'warning':''}" style="width:${Math.round(d.count/max*100)}%"></div></div>
+      <div class="bar-count">${d.count}</div>
+    </div>`).join('');
+}
+
+function renderTable(elId, headers, rows) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!rows.length) {
+    el.outerHTML = `<p id="${elId}" style="color:var(--text4);font-size:13px">None in this period.</p>`;
+    return;
+  }
+  el.innerHTML =
+    `<thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>` +
+    `<tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+
+function jLink(key) {
+  return `<a class="jira-link" href="${BROWSE}${key}" target="_blank">${key}</a>`;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  pollStatus();
+  loadItsdTeamTrend();
+  loadItoClosedTrend();
+  const tabParam = new URLSearchParams(window.location.search).get('tab');
+  if (tabParam) {
+    const valid = {itsd:1, tasi:1, ito:1, corr:1, ai:1};
+    if (valid[tabParam]) {
+      const trySwitch = setInterval(() => {
+        const results = document.getElementById('ji-results');
+        if (results && results.style.display !== 'none') {
+          switchTab(tabParam);
+          clearInterval(trySwitch);
+        }
+      }, 400);
+      setTimeout(() => clearInterval(trySwitch), 20000);
+    }
+  }
+});
+
+
+
+</script>
+{% endblock %}

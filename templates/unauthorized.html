@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied — Zinnia Infrastructure Portal</title>
+    <link rel="icon" type="image/svg+xml" href="/infraportal/static/favicon.svg">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: #ffffff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card { background-color: #16213e; border-radius: 12px; padding: 48px 40px; width: 100%; max-width: 480px; text-align: center; }
+        .icon { font-size: 48px; margin-bottom: 20px; }
+        h1 { font-size: 22px; color: #ff6666; margin-bottom: 8px; }
+        .subtitle { font-size: 14px; color: #aaaaaa; margin-bottom: 8px; line-height: 1.6; }
+        .user-info { font-size: 13px; color: #888888; margin-bottom: 32px; }
+        .user-info strong { color: #cccccc; }
+        .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 10px 22px; border-radius: 6px; font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; border: none; }
+        .btn-primary { background-color: #0f9b8e; color: #ffffff; }
+        .btn-primary:hover { background-color: #0d8a7e; }
+        .btn-secondary { background-color: #2a2a4a; color: #aaaaaa; border: 1px solid #444466; }
+        .btn-secondary:hover { background-color: #3a3a5a; color: #ffffff; }
+        .divider { border: none; border-top: 1px solid #2a2a4a; margin: 28px 0; }
+        .help-note { font-size: 12px; color: #555555; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">🔒</div>
+        <h1>Access Denied</h1>
+        <p class="subtitle">You don't have permission to view this page.</p>
+
+        {% if user %}
+        <p class="user-info">Signed in as <strong>{{ user.name }}</strong> ({{ user.email }})</p>
+        {% endif %}
+
+        <div class="btn-row">
+            <a href="/infraportal/" class="btn btn-primary">← Back to Dashboard</a>
+            <a href="/infraportal/auth/logout" class="btn btn-secondary">Sign Out</a>
+        </div>
+
+        <hr class="divider">
+        <p class="help-note">If you believe you should have access, contact your IT administrator<br>and ask to be added to the appropriate InfraPortal access group.</p>
+    </div>
+</body>
+</html>

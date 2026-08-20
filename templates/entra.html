@@ -1,0 +1,749 @@
+{% extends "base.html" %}
+{% block title %}Entra / M365 — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Stat strip ──────────────────────────────────────────────────────────── */
+.stat-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+.stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; text-align:center; }
+.stat-num  { font-size:28px; font-weight:700; color:var(--accent); line-height:1; }
+.stat-num.danger  { color:var(--danger); }
+.stat-num.warning { color:var(--warning); }
+.stat-num.success { color:var(--success); }
+.stat-lbl  { font-size:11px; color:var(--text4); margin-top:5px; text-transform:uppercase; letter-spacing:.04em; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.tab-bar { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:20px; flex-wrap:wrap; }
+.tab-btn { background:none; border:none; color:var(--text3); padding:8px 16px; font-size:13px;
+           cursor:pointer; border-bottom:2px solid transparent; transition:color .15s,border-color .15s; }
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+
+/* ── Setup banner ────────────────────────────────────────────────────────── */
+.setup-banner {
+  background: rgba(255,170,0,.08); border:1px solid rgba(255,170,0,.3); border-radius:10px;
+  padding:16px 20px; margin-bottom:20px;
+}
+.setup-banner h3 { margin:0 0 10px; color:var(--warning); font-size:14px; }
+.setup-banner code { background:var(--bg3); padding:2px 6px; border-radius:4px; font-size:12px; }
+.setup-banner ul { margin:8px 0 0 18px; padding:0; font-size:13px; color:var(--text2); line-height:1.8; }
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.entra-table { width:100%; border-collapse:collapse; font-size:13px; }
+.entra-table th {
+  background:var(--bg3); color:var(--text3); text-transform:uppercase; font-size:11px;
+  letter-spacing:.05em; padding:9px 12px; text-align:left; border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:1;
+}
+.entra-table td { padding:9px 12px; border-bottom:1px solid var(--border); color:var(--text2); vertical-align:middle; }
+.entra-table tr:last-child td { border-bottom:none; }
+.entra-table tr:hover td { background:var(--surface); }
+.table-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:10px; overflow:hidden; max-height:550px; overflow-y:auto; }
+
+/* ── Usage bar ───────────────────────────────────────────────────────────── */
+.usage-bar { background:var(--bg3); border-radius:4px; height:8px; min-width:80px; }
+.usage-fill { height:100%; border-radius:4px; background:var(--success); transition:width .3s; }
+.usage-fill.warn { background:var(--warning); }
+.usage-fill.crit { background:var(--danger); }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.tag { display:inline-block; font-size:10px; font-weight:600; padding:2px 7px;
+       border-radius:4px; text-transform:uppercase; letter-spacing:.04em; }
+.tag-ok     { background:rgba(34,204,102,.12); color:var(--success); }
+.tag-warn   { background:rgba(255,170,0,.12);  color:var(--warning); }
+.tag-crit   { background:rgba(255,68,68,.12);  color:var(--danger); }
+.tag-info   { background:rgba(15,155,142,.12); color:var(--accent); }
+.tag-muted  { background:var(--bg3); color:var(--text4); }
+.tag-guest  { background:rgba(136,135,128,.12); color:var(--text3); }
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.filter-bar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+.filter-btn { padding:5px 14px; border:1px solid var(--border); border-radius:20px; font-size:12px;
+              background:var(--bg2); color:var(--text3); cursor:pointer; transition:all .15s; }
+.filter-btn:hover, .filter-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.filter-input { padding:6px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px;
+                background:var(--bg3); color:var(--text); outline:none; min-width:200px; }
+.filter-input:focus { border-color:var(--accent); }
+
+/* ── Section header ──────────────────────────────────────────────────────── */
+.section-head {
+  font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--text4); padding:14px 0 8px; border-bottom:1px solid var(--border); margin-bottom:12px;
+}
+.mini-stats { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.mini-stat { text-align:center; background:var(--bg2); border:1px solid var(--border);
+             border-radius:8px; padding:10px 16px; }
+.mini-stat .val { font-size:20px; font-weight:700; color:var(--text); }
+.mini-stat .val.warn { color:var(--warning); }
+.mini-stat .val.crit { color:var(--danger); }
+.mini-stat .lbl { font-size:11px; color:var(--text4); margin-top:2px; }
+
+/* ── CA policy list ──────────────────────────────────────────────────────── */
+.ca-list { list-style:none; padding:0; margin:0; }
+.ca-item { display:flex; align-items:center; gap:10px; padding:9px 14px;
+           background:var(--bg2); border:1px solid var(--border); border-radius:8px; margin-bottom:6px; }
+.ca-name { flex:1; font-size:13px; color:var(--text2); }
+
+/* ── Refresh notice ──────────────────────────────────────────────────────── */
+.refresh-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+.refresh-meta { font-size:12px; color:var(--text4); }
+.btn-refresh { padding:6px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:7px;
+               font-size:12px; color:var(--accent); cursor:pointer; transition:background .15s; }
+.btn-refresh:hover { background:var(--surface); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% set has_any_data = licenses or (users_data and users_data.users) or (apps_data and apps_data.apps) %}
+{% set needs_setup  = not has_any_data %}
+
+<!-- Setup banner if no data yet -->
+{% if needs_setup %}
+<div class="setup-banner">
+  <h3>⚠ Additional Azure App Permissions Required</h3>
+  <p style="font-size:13px;color:var(--text2);margin:0 0 8px">
+    Before Entra data can be fetched, add these <strong>Application</strong> permissions to the
+    <em>Zinnia Infrastructure Portal</em> Azure App Registration and grant admin consent:
+  </p>
+  <ul>
+    <li><code>Application.Read.All</code> — enterprise app credentials</li>
+    <li><code>Organization.Read.All</code> — license subscriptions</li>
+    <li><code>AuditLog.Read.All</code> — user sign-in activity</li>
+    <li><code>Reports.Read.All</code> — mailbox usage reports</li>
+    <li><code>Policy.Read.All</code> — Conditional Access policies</li>
+    <li><code>IdentityRiskyUser.Read.All</code> — risky users (requires AAD P2)</li>
+  </ul>
+  <p style="font-size:12px;color:var(--text4);margin:10px 0 0">
+    After granting consent, click <strong>Refresh Data</strong> or wait for the hourly scheduler job.
+  </p>
+</div>
+{% endif %}
+
+<!-- Header -->
+<div class="refresh-row">
+  <div>
+    <h2 style="margin:0;font-size:20px;color:var(--accent)">Entra / Microsoft 365</h2>
+    {% if fetched_at %}
+    <span class="refresh-meta">Last refreshed {{ fetched_at }}</span>
+    {% endif %}
+  </div>
+  <button class="btn-refresh" onclick="triggerRefresh(this)">↻ Refresh Data</button>
+</div>
+
+<!-- ── Stat strip ────────────────────────────────────────────────────────────── -->
+{% set license_list = licenses or [] %}
+{% set total_licensed = license_list | sum(attribute='consumed') %}
+{% set users_stats    = (users_data or {}).get('stats', {}) %}
+{% set apps_stats     = (apps_data or {}).get('stats', {}) %}
+{% set mb_stats       = (mailbox_data or {}).get('stats', {}) %}
+{% set risky_count    = (risky_users or []) | length %}
+{% set expiring_apps  = apps_stats.get('creds_expiring_30', 0) + apps_stats.get('creds_expired', 0) %}
+
+<div class="stat-strip">
+  <div class="stat-card">
+    <div class="stat-num">{{ total_licensed or '—' }}</div>
+    <div class="stat-lbl">Licensed Users</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num {{ 'warning' if users_stats.get('stale_90d',0) > 50 else '' }}">
+      {{ users_stats.get('stale_90d', '—') }}
+    </div>
+    <div class="stat-lbl">Stale Users (90d)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num {{ 'danger' if users_stats.get('no_license',0) > 0 else '' }}">
+      {{ users_stats.get('no_license', '—') }}
+    </div>
+    <div class="stat-lbl">Enabled, No License</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num {{ 'danger' if expiring_apps > 0 else '' }}">
+      {{ expiring_apps if apps_stats else '—' }}
+    </div>
+    <div class="stat-lbl">App Creds Expiring 30d</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num {{ 'danger' if risky_count > 0 else '' }}">
+      {{ risky_count if risky_users is not none else '—' }}
+    </div>
+    <div class="stat-lbl">Risky Users</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num {{ 'danger' if mb_stats.get('over_90pct',0) > 0 else '' }}">
+      {{ mb_stats.get('over_90pct', '—') }}
+    </div>
+    <div class="stat-lbl">Mailboxes &gt;90% Full</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ users_stats.get('guests', '—') }}</div>
+    <div class="stat-lbl">Guest Users</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ (ca_policies or []) | length or '—' }}</div>
+    <div class="stat-lbl">CA Policies</div>
+  </div>
+</div>
+
+<!-- ── Tabs ──────────────────────────────────────────────────────────────────── -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('licenses',this)">Licenses</button>
+  <button class="tab-btn" onclick="switchTab('security',this)">Security</button>
+  <button class="tab-btn" onclick="switchTab('users',this)">Users</button>
+  <button class="tab-btn" onclick="switchTab('groups',this)">Groups</button>
+  <button class="tab-btn" onclick="switchTab('apps',this)">Enterprise Apps</button>
+  <button class="tab-btn" onclick="switchTab('email',this)">Email / Mailbox</button>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     LICENSES TAB
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane active" id="tab-licenses">
+{% if license_list %}
+  <div class="table-wrap">
+    <table class="entra-table">
+      <thead>
+        <tr>
+          <th>License</th>
+          <th>SKU</th>
+          <th>Assigned</th>
+          <th>Total</th>
+          <th>Available</th>
+          <th>Usage</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for lic in license_list %}
+        {% set pc = lic.pct_used %}
+        <tr>
+          <td style="font-weight:600;color:var(--text)">{{ lic.name }}</td>
+          <td style="font-size:11px;color:var(--text4)">{{ lic.sku_part }}</td>
+          <td>{{ lic.consumed }}</td>
+          <td>{{ lic.total }}</td>
+          <td class="{% if lic.available == 0 %}crit{% elif lic.available < 5 %}warn{% endif %}"
+              style="font-weight:{% if lic.available < 5 %}600{% endif %}">
+            {{ lic.available }}
+          </td>
+          <td style="min-width:120px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="usage-bar" style="flex:1">
+                <div class="usage-fill {% if pc >= 95 %}crit{% elif pc >= 85 %}warn{% endif %}"
+                     style="width:{{ [pc,100]|min }}%"></div>
+              </div>
+              <span style="font-size:12px;color:{% if pc >= 95 %}var(--danger){% elif pc >= 85 %}var(--warning){% else %}var(--text3){% endif %}">
+                {{ pc }}%
+              </span>
+            </div>
+          </td>
+          <td>
+            <span class="tag {% if lic.status == 'Enabled' %}tag-ok{% elif lic.status == 'Warning' %}tag-warn{% else %}tag-muted{% endif %}">
+              {{ lic.status }}
+            </span>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div style="padding:30px;text-align:center;color:var(--text4)">
+    No license data — <code>Organization.Read.All</code> permission required.
+  </div>
+{% endif %}
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     SECURITY TAB
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-security">
+
+  <!-- App credentials expiring -->
+  <div class="section-head">App Registration Credentials</div>
+  {% if apps_data and apps_data.apps %}
+    <div class="mini-stats">
+      <div class="mini-stat">
+        <div class="val {{ 'crit' if apps_stats.creds_expired > 0 }}">{{ apps_stats.get('creds_expired',0) }}</div>
+        <div class="lbl">Expired</div>
+      </div>
+      <div class="mini-stat">
+        <div class="val {{ 'crit' if apps_stats.creds_expiring_30 > 0 }}">{{ apps_stats.get('creds_expiring_30',0) }}</div>
+        <div class="lbl">Expiring ≤30 days</div>
+      </div>
+      <div class="mini-stat">
+        <div class="val {{ 'warn' if apps_stats.creds_expiring_90 > 0 }}">{{ apps_stats.get('creds_expiring_90',0) }}</div>
+        <div class="lbl">Expiring ≤90 days</div>
+      </div>
+      <div class="mini-stat">
+        <div class="val">{{ apps_stats.get('no_creds',0) }}</div>
+        <div class="lbl">No Credentials</div>
+      </div>
+    </div>
+    {% set risky_apps = apps_data.apps | selectattr("worst_days","ne",none) | selectattr("worst_days","lt",90) | list %}
+    {% if risky_apps %}
+    <div class="table-wrap" style="margin-bottom:24px">
+      <table class="entra-table">
+        <thead><tr><th>App Name</th><th>Creds</th><th>Worst Expiry</th><th>Days</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for app in risky_apps %}
+          {% set d = app.worst_days %}
+          <tr>
+            <td style="font-weight:600;color:var(--text)">{{ app.name }}</td>
+            <td>{{ app.cred_count }}</td>
+            <td>{{ app.creds[0].expires if app.creds else '—' }}</td>
+            <td style="color:{% if d < 0 %}var(--danger){% elif d <= 30 %}var(--danger){% else %}var(--warning){% endif %};font-weight:600">
+              {{ d if d >= 0 else 'EXPIRED' }}
+            </td>
+            <td>
+              <span class="tag {% if d < 0 %}tag-crit{% elif d <= 30 %}tag-crit{% else %}tag-warn{% endif %}">
+                {% if d < 0 %}Expired{% elif d <= 30 %}Critical{% else %}Warning{% endif %}
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  {% else %}
+    <div style="padding:14px;color:var(--text4);font-size:13px">No app data — <code>Application.Read.All</code> required.</div>
+  {% endif %}
+
+  <!-- Risky Users -->
+  <div class="section-head">Risky Users (Identity Protection)</div>
+  {% if risky_users %}
+    <div class="table-wrap" style="margin-bottom:24px">
+      <table class="entra-table">
+        <thead><tr><th>User</th><th>Risk Level</th><th>Risk State</th><th>Last Updated</th></tr></thead>
+        <tbody>
+        {% for u in risky_users %}
+          <tr>
+            <td>{{ u.get('userDisplayName') or u.get('userPrincipalName') or '—' }}</td>
+            <td>
+              <span class="tag {% if u.get('riskLevel') == 'high' %}tag-crit{% elif u.get('riskLevel') == 'medium' %}tag-warn{% else %}tag-info{% endif %}">
+                {{ u.get('riskLevel','—')|title }}
+              </span>
+            </td>
+            <td>{{ u.get('riskState','—')|title }}</td>
+            <td style="font-size:12px;color:var(--text4)">{{ (u.get('riskLastUpdatedDateTime') or '')[:10] }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% elif risky_users is defined %}
+    <div style="padding:14px;color:var(--success);font-size:13px">✓ No active risky users detected (or AAD P2 not licensed).</div>
+  {% endif %}
+
+  <!-- Conditional Access -->
+  <div class="section-head">Conditional Access Policies</div>
+  {% if ca_policies %}
+    <ul class="ca-list">
+    {% for p in ca_policies %}
+      <li class="ca-item">
+        <span class="tag {% if p.state == 'enabled' %}tag-ok{% elif p.state == 'enabledForReportingButNotEnforced' %}tag-warn{% else %}tag-muted{% endif %}">
+          {{ p.state|replace('enabledForReportingButNotEnforced','Report Only')|title }}
+        </span>
+        <span class="ca-name">{{ p.name }}</span>
+        <span style="font-size:11px;color:var(--text4)">Modified {{ p.modified or p.created or '—' }}</span>
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <div style="padding:14px;color:var(--text4);font-size:13px">No CA policy data — <code>Policy.Read.All</code> required.</div>
+  {% endif %}
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     USERS TAB
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-users">
+{% if users_data and users_data.users %}
+  {% set all_users = users_data.users %}
+  {% set us = users_data.stats %}
+
+  <div class="mini-stats" style="margin-bottom:16px">
+    <div class="mini-stat"><div class="val">{{ us.get('total',0) }}</div><div class="lbl">Total</div></div>
+    <div class="mini-stat"><div class="val ok">{{ us.get('enabled',0) }}</div><div class="lbl">Enabled</div></div>
+    <div class="mini-stat"><div class="val">{{ us.get('disabled',0) }}</div><div class="lbl">Disabled</div></div>
+    <div class="mini-stat"><div class="val">{{ us.get('guests',0) }}</div><div class="lbl">Guests</div></div>
+    <div class="mini-stat"><div class="val {{ 'warn' if us.get('stale_90d',0) > 50 }}">{{ us.get('stale_90d',0) }}</div><div class="lbl">Stale 90d+</div></div>
+    <div class="mini-stat"><div class="val {{ 'crit' if us.get('no_license',0) > 0 }}">{{ us.get('no_license',0) }}</div><div class="lbl">No License</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input class="filter-input" id="user-search" placeholder="Search name or UPN…" oninput="filterUsers()">
+    <button class="filter-btn active" id="f-all"   onclick="setUserFilter('all')">All</button>
+    <button class="filter-btn" id="f-stale"         onclick="setUserFilter('stale')">Stale 90d+</button>
+    <button class="filter-btn" id="f-guest"         onclick="setUserFilter('guest')">Guests</button>
+    <button class="filter-btn" id="f-nolic"         onclick="setUserFilter('nolic')">No License</button>
+    <button class="filter-btn" id="f-disabled"      onclick="setUserFilter('disabled')">Disabled</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="entra-table" id="user-table">
+      <thead>
+        <tr>
+          <th>Name</th><th>UPN</th><th>Type</th><th>Enabled</th>
+          <th>Licenses</th><th>Last Sign-in</th><th>Days Idle</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in all_users %}
+        <tr data-type="{{ u.user_type }}"
+            data-enabled="{{ u.enabled }}"
+            data-idle="{{ u.days_idle or '' }}"
+            data-licenses="{{ u.license_count }}"
+            data-name="{{ (u.name ~ ' ' ~ u.upn)|lower }}">
+          <td style="font-weight:500;color:var(--text)">{{ u.name }}</td>
+          <td style="font-size:12px;color:var(--text4)">{{ u.upn }}</td>
+          <td>
+            <span class="tag {% if u.user_type == 'Guest' %}tag-guest{% else %}tag-info{% endif %}">
+              {{ u.user_type }}
+            </span>
+          </td>
+          <td>
+            <span class="tag {% if u.enabled %}tag-ok{% else %}tag-muted{% endif %}">
+              {{ 'Yes' if u.enabled else 'No' }}
+            </span>
+          </td>
+          <td>{{ u.license_count }}</td>
+          <td style="font-size:12px">{{ u.last_signin or '—' }}</td>
+          <td>
+            {% if u.days_idle is not none %}
+              <span style="color:{% if u.days_idle > 180 %}var(--danger){% elif u.days_idle > 90 %}var(--warning){% else %}var(--text3){% endif %}">
+                {{ u.days_idle }}d
+              </span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div style="padding:30px;text-align:center;color:var(--text4)">
+    No user data — <code>User.Read.All</code> + <code>AuditLog.Read.All</code> required.
+  </div>
+{% endif %}
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     GROUPS TAB
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-groups">
+{% if groups_data and groups_data.groups %}
+  {% set gs = groups_data.stats %}
+  <div class="mini-stats" style="margin-bottom:16px">
+    <div class="mini-stat"><div class="val">{{ gs.get('total',0) }}</div><div class="lbl">Total Groups</div></div>
+    <div class="mini-stat"><div class="val">{{ gs.get('m365',0) }}</div><div class="lbl">M365 Groups</div></div>
+    <div class="mini-stat"><div class="val">{{ gs.get('security',0) }}</div><div class="lbl">Security</div></div>
+    <div class="mini-stat"><div class="val">{{ gs.get('distribution',0) }}</div><div class="lbl">Distribution</div></div>
+    <div class="mini-stat"><div class="val">{{ gs.get('dynamic',0) }}</div><div class="lbl">Dynamic</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input class="filter-input" id="group-search" placeholder="Search group name…" oninput="filterGroups()">
+    <button class="filter-btn active" id="gf-all"  onclick="setGroupFilter('all')">All</button>
+    <button class="filter-btn" id="gf-m365"        onclick="setGroupFilter('M365')">M365</button>
+    <button class="filter-btn" id="gf-security"    onclick="setGroupFilter('Security')">Security</button>
+    <button class="filter-btn" id="gf-dist"        onclick="setGroupFilter('Distribution')">Distribution</button>
+    <button class="filter-btn" id="gf-dynamic"     onclick="setGroupFilter('dynamic')">Dynamic</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="entra-table" id="group-table">
+      <thead><tr><th>Name</th><th>Type</th><th>Dynamic</th><th>Created</th></tr></thead>
+      <tbody>
+      {% for g in groups_data.groups %}
+        <tr data-type="{{ g.type }}" data-dynamic="{{ g.dynamic }}" data-name="{{ g.name|lower }}">
+          <td style="color:var(--text)">{{ g.name }}</td>
+          <td>
+            <span class="tag {% if g.type == 'M365' %}tag-info{% elif g.type == 'Security' %}tag-ok{% elif g.type == 'Distribution' %}tag-warn{% else %}tag-muted{% endif %}">
+              {{ g.type }}
+            </span>
+          </td>
+          <td>{% if g.dynamic %}<span class="tag tag-info">Dynamic</span>{% else %}—{% endif %}</td>
+          <td style="font-size:12px;color:var(--text4)">{{ g.created }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div style="padding:30px;text-align:center;color:var(--text4)">
+    No group data — <code>GroupMember.Read.All</code> required.
+  </div>
+{% endif %}
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     ENTERPRISE APPS TAB
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-apps">
+{% if apps_data and apps_data.apps %}
+  <div class="mini-stats" style="margin-bottom:16px">
+    <div class="mini-stat"><div class="val">{{ apps_stats.get('total',0) }}</div><div class="lbl">Total Apps</div></div>
+    <div class="mini-stat"><div class="val {{ 'crit' if apps_stats.creds_expired > 0 }}">{{ apps_stats.get('creds_expired',0) }}</div><div class="lbl">Expired Creds</div></div>
+    <div class="mini-stat"><div class="val {{ 'crit' if apps_stats.creds_expiring_30 > 0 }}">{{ apps_stats.get('creds_expiring_30',0) }}</div><div class="lbl">Expiring ≤30d</div></div>
+    <div class="mini-stat"><div class="val {{ 'warn' if apps_stats.creds_expiring_90 > 0 }}">{{ apps_stats.get('creds_expiring_90',0) }}</div><div class="lbl">Expiring ≤90d</div></div>
+    <div class="mini-stat"><div class="val">{{ apps_stats.get('no_creds',0) }}</div><div class="lbl">No Credentials</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input class="filter-input" id="app-search" placeholder="Search app name…" oninput="filterApps()">
+    <button class="filter-btn active" id="af-all"     onclick="setAppFilter('all')">All</button>
+    <button class="filter-btn" id="af-urgent"         onclick="setAppFilter('urgent')">Expiring ≤30d</button>
+    <button class="filter-btn" id="af-warn"           onclick="setAppFilter('warn')">Expiring ≤90d</button>
+    <button class="filter-btn" id="af-nocreds"        onclick="setAppFilter('nocreds')">No Creds</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="entra-table" id="app-table">
+      <thead><tr><th>App Name</th><th>Audience</th><th>Credential Count</th><th>Worst Expiry</th><th>Days Remaining</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for app in apps_data.apps %}
+        {% set d = app.worst_days %}
+        <tr data-days="{{ d if d is not none else '9999' }}" data-name="{{ app.name|lower }}" data-creds="{{ app.cred_count }}">
+          <td style="font-weight:500;color:var(--text)">{{ app.name }}</td>
+          <td style="font-size:11px;color:var(--text4)">{{ app.audience or '—' }}</td>
+          <td>{{ app.cred_count }}</td>
+          <td style="font-size:12px">
+            {% if app.creds %}{{ app.creds[0].expires }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if d is not none %}
+              <span style="color:{% if d < 0 %}var(--danger){% elif d <= 30 %}var(--danger){% elif d <= 90 %}var(--warning){% else %}var(--text3){% endif %};font-weight:600">
+                {% if d < 0 %}EXPIRED{% else %}{{ d }}{% endif %}
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if not app.creds %}
+              <span class="tag tag-muted">No Creds</span>
+            {% elif d is not none and d < 0 %}
+              <span class="tag tag-crit">Expired</span>
+            {% elif d is not none and d <= 30 %}
+              <span class="tag tag-crit">Critical</span>
+            {% elif d is not none and d <= 90 %}
+              <span class="tag tag-warn">Warning</span>
+            {% else %}
+              <span class="tag tag-ok">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div style="padding:30px;text-align:center;color:var(--text4)">
+    No app data — <code>Application.Read.All</code> required.
+  </div>
+{% endif %}
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     EMAIL / MAILBOX TAB
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-email">
+{% if mailbox_data and mailbox_data.mailboxes %}
+  {% set mbs = mailbox_data.stats %}
+  <div class="mini-stats" style="margin-bottom:16px">
+    <div class="mini-stat"><div class="val">{{ mbs.get('total',0) }}</div><div class="lbl">Total Mailboxes</div></div>
+    <div class="mini-stat"><div class="val {{ 'crit' if mbs.get('over_90pct',0) > 0 }}">{{ mbs.get('over_90pct',0) }}</div><div class="lbl">Over 90% Full</div></div>
+    <div class="mini-stat"><div class="val {{ 'warn' if mbs.get('over_75pct',0) > 0 }}">{{ mbs.get('over_75pct',0) }}</div><div class="lbl">Over 75% Full</div></div>
+    <div class="mini-stat"><div class="val">{{ mbs.get('inactive_30d',0) }}</div><div class="lbl">Inactive 30d+</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input class="filter-input" id="mb-search" placeholder="Search name or UPN…" oninput="filterMailboxes()">
+    <button class="filter-btn active" id="mf-all"  onclick="setMbFilter('all')">All</button>
+    <button class="filter-btn" id="mf-90"          onclick="setMbFilter('90')">Over 90%</button>
+    <button class="filter-btn" id="mf-75"          onclick="setMbFilter('75')">Over 75%</button>
+    <button class="filter-btn" id="mf-inactive"    onclick="setMbFilter('inactive')">Inactive</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="entra-table" id="mb-table">
+      <thead><tr><th>Name</th><th>UPN</th><th>Used (GB)</th><th>Quota (GB)</th><th>% Full</th><th>Items</th><th>Last Activity</th></tr></thead>
+      <tbody>
+      {% for mb in mailbox_data.mailboxes %}
+        {% set pct = mb.pct_used %}
+        <tr data-pct="{{ pct }}" data-inactive="{{ mb.days_inactive or 0 }}" data-name="{{ (mb.name ~ ' ' ~ mb.upn)|lower }}">
+          <td style="font-weight:500;color:var(--text)">{{ mb.name }}</td>
+          <td style="font-size:12px;color:var(--text4)">{{ mb.upn }}</td>
+          <td>{{ mb.used_gb }}</td>
+          <td style="color:var(--text4)">{{ mb.quota_gb }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;min-width:100px">
+              <div class="usage-bar" style="flex:1">
+                <div class="usage-fill {% if pct >= 90 %}crit{% elif pct >= 75 %}warn{% endif %}"
+                     style="width:{{ [pct,100]|min }}%"></div>
+              </div>
+              <span style="font-size:12px;color:{% if pct>=90 %}var(--danger){% elif pct>=75 %}var(--warning){% else %}var(--text3){% endif %}">{{ pct }}%</span>
+            </div>
+          </td>
+          <td style="font-size:12px">{{ mb.item_count | default(0) | int }}</td>
+          <td style="font-size:12px;color:{% if mb.days_inactive and mb.days_inactive > 90 %}var(--warning){% else %}var(--text4){% endif %}">
+            {{ mb.last_activity or '—' }}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% elif mailbox_data and mailbox_data.get('error') %}
+  <div style="padding:20px;background:rgba(255,170,0,.06);border:1px solid rgba(255,170,0,.3);border-radius:8px;font-size:13px;color:var(--warning)">
+    ⚠ {{ mailbox_data.error }}
+  </div>
+{% else %}
+  <div style="padding:30px;text-align:center;color:var(--text4)">
+    No mailbox data — <code>Reports.Read.All</code> required.
+  </div>
+{% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ── Refresh trigger ───────────────────────────────────────────────────────────
+function triggerRefresh(btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Refreshing…';
+  btn.disabled = true;
+  fetch('/infraportal/api/entra/refresh', { method: 'POST' })
+    .then(() => { setTimeout(() => location.reload(), 5000); })
+    .catch(() => { btn.textContent = orig; btn.disabled = false; });
+}
+
+// ── User filter ───────────────────────────────────────────────────────────────
+let _userFilter = 'all';
+function setUserFilter(f) {
+  _userFilter = f;
+  ['all','stale','guest','nolic','disabled'].forEach(id => {
+    const btn = document.getElementById('f-' + id);
+    if (btn) btn.classList.toggle('active', id === f);
+  });
+  filterUsers();
+}
+function filterUsers() {
+  const q   = (document.getElementById('user-search')?.value || '').toLowerCase();
+  const rows = document.querySelectorAll('#user-table tbody tr');
+  rows.forEach(row => {
+    const name     = (row.dataset.name     || '');
+    const type     = (row.dataset.type     || '');
+    const enabled  = row.dataset.enabled   === 'True';
+    const idle     = parseInt(row.dataset.idle) || 0;
+    const licenses = parseInt(row.dataset.licenses) || 0;
+    let show = !q || name.includes(q);
+    if (show && _userFilter === 'stale')    show = idle > 90 && enabled;
+    if (show && _userFilter === 'guest')    show = type === 'Guest';
+    if (show && _userFilter === 'nolic')    show = licenses === 0 && enabled && type !== 'Guest';
+    if (show && _userFilter === 'disabled') show = !enabled;
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── Group filter ──────────────────────────────────────────────────────────────
+let _groupFilter = 'all';
+function setGroupFilter(f) {
+  _groupFilter = f;
+  ['all','M365','Security','Distribution','dynamic'].forEach(id => {
+    const btn = document.getElementById('gf-' + (id === 'M365' ? 'm365' : id === 'Security' ? 'security' : id === 'Distribution' ? 'dist' : id));
+    if (btn) btn.classList.toggle('active', id === f);
+  });
+  filterGroups();
+}
+function filterGroups() {
+  const q = (document.getElementById('group-search')?.value || '').toLowerCase();
+  document.querySelectorAll('#group-table tbody tr').forEach(row => {
+    const name    = row.dataset.name    || '';
+    const type    = row.dataset.type    || '';
+    const dynamic = row.dataset.dynamic === 'True';
+    let show = !q || name.includes(q);
+    if (show && _groupFilter === 'M365')         show = type === 'M365';
+    if (show && _groupFilter === 'Security')     show = type === 'Security';
+    if (show && _groupFilter === 'Distribution') show = type === 'Distribution';
+    if (show && _groupFilter === 'dynamic')      show = dynamic;
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── App filter ────────────────────────────────────────────────────────────────
+let _appFilter = 'all';
+function setAppFilter(f) {
+  _appFilter = f;
+  ['all','urgent','warn','nocreds'].forEach(id => {
+    const btn = document.getElementById('af-' + id);
+    if (btn) btn.classList.toggle('active', id === f);
+  });
+  filterApps();
+}
+function filterApps() {
+  const q = (document.getElementById('app-search')?.value || '').toLowerCase();
+  document.querySelectorAll('#app-table tbody tr').forEach(row => {
+    const name  = row.dataset.name  || '';
+    const days  = parseInt(row.dataset.days);
+    const creds = parseInt(row.dataset.creds);
+    let show = !q || name.includes(q);
+    if (show && _appFilter === 'urgent')  show = days <= 30;
+    if (show && _appFilter === 'warn')    show = days > 30 && days <= 90;
+    if (show && _appFilter === 'nocreds') show = creds === 0;
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── Mailbox filter ────────────────────────────────────────────────────────────
+let _mbFilter = 'all';
+function setMbFilter(f) {
+  _mbFilter = f;
+  ['all','90','75','inactive'].forEach(id => {
+    const btn = document.getElementById('mf-' + id);
+    if (btn) btn.classList.toggle('active', id === f);
+  });
+  filterMailboxes();
+}
+function filterMailboxes() {
+  const q = (document.getElementById('mb-search')?.value || '').toLowerCase();
+  document.querySelectorAll('#mb-table tbody tr').forEach(row => {
+    const name     = row.dataset.name || '';
+    const pct      = parseFloat(row.dataset.pct) || 0;
+    const inactive = parseInt(row.dataset.inactive) || 0;
+    let show = !q || name.includes(q);
+    if (show && _mbFilter === '90')      show = pct >= 90;
+    if (show && _mbFilter === '75')      show = pct >= 75;
+    if (show && _mbFilter === 'inactive') show = inactive > 30;
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── Tab persistence ───────────────────────────────────────────────────────────
+(function() {
+  const saved = new URLSearchParams(window.location.search).get('tab');
+  const valid = {licenses:1, security:1, users:1, groups:1, apps:1, email:1};
+  if (saved && valid[saved]) {
+    const btn = document.querySelector(`.tab-btn[onclick*="'${saved}'"]`);
+    switchTab(saved, btn);
+  }
+})();
+</script>
+{% endblock %}

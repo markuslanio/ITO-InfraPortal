@@ -1,0 +1,1774 @@
+{% extends "base.html" %}
+{% block title %}NOC Dashboard — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Maps tab panel (world map + app/tech map share one tall panel) ── */
+.noc-map-panel {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+    height: calc(100vh - 250px); min-height: 520px;
+}
+.noc-maptab-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.noc-maptab {
+    padding: 5px 18px; border-radius: 5px; font-size: 12px; font-weight: 500;
+    cursor: pointer; background: transparent; border: 1px solid transparent;
+    color: var(--text3); font-family: inherit; transition: all .15s;
+}
+.noc-maptab:hover { color: var(--accent); border-color: var(--border); }
+.noc-maptab.active {
+    background: rgba(15,155,142,.15); border-color: var(--accent);
+    color: var(--accent); font-weight: 700;
+}
+.noc-tab-pane { flex: 1; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
+.noc-tab-pane.active { display: flex; }
+#nocWorldMap {
+    width: 100%; flex: 1;
+    background: var(--bg3);
+}
+.noc-map-no-locs {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text4); font-size: 13px;
+}
+/* Root cause callout */
+.noc-root-cause {
+    display: none; margin: 0 24px 0;
+    background: rgba(255,170,0,.08); border: 1px solid rgba(255,170,0,.35);
+    border-radius: 6px; padding: 9px 14px; font-size: 12px; color: var(--warning);
+}
+.noc-root-cause.visible { display: block; }
+.noc-root-cause strong { color: var(--text); }
+
+/* ── TV mode hides base navbar ── */
+body.noc-tv .navbar   { display: none; }
+body.noc-tv .navbar-v2 { display: none !important; }
+
+/* ── NOC header bar ── */
+.noc-header {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+}
+.noc-title {
+    font-size: 18px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px;
+}
+.noc-live-dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--success);
+    box-shadow: 0 0 0 3px rgba(34,204,102,.2);
+    animation: nocpulse 2s ease-in-out infinite;
+    display: inline-block; flex-shrink: 0;
+}
+@keyframes nocpulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,204,102,.2)} 50%{box-shadow:0 0 0 6px rgba(34,204,102,.08)} }
+.noc-clock {
+    font-family: Consolas, 'SF Mono', monospace;
+    font-size: 14px; color: var(--text3);
+}
+.noc-summary-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.noc-pill {
+    font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px;
+    white-space: nowrap; cursor: default;
+}
+.noc-pill-crit  { background: rgba(255,68,68,.12);   color: var(--danger);  border: 1px solid rgba(255,68,68,.3); }
+.noc-pill-major { background: rgba(255,140,0,.12);   color: #ff8c00;        border: 1px solid rgba(255,140,0,.3); }
+.noc-pill-warn  { background: rgba(255,170,0,.12);   color: var(--warning); border: 1px solid rgba(255,170,0,.3); }
+.noc-pill-ok    { background: rgba(34,204,102,.12);  color: var(--success); border: 1px solid rgba(34,204,102,.3); }
+.noc-header-spacer { flex: 1; }
+.noc-tv-btn {
+    background: none; border: 1px solid var(--border); color: var(--text3);
+    padding: 5px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: all .15s;
+}
+.noc-tv-btn:hover { border-color: var(--accent); color: var(--accent); }
+.noc-refresh-bar {
+    font-size: 11px; color: var(--text4); display: flex; align-items: center; gap: 6px;
+}
+.noc-refresh-bar progress {
+    width: 60px; height: 4px; accent-color: var(--accent); border-radius: 2px;
+}
+
+/* ── TV header (shown only in TV mode) ── */
+.noc-tv-header {
+    display: none;
+    background: var(--bg2); border-bottom: 2px solid var(--border);
+    padding: 16px 32px; align-items: center; gap: 20px;
+}
+body.noc-tv .noc-tv-header { display: flex; }
+body.noc-tv .noc-header    { display: none; }
+
+/* ── Cascade banners ── */
+.noc-cascade-wrap { padding: 6px 24px 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.noc-cascade-banner {
+    flex: 1; min-width: 280px;
+    border-radius: 5px; padding: 6px 12px;
+    display: flex; align-items: center; gap: 10px; overflow: hidden;
+}
+.noc-cascade-loc  { background: rgba(255,68,68,.08);  border: 1px solid rgba(255,68,68,.28);  }
+.noc-cascade-team { background: rgba(255,170,0,.08);  border: 1px solid rgba(255,170,0,.28);  }
+.noc-cascade-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px;
+    white-space: nowrap; flex-shrink: 0;
+    background: rgba(255,68,68,.2); color: var(--danger);
+}
+.noc-cascade-team .noc-cascade-badge { background: rgba(255,170,0,.2); color: var(--warning); }
+.noc-cascade-cause {
+    font-size: 11px; color: var(--text2); flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.noc-cascade-esc {
+    font-size: 10px; font-weight: 700; color: var(--accent);
+    background: rgba(15,155,142,.1); border: 1px solid rgba(15,155,142,.3);
+    padding: 2px 8px; border-radius: 3px; white-space: nowrap; flex-shrink: 0;
+}
+.noc-cascade-devices {
+    font-size: 9.5px; color: var(--text4); font-family: Consolas, 'SF Mono', monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0;
+}
+
+/* ── Main grid ── */
+.noc-body { padding: 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Location cards row ── */
+.noc-loc-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.noc-loc-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; position: relative; overflow: hidden;
+}
+.noc-loc-card.has-critical { border-color: rgba(255,68,68,.4); }
+.noc-loc-card.has-cascade  { border-color: var(--danger); box-shadow: 0 0 0 2px rgba(255,68,68,.1); }
+.noc-loc-name {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text4); margin-bottom: 10px;
+}
+.noc-loc-total {
+    font-size: 32px; font-weight: 700; color: var(--text); line-height: 1;
+    margin-bottom: 4px;
+}
+.noc-loc-label { font-size: 11px; color: var(--text4); margin-bottom: 12px; }
+.noc-loc-breakdown { display: flex; gap: 6px; flex-wrap: wrap; }
+.noc-loc-tier {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px;
+}
+.noc-loc-tier.p1   { background: rgba(255,68,68,.12);   color: var(--danger); }
+.noc-loc-tier.p2   { background: rgba(255,170,0,.12);   color: var(--warning); }
+.noc-loc-tier.p3   { background: rgba(34,204,102,.12);  color: var(--success); }
+.noc-loc-tier.unc  { background: var(--bg3); color: var(--text4); }
+.noc-loc-cascade-tag {
+    position: absolute; top: 10px; right: 12px;
+    font-size: 10px; font-weight: 700; color: var(--danger);
+    background: rgba(255,68,68,.12); border: 1px solid rgba(255,68,68,.3);
+    padding: 2px 7px; border-radius: 3px;
+}
+.noc-loc-ok { color: var(--success); font-size: 14px; font-weight: 600; margin-top: 8px; }
+
+/* ── Mid row: P1 watchlist + AI triage ── */
+.noc-mid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.noc-panel {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.noc-panel-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text4); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+}
+.noc-p1-empty { font-size: 12px; color: var(--success); padding: 8px 0; }
+.noc-p1-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.noc-p1-row:last-child { border-bottom: none; }
+.noc-p1-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.noc-p1-dot.crit  { background: var(--danger); box-shadow: 0 0 0 3px rgba(255,68,68,.2); }
+.noc-p1-dot.major { background: #ff8c00;       box-shadow: 0 0 0 3px rgba(255,140,0,.2); }
+.noc-p1-dot.warn  { background: var(--warning); }
+.noc-p1-name {
+    font-family: Consolas, 'SF Mono', monospace; font-size: 12px; font-weight: 700;
+    color: var(--text); line-height: 1.3;
+}
+.noc-p1-meta { font-size: 11px; color: var(--text3); line-height: 1.4; }
+.noc-p1-sev  { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: auto; white-space: nowrap; align-self: flex-start; flex-shrink: 0; }
+
+/* ── AI triage panel ── */
+.noc-triage-btn {
+    background: var(--accent); color: #fff; border: none;
+    padding: 8px 18px; border-radius: 5px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: background .15s;
+    display: flex; align-items: center; gap: 7px; align-self: flex-start;
+}
+.noc-triage-btn:hover { background: var(--accent-dark); }
+.noc-triage-btn:disabled { opacity: .6; cursor: default; }
+.noc-triage-spinner {
+    width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.noc-triage-result {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; font-size: 12px; color: var(--text2); line-height: 1.6;
+}
+.noc-triage-root  { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.noc-triage-sum   { color: var(--text2); margin-bottom: 10px; }
+.noc-triage-team  {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    background: rgba(15,155,142,.1); color: var(--accent);
+    border: 1px solid rgba(15,155,142,.3); padding: 3px 10px; border-radius: 4px;
+    margin-bottom: 8px;
+}
+.noc-triage-steps { padding-left: 16px; margin: 6px 0; }
+.noc-triage-steps li { margin-bottom: 4px; color: var(--text2); font-size: 12px; }
+.noc-triage-conf  { font-size: 10px; color: var(--text4); margin-top: 6px; }
+.noc-triage-all-teams { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+/* ── Alarm table ── */
+.noc-alarm-section { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.noc-alarm-header  { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.noc-alarm-title   { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text4); }
+.noc-alarm-filter  {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 10px; border-radius: 4px; font-size: 12px; font-family: inherit;
+}
+.noc-alarm-filter:focus { outline: none; border-color: var(--accent); }
+.noc-alarm-filter option { background: var(--bg2); }
+.noc-alarm-search {
+    flex: 1; min-width: 160px;
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 10px; border-radius: 4px; font-size: 12px; font-family: inherit;
+}
+.noc-alarm-search:focus { outline: none; border-color: var(--accent); }
+.noc-alarm-search::placeholder { color: var(--text4); }
+
+.noc-atbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.noc-atbl th {
+    background: var(--bg3); color: var(--text4); font-size: 10px; text-transform: uppercase;
+    letter-spacing: .07em; font-weight: 600; padding: 7px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+.noc-atbl td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.noc-atbl tr:last-child td { border-bottom: none; }
+.noc-atbl tr:hover td { background: var(--surface); }
+.noc-atbl td.dev-name {
+    font-family: Consolas, 'SF Mono', monospace; font-weight: 600; color: var(--text); font-size: 12px;
+}
+.noc-sev-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; white-space: nowrap;
+}
+.noc-sev-Critical { background:rgba(255,68,68,.12);  color:var(--danger);  border:1px solid rgba(255,68,68,.3); }
+.noc-sev-Major    { background:rgba(255,140,0,.12);  color:#ff8c00;        border:1px solid rgba(255,140,0,.3); }
+.noc-sev-Warning  { background:rgba(255,170,0,.12);  color:var(--warning); border:1px solid rgba(255,170,0,.3); }
+.noc-sev-Minor    { background:rgba(15,155,142,.12); color:var(--accent);  border:1px solid rgba(15,155,142,.3); }
+.noc-sev-Clear    { background:rgba(34,204,102,.12); color:var(--success); border:1px solid rgba(34,204,102,.3); }
+.noc-tier-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+.noc-tier-P1   { background:rgba(255,68,68,.12);  color:var(--danger);  border:1px solid rgba(255,68,68,.25); }
+.noc-tier-P2   { background:rgba(255,170,0,.12);  color:var(--warning); border:1px solid rgba(255,170,0,.25); }
+.noc-tier-P3   { background:rgba(34,204,102,.12); color:var(--success); border:1px solid rgba(34,204,102,.25); }
+.noc-tier-INFO { background:var(--bg3); color:var(--text4); border:1px solid var(--border); }
+.noc-team-badge {
+    font-size: 10px; padding: 1px 7px; border-radius: 3px;
+    background: rgba(15,155,142,.08); color: var(--accent); border: 1px solid rgba(15,155,142,.25);
+}
+.noc-desc { font-size: 11px; color: var(--text3); max-width: 220px; line-height: 1.4; }
+.noc-alarm-empty { padding: 32px; text-align: center; color: var(--success); font-size: 13px; }
+
+/* ── TV mode overrides ── */
+body.noc-tv .noc-loc-total { font-size: 48px; }
+body.noc-tv .noc-loc-name  { font-size: 13px; }
+body.noc-tv .noc-title     { font-size: 22px; }
+body.noc-tv .noc-clock     { font-size: 18px; }
+body.noc-tv .noc-pill      { font-size: 14px; padding: 6px 16px; }
+body.noc-tv .noc-atbl      { font-size: 13px; }
+body.noc-tv .noc-body      { padding: 20px 28px; }
+body.noc-tv .noc-cascade-wrap { padding: 8px 28px 0; }
+
+/* ── Topology diagram (now lives inside .noc-tab-pane) ── */
+.noc-topo-header {
+    padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap; flex-shrink: 0;
+}
+.noc-topo-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--text4); white-space: nowrap;
+}
+.noc-topo-filter {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: inherit;
+}
+.noc-topo-filter:focus { outline: none; border-color: var(--accent); }
+.noc-topo-legend {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    font-size: 10px; color: var(--text4);
+}
+.noc-topo-legend-dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+    margin-right: 4px; flex-shrink: 0;
+}
+#nocTopoSvg {
+    width: 100%; flex: 1; display: block;
+    background: var(--bg3); cursor: grab;
+}
+#nocTopoSvg:active { cursor: grabbing; }
+.noc-topo-tooltip {
+    position: fixed; pointer-events: none; display: none;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; font-size: 11px; color: var(--text2); z-index: 9999;
+    max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,.4); line-height: 1.5;
+}
+.noc-topo-node-label {
+    fill: var(--text3); pointer-events: none;
+    text-anchor: middle; dominant-baseline: hanging;
+}
+.noc-mode-tabs { display:flex; gap:4px; align-items:center; }
+.noc-mode-tab {
+    padding:3px 14px; border-radius:4px; font-size:11px; cursor:pointer;
+    background:var(--bg3); border:1px solid var(--border); color:var(--text3);
+    font-family:inherit; transition:all .15s;
+}
+.noc-mode-tab:hover { border-color:var(--accent); color:var(--accent); }
+.noc-mode-tab.active {
+    background:rgba(15,155,142,.15); border-color:var(--accent);
+    color:var(--accent); font-weight:600;
+}
+
+/* ── Topology body: graph column + collapsible device panel, side by side ── */
+.noc-topo-body { flex:1; min-height:0; display:flex; overflow:hidden; }
+.noc-topo-graph-col { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; }
+.noc-topo-dev-panel {
+    width:0; flex-shrink:0; overflow:hidden;
+    background:var(--bg2); border-left:1px solid transparent;
+    display:flex; flex-direction:column;
+    transition:width .25s ease, border-color .25s ease;
+}
+.noc-topo-dev-panel.open { width:360px; border-left-color:var(--border); }
+.noc-topo-action-bar {
+    display:flex; align-items:center; gap:6px; padding:8px 10px;
+    border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap;
+}
+
+/* ── Root-Cause Ledger + Impact Cascade (replaces the force graph) ── */
+:root{ --rc-crit:#ff2f2f; --rc-major:#ff6a00; --rc-warn:#ffaa00; --rc-clear:#22cc66;
+       --rc-tech:#ec4899; --rc-app:#3b82f6; --rc-geo:#0f9b8e; }
+.noc-rc-body{ flex:1; display:flex; min-height:0; overflow:hidden; }
+.noc-rc-ledger{ width:262px; flex-shrink:0; border-right:1px solid var(--border);
+                display:flex; flex-direction:column; overflow:hidden; background:var(--bg2); }
+.noc-rc-ledger-hd{ padding:9px 13px 5px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.noc-rc-ledger-hd h3{ margin:0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text3); }
+.noc-rc-ledger-hd p{ margin:2px 0 0; font-size:10px; color:var(--text4); }
+.noc-rc-list{ flex:1; overflow-y:auto; padding:6px; }
+.rc-root{ border:1px solid var(--border); border-left:3px solid var(--rc-crit); border-radius:6px;
+          padding:8px 10px; margin-bottom:6px; cursor:pointer; background:var(--bg3); transition:background .12s,border-color .12s; }
+.rc-root:hover{ background:var(--surface); }
+.rc-root.sel{ background:var(--surface); border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+.rc-root.major{ border-left-color:var(--rc-major); } .rc-root.warn{ border-left-color:var(--rc-warn); }
+.rc-root.iso{ border-left-color:var(--text4); }
+.rc-root.dim{ opacity:.4; }
+.rc-root-top{ display:flex; align-items:center; gap:7px; }
+.rc-root-name{ font-weight:600; font-size:12.5px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rc-root-sub{ font-size:10.5px; color:var(--text3); margin-top:4px; }
+.rc-root-sub .dev{ font-family:Consolas,'SF Mono',monospace; }
+.rc-root-blast{ font-size:11px; margin-top:5px; color:var(--warning); font-weight:600; }
+.rc-root-blast.iso{ color:var(--text4); font-weight:400; }
+.rc-divider{ font-size:9px; color:var(--text4); text-transform:uppercase; letter-spacing:.08em; padding:8px 6px 4px; }
+.rc-empty{ padding:24px 12px; text-align:center; color:var(--text4); font-size:12px; line-height:1.6; }
+.rc-catbadge{ font-size:8.5px; font-weight:700; letter-spacing:.05em; padding:1px 5px; border-radius:3px; text-transform:uppercase; }
+.rc-cb-Technology{ background:rgba(236,72,153,.15); color:var(--rc-tech); border:1px solid rgba(236,72,153,.35); }
+.rc-cb-App{ background:rgba(59,130,246,.15); color:var(--rc-app); border:1px solid rgba(59,130,246,.35); }
+.rc-cb-Geographic{ background:rgba(15,155,142,.15); color:var(--rc-geo); border:1px solid rgba(15,155,142,.35); }
+
+.noc-rc-cascade{ flex:1; display:flex; flex-direction:column; min-width:0; position:relative; }
+.noc-rc-casc-hd{ padding:9px 16px; border-bottom:1px solid var(--border); flex-shrink:0; display:flex; align-items:baseline; gap:10px; }
+.noc-rc-casc-hd h3{ margin:0; font-size:13px; font-weight:700; }
+.noc-rc-casc-hd .lead{ font-size:11px; color:var(--text4); }
+.noc-rc-casc-wrap{ flex:1; position:relative; overflow:auto; }
+#rcStage{ position:relative; }
+svg.rc-conns{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
+.rc-node{ position:absolute; width:150px; height:62px; border-radius:8px; background:var(--bg2);
+          border:1px solid var(--border); border-left:4px solid var(--border); padding:7px 10px; cursor:pointer;
+          transition:transform .1s,box-shadow .1s; overflow:hidden; }
+.rc-node:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,0,0,.35); border-color:var(--accent); }
+.rc-node.crit{ border-left-color:var(--rc-crit); } .rc-node.major{ border-left-color:var(--rc-major); } .rc-node.warn{ border-left-color:var(--rc-warn); }
+.rc-node.root{ box-shadow:0 0 0 1px var(--rc-crit); } .rc-node.root.major{ box-shadow:0 0 0 1px var(--rc-major); }
+.rc-node.browse{ box-shadow:0 0 0 1px var(--accent); }
+.rc-node.dim{ opacity:.3; }
+.rc-node-nm{ font-weight:600; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rc-node-meta{ display:flex; align-items:center; gap:5px; margin-top:4px; }
+.rc-node-sev{ font-size:9px; font-weight:700; text-transform:uppercase; }
+.rc-node-sev.crit{ color:var(--rc-crit); } .rc-node-sev.major{ color:var(--rc-major); } .rc-node-sev.warn{ color:var(--rc-warn); }
+.rc-node-dev{ font-family:Consolas,'SF Mono',monospace; font-size:9.5px; color:var(--text4); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rc-node .rc-rootflag{ position:absolute; top:5px; right:7px; font-size:8px; font-weight:700; color:var(--rc-crit); letter-spacing:.06em; }
+.rc-casc-help{ position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:10px; color:var(--text4); pointer-events:none; }
+.rc-stat{ display:flex; align-items:center; gap:5px; font-size:11px; white-space:nowrap; }
+.rc-stat b{ font-family:Consolas,'SF Mono',monospace; font-size:14px; font-weight:600; }
+.rc-stat .dotc{ width:8px; height:8px; border-radius:50%; }
+
+@keyframes topo-pulse {
+    0%,100% { opacity:.4; transform:scale(1); }
+    50%      { opacity:.15; transform:scale(1.25); }
+}
+.noc-topo-pulse { animation: topo-pulse 2s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+
+/* ── Location drill-down panel ── */
+.noc-loc-panel {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 340px;
+    background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; z-index: 800;
+    transform: translateX(100%); transition: transform .25s ease;
+    box-shadow: -4px 0 24px rgba(0,0,0,.4);
+}
+.noc-loc-panel.open { transform: translateX(0); }
+.nlp-header {
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.nlp-title {
+    font-size: 14px; font-weight: 700; color: var(--text); flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nlp-subtitle { font-size: 11px; color: var(--text4); margin-top: 2px; }
+.nlp-close {
+    background: none; border: 1px solid var(--border); color: var(--text3);
+    width: 26px; height: 26px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; line-height: 1; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; transition: all .15s; font-family: inherit;
+}
+.nlp-close:hover { border-color: var(--danger); color: var(--danger); }
+.nlp-back {
+    background: none; border: none; color: var(--accent); cursor: pointer;
+    font-size: 11px; font-family: inherit; padding: 0;
+}
+.nlp-back:hover { text-decoration: underline; }
+.nlp-body {
+    flex: 1; overflow-y: auto; padding: 8px;
+    display: flex; flex-direction: column; gap: 5px;
+}
+.nlp-loading { color: var(--text4); font-size: 12px; text-align: center; padding: 28px 0; }
+.nlp-empty   { color: var(--text4); font-size: 12px; text-align: center; padding: 28px 0; line-height: 1.6; }
+.nlp-section-hdr {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .07em;
+    padding: 6px 4px 2px; text-transform: uppercase;
+}
+.nlp-group-card {
+    display: flex; align-items: stretch; border-radius: 5px;
+    border: 1px solid var(--border); cursor: pointer;
+    background: var(--bg3); transition: border-color .15s, background .15s; overflow: hidden;
+}
+.nlp-group-card:hover { background: var(--surface); border-color: var(--accent); }
+.nlp-device-card {
+    display: flex; align-items: stretch; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--bg3); overflow: hidden;
+}
+.nlp-card-strip { width: 5px; flex-shrink: 0; }
+.nlp-card-body  { flex: 1; padding: 8px 10px; min-width: 0; }
+.nlp-card-name  { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
+.nlp-card-meta  { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+.nlp-card-stat  { font-size: 10px; color: var(--text4); margin-top: 3px; }
+.nlp-dev-name   { font-family: Consolas,'SF Mono',monospace; font-size: 11px; font-weight: 600; color: var(--text); }
+.nlp-dev-sub    { font-size: 10px; margin-top: 3px; line-height: 1.4; }
+.nlp-arr        { padding: 0 10px; display: flex; align-items: center; color: var(--text4); font-size: 14px; flex-shrink: 0; }
+@keyframes noc-pin-pulse-crit {
+    0%,100% { box-shadow: 0 0 0 2px rgba(255,68,68,.4),  0 2px 8px rgba(0,0,0,.5); }
+    50%      { box-shadow: 0 0 0 7px rgba(255,68,68,.1),  0 2px 8px rgba(0,0,0,.5); }
+}
+@keyframes noc-pin-pulse-warn {
+    0%,100% { box-shadow: 0 0 0 2px rgba(255,170,0,.4), 0 2px 8px rgba(0,0,0,.5); }
+    50%      { box-shadow: 0 0 0 7px rgba(255,170,0,.1), 0 2px 8px rgba(0,0,0,.5); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ══ Standard header (hidden in TV mode) ══ -->
+<div class="noc-header">
+    <div class="noc-title">
+        <span class="noc-live-dot"></span>
+        NOC Operations
+    </div>
+    <div class="noc-clock" id="nocClock">—</div>
+    <div class="noc-summary-pills" id="nocPills">
+        <span class="noc-pill noc-pill-ok">Loading…</span>
+    </div>
+    <div class="noc-header-spacer"></div>
+    <div class="noc-refresh-bar">
+        <progress id="nocRefreshProg" max="60" value="60"></progress>
+        <span id="nocRefreshLabel" style="font-size:10px;color:var(--text4)">Data: —</span>
+    </div>
+    <button class="noc-tv-btn" onclick="toggleTvMode()">⛶ TV Mode</button>
+</div>
+
+<!-- ══ TV header (shown only in TV mode) ══ -->
+<div class="noc-tv-header">
+    <span class="noc-live-dot"></span>
+    <div class="noc-title">ZINNIA NOC</div>
+    <div class="noc-clock" id="nocClockTv">—</div>
+    <div class="noc-summary-pills" id="nocPillsTv"></div>
+    <div class="noc-header-spacer"></div>
+    <button class="noc-tv-btn" onclick="toggleTvMode()" style="font-size:14px">✕ Exit TV</button>
+</div>
+
+<!-- ══ Root cause callout ══ -->
+<div class="noc-root-cause" id="nocRootCause"></div>
+
+<!-- ══ Maps tab panel (World Map + App/Tech Map) ══ -->
+<div style="padding:0 24px 16px;">
+  <div class="noc-map-panel">
+    <!-- Tab bar -->
+    <div class="noc-maptab-bar">
+      <button class="noc-maptab active" id="mapTabGeo"  onclick="switchMapTab('geo')">🌍 World Map</button>
+      <button class="noc-maptab"        id="mapTabTopo" onclick="switchMapTab('topo')">⬡ App / Tech Map</button>
+      <span id="nocMapLocCount" style="font-size:11px;color:var(--text4);margin-left:6px;"></span>
+      <span style="flex:1;"></span>
+      <button class="noc-tv-btn" style="font-size:10px;padding:3px 8px;" onclick="refreshActiveMapTab()">↻</button>
+    </div>
+
+    <!-- Geographic pane (default) -->
+    <div id="nocGeoPane" class="noc-tab-pane active" style="position:relative;">
+      <div id="nocWorldMap"></div>
+      <!-- Location drill-down panel (slides in from right) -->
+      <div id="nocLocPanel" class="noc-loc-panel">
+        <div class="nlp-header">
+          <div style="flex:1;min-width:0;">
+            <div class="nlp-title" id="nlpTitle"></div>
+            <div class="nlp-subtitle" id="nlpSubtitle"></div>
+          </div>
+          <button class="nlp-close" onclick="closeLocPanel()" title="Close">✕</button>
+        </div>
+        <div class="nlp-body" id="nlpBody"></div>
+      </div>
+    </div>
+
+    <!-- App / Tech topology pane -->
+    <div id="nocTopoPane" class="noc-tab-pane">
+      <div class="noc-topo-body">
+        <div class="noc-topo-graph-col">
+          <div class="noc-topo-header">
+            <div class="noc-mode-tabs">
+              <button class="noc-mode-tab active" id="modeTabAll"  onclick="setTopoCategory('')">All</button>
+              <button class="noc-mode-tab"        id="modeTabApp"  onclick="setTopoCategory('App')">Application</button>
+              <button class="noc-mode-tab"        id="modeTabTech" onclick="setTopoCategory('Technology')">Technology</button>
+              <button class="noc-mode-tab"        id="modeTabGeo"  onclick="setTopoCategory('Geographic')">Geographic</button>
+            </div>
+            <span style="flex:1;"></span>
+            <span class="rc-stat"><span class="dotc" style="background:var(--rc-crit)"></span><b id="rcStatRoot">0</b> root failures</span>
+            <span class="rc-stat"><span class="dotc" style="background:var(--rc-warn)"></span><b id="rcStatImp">0</b> impacted</span>
+            <span class="rc-stat"><span class="dotc" style="background:var(--rc-clear)"></span><b id="rcStatOk">0</b> healthy</span>
+            <select class="noc-topo-filter" id="topoEnvFilter" onchange="applyTopoFilter()" style="margin-left:8px;">
+              <option value="">All environments</option>
+              <option value="Prod">Prod</option>
+              <option value="Non-Prod">Non-Prod</option>
+            </select>
+            <button class="noc-tv-btn" style="font-size:10px;padding:3px 8px;" onclick="loadTopology()">↻</button>
+          </div>
+          <div class="noc-rc-body">
+            <div class="noc-rc-ledger">
+              <div class="noc-rc-ledger-hd">
+                <h3 id="rcLedgerTitle">Fix First — Root Causes</h3>
+                <p id="rcLedgerSub">ranked by blast radius · top-down</p>
+                <div class="noc-mode-tabs" style="margin-top:7px;">
+                  <button class="noc-mode-tab active" id="ledgerTabActive" onclick="setLedgerMode('active')" style="font-size:10px;padding:2px 10px;">Fix First</button>
+                  <button class="noc-mode-tab" id="ledgerTabAll" onclick="setLedgerMode('all')" style="font-size:10px;padding:2px 10px;">All Groups</button>
+                </div>
+              </div>
+              <div class="noc-rc-list" id="rcLedger"></div>
+            </div>
+            <div class="noc-rc-cascade">
+              <div class="noc-rc-casc-hd"><h3 id="rcCascTitle">Impact of —</h3><span class="lead" id="rcCascLead"></span></div>
+              <div class="noc-rc-casc-wrap">
+                <div id="rcStage"><svg class="rc-conns" id="rcConns"></svg></div>
+                <div class="rc-casc-help">click a node to see its devices &amp; clear alerts →</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Device side panel — opens when a group node is clicked; shrinks the graph column -->
+        <div class="noc-topo-dev-panel" id="nocTopoDevPanel">
+          <div class="nlp-header">
+            <div style="flex:1;min-width:0;">
+              <div class="nlp-title" id="tdpTitle"></div>
+              <div class="nlp-subtitle" id="tdpSubtitle"></div>
+            </div>
+            <button class="nlp-close" onclick="closeTopoDevPanel()" title="Close">✕</button>
+          </div>
+          <div class="noc-topo-action-bar" id="tdpActionBar" style="display:none;">
+            <button class="v2-ghost-btn" style="font-size:10px;padding:3px 8px;" onclick="selectAllTopoAlerting()">Select alerting</button>
+            <button class="v2-ghost-btn" style="font-size:10px;padding:3px 8px;" onclick="clearTopoSel()">Deselect</button>
+            <span id="tdpSelCount" style="font-size:10px;color:var(--text4);flex:1;"></span>
+            <button class="noc-tv-btn" id="tdpAckBtn" style="font-size:10px;padding:4px 10px;" disabled onclick="ackTopoSelected()">Acknowledge</button>
+            <button class="noc-tv-btn" id="tdpClearBtn" style="font-size:10px;padding:4px 10px;background:rgba(255,68,68,.12);border-color:var(--danger);color:var(--danger);" disabled onclick="clearTopoSelected()">Clear Alerts</button>
+          </div>
+          <div class="nlp-body" id="tdpBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="noc-topo-tooltip" id="nocTopoTip"></div>
+
+<!-- ══ Cascade banners (below maps) ══ -->
+<div class="noc-cascade-wrap" id="nocCascades"></div>
+
+<!-- ══ Main body ══ -->
+<div class="noc-body">
+    <!-- Location cards -->
+    <div class="noc-loc-row" id="nocLocRow">
+        <div class="noc-loc-card" id="locTopeka"><div class="noc-loc-name">Topeka</div><div class="noc-loc-total">—</div><div class="noc-loc-label">loading…</div></div>
+        <div class="noc-loc-card" id="locCandor"><div class="noc-loc-name">Candor (India)</div><div class="noc-loc-total">—</div><div class="noc-loc-label">loading…</div></div>
+        <div class="noc-loc-card" id="locVmc"><div class="noc-loc-name">VMC (AWS)</div><div class="noc-loc-total">—</div><div class="noc-loc-label">loading…</div></div>
+    </div>
+
+    <!-- P1 watchlist + AI triage -->
+    <div class="noc-mid-row">
+        <div class="noc-panel">
+            <div class="noc-panel-title">
+                <span style="color:var(--danger)">●</span>
+                P1 Critical Watchlist
+                <span id="p1Count" style="margin-left:auto;font-size:11px;color:var(--text4);font-weight:400;text-transform:none;letter-spacing:0"></span>
+            </div>
+            <div id="nocP1List"><div style="color:var(--text4);font-size:12px">Loading…</div></div>
+        </div>
+        <div class="noc-panel">
+            <div class="noc-panel-title">
+                <span style="color:var(--accent)">◈</span>
+                AI Triage
+            </div>
+            <button class="noc-triage-btn" id="nocTriageBtn" onclick="runTriage()">
+                ▶ Run AI Triage
+            </button>
+            <div id="nocTriageResult" style="display:none"></div>
+        </div>
+    </div>
+
+    <!-- Alarm table -->
+    <div class="noc-alarm-section">
+        <div class="noc-alarm-header">
+            <div class="noc-alarm-title">Active Alarms</div>
+            <select class="noc-alarm-filter" id="nocSevFilter" onchange="applyAlarmFilters()">
+                <option value="">All severities</option>
+                <option value="Critical">Critical</option>
+                <option value="Major">Major</option>
+                <option value="Warning">Warning</option>
+                <option value="Minor">Minor</option>
+            </select>
+            <select class="noc-alarm-filter" id="nocLocFilter" onchange="applyAlarmFilters()">
+                <option value="">All locations</option>
+                <option value="Topeka">Topeka</option>
+                <option value="Candor">Candor</option>
+                <option value="VMC">VMC</option>
+                <option value="Other">Other</option>
+            </select>
+            <select class="noc-alarm-filter" id="nocTierFilter" onchange="applyAlarmFilters()">
+                <option value="">All tiers</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+                <option value="INFO">INFO</option>
+            </select>
+            <input class="noc-alarm-search" id="nocAlarmSearch" placeholder="Search device or alarm…" oninput="applyAlarmFilters()">
+            <span id="nocAlarmCount" style="font-size:11px;color:var(--text4);white-space:nowrap;margin-left:auto"></span>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="noc-atbl">
+                <thead>
+                    <tr>
+                        <th>Device</th>
+                        <th>Tier</th>
+                        <th>Severity</th>
+                        <th>Location</th>
+                        <th>Team</th>
+                        <th>Alarm</th>
+                        <th>Description / Blast Radius</th>
+                    </tr>
+                </thead>
+                <tbody id="nocAlarmBody">
+                    <tr><td colspan="7" class="noc-alarm-empty">Loading alarms…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+'use strict';
+
+let _nocData = null;
+let _triagePolling = null;
+let _refreshCountdown = 60;
+let _refreshTimer = null;
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function sevDot(sev) {
+    const cls = { Critical: 'crit', Major: 'major', Warning: 'warn' }[sev] || '';
+    return cls ? `<span class="noc-p1-dot ${cls}"></span>` : `<span class="noc-p1-dot" style="background:var(--text4)"></span>`;
+}
+
+function sevBadge(sev) {
+    return `<span class="noc-sev-badge noc-sev-${esc(sev)}">${esc(sev||'—')}</span>`;
+}
+
+function tierBadge(tier) {
+    if (!tier) return '<span style="color:var(--text4);font-size:11px">—</span>';
+    return `<span class="noc-tier-badge noc-tier-${esc(tier)}">${esc(tier)}</span>`;
+}
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+
+function tickClock() {
+    const t = new Date().toLocaleTimeString('en-US', {hour12: false});
+    const el1 = document.getElementById('nocClock');
+    const el2 = document.getElementById('nocClockTv');
+    if (el1) el1.textContent = t;
+    if (el2) el2.textContent = t;
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+// ── TV mode ───────────────────────────────────────────────────────────────────
+
+function toggleTvMode() {
+    const on = document.body.classList.toggle('noc-tv');
+    if (on) {
+        document.body.requestFullscreen?.().catch(() => {});
+        syncPillsToTv();
+    } else {
+        document.exitFullscreen?.().catch(() => {});
+    }
+}
+
+function syncPillsToTv() {
+    const src = document.getElementById('nocPills');
+    const dst = document.getElementById('nocPillsTv');
+    if (src && dst) dst.innerHTML = src.innerHTML;
+}
+
+// ── Data loading ─────────────────────────────────────────────────────────────
+
+async function loadNoc() {
+    try {
+        const r = await fetch('/infraportal/api/noc/status');
+        const d = await r.json();
+        if (d.status !== 'ok') return;
+        _nocData = d;
+        renderAll(d);
+        startRefreshCountdown(d.timestamp);
+    } catch(e) {
+        console.error('NOC status error', e);
+    }
+}
+
+function startRefreshCountdown(ts) {
+    const label = document.getElementById('nocRefreshLabel');
+    const prog  = document.getElementById('nocRefreshProg');
+    if (label) label.textContent = `Data: ${ts}`;
+    _refreshCountdown = 60;
+    if (prog) prog.value = 60;
+    if (_refreshTimer) clearInterval(_refreshTimer);
+    _refreshTimer = setInterval(() => {
+        _refreshCountdown--;
+        if (prog) prog.value = _refreshCountdown;
+        if (_refreshCountdown <= 0) {
+            clearInterval(_refreshTimer);
+            loadNoc();
+        }
+    }, 1000);
+}
+
+// ── Render summary pills ─────────────────────────────────────────────────────
+
+function renderPills(counts) {
+    const parts = [];
+    if (counts.Critical > 0)
+        parts.push(`<span class="noc-pill noc-pill-crit">${counts.Critical} Critical</span>`);
+    if (counts.Major > 0)
+        parts.push(`<span class="noc-pill noc-pill-major">${counts.Major} Major</span>`);
+    if (counts.Warning > 0)
+        parts.push(`<span class="noc-pill noc-pill-warn">${counts.Warning} Warning</span>`);
+    if (parts.length === 0)
+        parts.push(`<span class="noc-pill noc-pill-ok">All Clear</span>`);
+    const html = parts.join('');
+    document.getElementById('nocPills').innerHTML = html;
+    syncPillsToTv();
+}
+
+// ── Render cascade banners ────────────────────────────────────────────────────
+
+function renderCascades(cascades) {
+    const wrap = document.getElementById('nocCascades');
+    if (!cascades || !cascades.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = cascades.map(c => {
+        const cls   = c.type === 'location' ? 'noc-cascade-loc' : 'noc-cascade-team';
+        const label = c.type === 'location' ? `CASCADE: ${c.location}` : `TEAM ALERT: ${c.team}`;
+        const devs  = c.devices.slice(0, 4).join(', ') + (c.devices.length > 4 ? '…' : '');
+        return `<div class="noc-cascade-banner ${cls}">
+            <span class="noc-cascade-badge">${esc(label)}</span>
+            <span class="noc-cascade-cause">${esc(c.suspected_cause)} — ${c.device_count} device${c.device_count !== 1 ? 's' : ''}</span>
+            <span class="noc-cascade-devices">${esc(devs)}</span>
+            <span class="noc-cascade-esc">→ ${esc(c.escalate_to)}</span>
+        </div>`;
+    }).join('');
+}
+
+// ── Render location cards ─────────────────────────────────────────────────────
+
+function renderLocationCards(locations, cascades) {
+    const cascadeLocs = new Set((cascades || []).filter(c => c.type === 'location').map(c => c.location));
+
+    function card(id, loc) {
+        const data = locations[loc] || {};
+        const total = data.total || 0;
+        const hasCrit = (data.P1 || 0) > 0;
+        const hasCasc = cascadeLocs.has(loc);
+        const el = document.getElementById(id);
+        if (!el) return;
+        const clsCrit = hasCrit ? ' has-critical' : '';
+        const clsCasc = hasCasc ? ' has-cascade' : '';
+        el.className = `noc-loc-card${clsCrit}${clsCasc}`;
+        const bdown = [];
+        if (data.P1)          bdown.push(`<span class="noc-loc-tier p1">P1: ${data.P1}</span>`);
+        if (data.P2)          bdown.push(`<span class="noc-loc-tier p2">P2: ${data.P2}</span>`);
+        if (data.P3)          bdown.push(`<span class="noc-loc-tier p3">P3: ${data.P3}</span>`);
+        if (data.unclassified) bdown.push(`<span class="noc-loc-tier unc">?: ${data.unclassified}</span>`);
+        const cascadeTag = hasCasc
+            ? '<span class="noc-loc-cascade-tag">⚠ CASCADE</span>'
+            : '';
+        el.innerHTML = `
+            ${cascadeTag}
+            <div class="noc-loc-name">${loc === 'VMC' ? 'VMC (AWS)' : loc === 'Candor' ? 'Candor (India)' : loc}</div>
+            <div class="noc-loc-total" style="${total > 0 && hasCrit ? 'color:var(--danger)' : total > 0 ? 'color:var(--warning)' : ''}">${total}</div>
+            <div class="noc-loc-label">device${total !== 1 ? 's' : ''} alerting</div>
+            ${total > 0 ? `<div class="noc-loc-breakdown">${bdown.join('')}</div>` : '<div class="noc-loc-ok">✓ All clear</div>'}
+        `;
+    }
+    card('locTopeka', 'Topeka');
+    card('locCandor', 'Candor');
+    card('locVmc',    'VMC');
+}
+
+// ── Render P1 watchlist ───────────────────────────────────────────────────────
+
+function renderP1List(p1Alarms) {
+    const wrap = document.getElementById('nocP1List');
+    const cnt  = document.getElementById('p1Count');
+    if (!p1Alarms || !p1Alarms.length) {
+        wrap.innerHTML = '<div class="noc-p1-empty">✓ No P1 devices currently alerting</div>';
+        if (cnt) cnt.textContent = '';
+        return;
+    }
+    if (cnt) cnt.textContent = `${p1Alarms.length} device${p1Alarms.length !== 1 ? 's' : ''}`;
+    // Deduplicate by device name — show worst severity per device
+    const byDevice = {};
+    const sevOrder = {Critical:1, Major:2, Warning:3, Minor:4};
+    for (const a of p1Alarms) {
+        const n = a.device_name;
+        if (!byDevice[n] || (sevOrder[a.severity]||9) < (sevOrder[byDevice[n].severity]||9))
+            byDevice[n] = a;
+    }
+    wrap.innerHTML = Object.values(byDevice).slice(0, 12).map(a => {
+        const sev   = a.severity || 'Unknown';
+        const cls   = { Critical: 'crit', Major: 'major', Warning: 'warn' }[sev] || '';
+        const blast = a.criticality_blast ? `<div style="font-size:11px;color:var(--text4);margin-top:2px">${esc(a.criticality_blast.slice(0,80))}${a.criticality_blast.length > 80 ? '…' : ''}</div>` : '';
+        const team  = a.criticality_team ? `<span class="noc-team-badge">${esc(a.criticality_team)}</span>` : '';
+        return `<div class="noc-p1-row">
+            <span class="noc-p1-dot ${cls}"></span>
+            <div style="flex:1;min-width:0">
+                <div class="noc-p1-name">${esc(a.device_name)}</div>
+                <div class="noc-p1-meta">${esc(a.alarm_name || '')} ${team}</div>
+                ${blast}
+            </div>
+            <span class="noc-p1-sev noc-sev-${esc(sev)}">${esc(sev)}</span>
+        </div>`;
+    }).join('');
+}
+
+// ── Render alarm table ────────────────────────────────────────────────────────
+
+let _allAlarms = [];
+
+function renderAlarmTable(alarms) {
+    _allAlarms = alarms || [];
+    applyAlarmFilters();
+}
+
+function applyAlarmFilters() {
+    const sevF  = document.getElementById('nocSevFilter')?.value || '';
+    const locF  = document.getElementById('nocLocFilter')?.value || '';
+    const tierF = document.getElementById('nocTierFilter')?.value || '';
+    const srch  = (document.getElementById('nocAlarmSearch')?.value || '').toLowerCase();
+
+    const filtered = _allAlarms.filter(a => {
+        if (sevF  && a.severity          !== sevF)  return false;
+        if (locF  && a.location          !== locF)  return false;
+        if (tierF && a.criticality_tier  !== tierF) return false;
+        if (srch) {
+            const hay = ((a.device_name||'') + ' ' + (a.alarm_name||'')).toLowerCase();
+            if (!hay.includes(srch)) return false;
+        }
+        return true;
+    });
+
+    const cnt = document.getElementById('nocAlarmCount');
+    if (cnt) cnt.textContent = `${filtered.length} alarm${filtered.length !== 1 ? 's' : ''}`;
+
+    const body = document.getElementById('nocAlarmBody');
+    if (!filtered.length) {
+        body.innerHTML = `<tr><td colspan="7" class="noc-alarm-empty" style="color:var(--success)">✓ No alarms match filters</td></tr>`;
+        return;
+    }
+    body.innerHTML = filtered.map(a => {
+        const desc  = a.criticality_desc
+            ? `<div class="noc-desc">${esc(a.criticality_desc.slice(0,90))}${a.criticality_desc.length > 90 ? '…' : ''}</div>`
+            : (a.criticality_blast ? `<div class="noc-desc" style="color:var(--text4)">Blast: ${esc(a.criticality_blast.slice(0,80))}…</div>` : '');
+        const team  = a.criticality_team
+            ? `<span class="noc-team-badge">${esc(a.criticality_team)}</span>`
+            : '<span style="color:var(--text4);font-size:11px">—</span>';
+        const singleton = a.criticality_singleton
+            ? '<span style="width:6px;height:6px;border-radius:50%;background:var(--danger);display:inline-block;margin-left:4px;vertical-align:middle" title="Singleton — no redundancy"></span>'
+            : '';
+        const alarmCnt = (a.alarm_count && a.alarm_count > 1)
+            ? ` <span style="font-size:10px;color:var(--text4);font-family:Consolas,'SF Mono',monospace">(${a.alarm_count})</span>`
+            : '';
+        return `<tr>
+            <td class="dev-name">${esc(a.device_name)}${singleton}${alarmCnt}</td>
+            <td>${tierBadge(a.criticality_tier)}</td>
+            <td>${sevBadge(a.severity)}</td>
+            <td style="font-size:11px;color:var(--text3)">${esc(a.location||'—')}</td>
+            <td>${team}</td>
+            <td style="font-size:11px;color:var(--text2);max-width:200px">${esc(a.alarm_name||'—')}</td>
+            <td>${desc}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+
+function renderAll(d) {
+    renderPills(d.alarm_counts || {});
+    renderCascades(d.cascades || []);
+    renderLocationCards(d.locations || {}, d.cascades || []);
+    renderP1List(d.p1_alarms || []);
+    renderAlarmTable(d.alarms || []);
+    overlayAlertOnTopology();
+}
+
+// ── AI Triage ─────────────────────────────────────────────────────────────────
+
+async function runTriage() {
+    const btn = document.getElementById('nocTriageBtn');
+    const res = document.getElementById('nocTriageResult');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="noc-triage-spinner"></span> Analyzing…';
+    res.style.display = 'none';
+
+    try {
+        await fetch('/infraportal/api/noc/triage', {method: 'POST'});
+        pollTriage();
+    } catch(e) {
+        btn.disabled = false;
+        btn.innerHTML = '▶ Run AI Triage';
+    }
+}
+
+function pollTriage() {
+    if (_triagePolling) clearInterval(_triagePolling);
+    _triagePolling = setInterval(async () => {
+        try {
+            const r = await fetch('/infraportal/api/noc/triage/status');
+            const d = await r.json();
+            if (d.status === 'ok') {
+                clearInterval(_triagePolling);
+                showTriageResult(d.result);
+            } else if (d.status === 'error') {
+                clearInterval(_triagePolling);
+                const btn = document.getElementById('nocTriageBtn');
+                btn.disabled = false;
+                btn.innerHTML = '▶ Run AI Triage';
+                document.getElementById('nocTriageResult').innerHTML =
+                    `<div class="noc-triage-result" style="color:var(--danger)">AI triage failed: ${esc(d.error || 'unknown error')}</div>`;
+                document.getElementById('nocTriageResult').style.display = '';
+            }
+        } catch(e) { /* network hiccup, keep polling */ }
+    }, 2000);
+}
+
+function showTriageResult(r) {
+    const btn = document.getElementById('nocTriageBtn');
+    btn.disabled = false;
+    btn.innerHTML = '↺ Re-run Triage';
+
+    const sevColor = {
+        critical: 'var(--danger)', high: 'var(--warning)',
+        medium: 'var(--warning)', low: 'var(--accent)', none: 'var(--success)'
+    }[r.severity || 'medium'] || 'var(--text)';
+
+    const teams = (r.all_teams || []).filter(t => t !== r.primary_team);
+    const teamsLine = teams.length
+        ? `<div class="noc-triage-all-teams">Also notify: ${teams.map(t => `<span class="noc-team-badge">${esc(t)}</span>`).join(' ')}</div>`
+        : '';
+    const stepsHtml = (r.next_steps || []).length
+        ? `<ol class="noc-triage-steps">${(r.next_steps||[]).map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`
+        : '';
+
+    const html = `<div class="noc-triage-result">
+        <div class="noc-triage-root" style="color:${sevColor}">${esc(r.root_cause || '—')}</div>
+        <div class="noc-triage-sum">${esc(r.summary || '')}</div>
+        ${r.primary_team ? `<div><span class="noc-triage-team">→ Escalate: ${esc(r.primary_team)}</span></div>` : ''}
+        ${teamsLine}
+        ${stepsHtml}
+        <div class="noc-triage-conf">Confidence: ${esc(r.confidence||'?')} · ${(r.affected_count||0)} device${r.affected_count !== 1 ? 's' : ''} affected</div>
+    </div>`;
+
+    const res = document.getElementById('nocTriageResult');
+    res.innerHTML = html;
+    res.style.display = '';
+}
+
+// ── World Map ────────────────────────────────────────────────────────────────
+
+let _leafletMap    = null;
+let _leafletMarkers = [];
+
+const MAP_STATUS_COLOR = {
+    critical: '#ff4444',
+    warning:  '#ffaa00',
+    minor:    '#88cc00',
+    clear:    '#22cc66',
+};
+
+async function loadNocMap() {
+    try {
+        const r = await fetch('/infraportal/api/criticality/noc-map');
+        const d = await r.json();
+        if (d.status !== 'ok') return;
+        const locs = d.locations || [];
+        document.getElementById('nocMapLocCount').textContent =
+            locs.length ? `· ${locs.length} location${locs.length!==1?'s':''}` : '';
+        renderRootCauseCallout(d);
+        initOrUpdateMap(locs);
+    } catch(e) {
+        console.error('NOC map error', e);
+    }
+}
+
+let _leafletBounds = [];
+
+function initOrUpdateMap(locations) {
+    const container = document.getElementById('nocWorldMap');
+    if (!container) return;
+
+    if (!window.L) {
+        container.innerHTML = `<div class="noc-map-no-locs">Leaflet not loaded — check internet access for CDN.<br><small>Add locations in the <a href="/infraportal/settings#criticality" style="color:var(--accent)">Criticality config</a> page.</small></div>`;
+        return;
+    }
+    if (!locations.length) {
+        if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; }
+        container.innerHTML = `<div class="noc-map-no-locs">No locations defined.<br><small>Add them in <a href="/infraportal/settings#criticality" style="color:var(--accent)">Criticality → Locations</a>.</small></div>`;
+        return;
+    }
+
+    if (!_leafletMap) {
+        _leafletMap = L.map('nocWorldMap', { zoomControl: true, attributionControl: true });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd', maxZoom: 19,
+        }).addTo(_leafletMap);
+    }
+
+    _leafletMarkers.forEach(m => m.remove());
+    _leafletMarkers = [];
+    _leafletBounds  = [];
+
+    const PIN_CFG = {
+        critical: { size: 28, color: '#ff4444', anim: 'noc-pin-pulse-crit 2s ease-in-out infinite' },
+        warning:  { size: 24, color: '#ffaa00', anim: 'noc-pin-pulse-warn 2s ease-in-out infinite' },
+        minor:    { size: 20, color: '#88cc00', anim: 'none' },
+        clear:    { size: 20, color: '#22cc66', anim: 'none' },
+    };
+
+    locations.forEach(loc => {
+        if (loc.lat === 0 && loc.lng === 0) return;
+        const cfg  = PIN_CFG[loc.status] || PIN_CFG.clear;
+        const half = cfg.size / 2;
+
+        const icon = L.divIcon({
+            html: `<div style="
+                width:${cfg.size}px;height:${cfg.size}px;border-radius:50%;
+                background:${cfg.color};border:2.5px solid rgba(0,0,0,.45);
+                animation:${cfg.anim};cursor:pointer;
+                display:flex;align-items:center;justify-content:center;
+            ">${loc.alert_count > 0
+                ? `<span style="font-size:${loc.alert_count>9?8:9}px;font-weight:700;color:#fff;line-height:1;">${loc.alert_count}</span>`
+                : ''
+            }</div>`,
+            className: '', iconSize: [cfg.size, cfg.size],
+            iconAnchor: [half, half],
+        });
+
+        const statusLabel = loc.status === 'clear'
+            ? '<span style="color:#22cc66">✓ All Clear</span>'
+            : `<span style="color:${cfg.color};font-weight:700;">⚠ ${loc.alert_count} alert${loc.alert_count!==1?'s':''}</span>`;
+
+        const marker = L.marker([loc.lat, loc.lng], { icon })
+            .addTo(_leafletMap)
+            .bindTooltip(`<div style="font-weight:700;font-size:12px">${loc.name}</div><div style="font-size:11px;margin-top:2px">${statusLabel}</div>`,
+                { direction: 'top', offset: [0, -half - 4], className: 'noc-map-tooltip' });
+
+        marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            _leafletMap.flyTo([loc.lat, loc.lng], 10, { duration: 0.55 });
+            openLocPanel(loc.name);
+        });
+
+        _leafletMarkers.push(marker);
+        _leafletBounds.push([loc.lat, loc.lng]);
+    });
+
+    if (_leafletBounds.length === 1) {
+        _leafletMap.setView(_leafletBounds[0], 8);
+    } else if (_leafletBounds.length > 1) {
+        _leafletMap.fitBounds(_leafletBounds, { padding: [40, 40] });
+    }
+}
+
+function renderRootCauseCallout(mapData) {
+    const el = document.getElementById('nocRootCause');
+    if (!el) return;
+    const cands = mapData.root_candidates || [];
+    if (!cands.length) { el.classList.remove('visible'); return; }
+    const top = cands[0];
+    const affected = (top.dependents_in_alarm||[]).join(', ');
+    el.innerHTML = `<strong>Root Cause Candidate:</strong> <strong>${top.group}</strong> has ${top.cascade_score} downstream group${top.cascade_score!==1?'s':''} also in alarm (${affected}). Investigate this group first.`;
+    el.classList.add('visible');
+}
+
+// ── Topology: flat group map, filterable by category (All / App / Technology / Geographic) ──
+
+let _topoData      = null;
+let _topoEnvFilter = '';
+let _topoCategory  = '';            // '' (All) | 'App' | 'Technology' | 'Geographic'
+let _selectedRoot  = null;          // id of the root whose cascade is shown
+let _ledgerMode    = 'active';      // 'active' (alerting root causes only) | 'all' (every device group)
+
+const ENV_COLOR = {
+    Prod: '#ff4444', 'Non-Prod': '#0f9b8e',
+};
+// Edge color is derived from the TO group's group_category (see edgeCategoryFor()),
+// matching the Criticality Dependencies graph — not a separately-picked type.
+const EDGE_COLOR = {
+    Geographic: '#0f9b8e', App: '#3b82f6', Technology: '#ec4899',
+};
+const SEV_FILL = {
+    Critical: 'rgba(255,50,50,0.32)',
+    Major:    'rgba(255,120,0,0.28)',
+    Warning:  'rgba(255,185,0,0.24)',
+    Clear:    'rgba(40,200,90,0.20)',
+};
+const SEV_STROKE = {
+    Critical: '#ff2222', Major: '#ff6600', Warning: '#ffaa00', Clear: '#22bb55',
+};
+const TIER_RING = { P1: '#ff4444', P2: '#ffaa00', P3: '#0f9b8e', INFO: '#555577' };
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadTopology() {
+    if (!window.d3) return;
+    try {
+        const r = await fetch('/infraportal/api/noc/topology');
+        const d = await r.json();
+        if (d.status !== 'ok') return;
+        _topoData = d;
+        dispatchRender();
+    } catch(e) { console.error('Topology load error', e); }
+}
+
+// ── Category filter ────────────────────────────────────────────────────────────
+function setTopoCategory(category) {
+    _topoCategory = category;
+    document.getElementById('modeTabAll').classList.toggle('active',  category === '');
+    document.getElementById('modeTabApp').classList.toggle('active',  category === 'App');
+    document.getElementById('modeTabTech').classList.toggle('active', category === 'Technology');
+    document.getElementById('modeTabGeo').classList.toggle('active',  category === 'Geographic');
+    dispatchRender();
+}
+function applyTopoFilter() {
+    _topoEnvFilter = document.getElementById('topoEnvFilter')?.value || '';
+    if (!_topoData) return;
+    dispatchRender();
+}
+function dispatchRender() {
+    if (!_topoData) return;
+    renderLedger();
+}
+
+// ── Root-cause engine (computed from live _topoData: nodes + dependency edges) ──
+// A node is DOWN if it has active alarms. A DOWN node is a ROOT if nothing it
+// depends on is also down (it's the source, not a symptom). Blast radius = every
+// DOWN group that transitively depends on it. All of this is cross-category by
+// design: an App symptom traces straight to the Technology root that caused it.
+function _sevClass(sev){ return sev==='Critical'?'crit':sev==='Major'?'major':sev==='Warning'?'warn':'clear'; }
+function _catShort(c){ return c==='Technology'?'TECH':c==='App'?'APP':c==='Geographic'?'GEO':'APP'; }
+function _catCat(c){ return (c==='Technology'||c==='Geographic')?c:'App'; }
+function _nodeById(id){ return (_topoData.nodes||[]).find(n=>n.id===id); }
+function _isDown(id){ const n=_nodeById(id); return !!n && (n.alert_count||0)>0; }
+function _deps(id){ return (_topoData.edges||[]).filter(e=>e.from_group===id).map(e=>e.to_group); }
+function _dependents(id){ return (_topoData.edges||[]).filter(e=>e.to_group===id).map(e=>e.from_group); }
+function _isRoot(id){ return _isDown(id) && !_deps(id).some(_isDown); }
+function _blast(rootId){
+    const seen=new Set(), q=[rootId];
+    while(q.length){ const c=q.shift();
+        for(const d of _dependents(c)){ if(_isDown(d)&&!seen.has(d)){ seen.add(d); q.push(d);} } }
+    return seen;
+}
+function _levels(rootId){
+    const lv={[rootId]:0}, q=[rootId];
+    while(q.length){ const c=q.shift();
+        for(const d of _dependents(c)){ if(_isDown(d)&&lv[d]===undefined){ lv[d]=lv[c]+1; q.push(d);} } }
+    return lv;
+}
+// Unfiltered variants — traverse every mapped dependency regardless of alarm
+// state, so a healthy group's downstream chain can still be browsed.
+function _blastAny(rootId){
+    const seen=new Set(), q=[rootId];
+    while(q.length){ const c=q.shift();
+        for(const d of _dependents(c)){ if(!seen.has(d)){ seen.add(d); q.push(d);} } }
+    return seen;
+}
+function _levelsAny(rootId){
+    const lv={[rootId]:0}, q=[rootId];
+    while(q.length){ const c=q.shift();
+        for(const d of _dependents(c)){ if(lv[d]===undefined){ lv[d]=lv[c]+1; q.push(d);} } }
+    return lv;
+}
+function _matchesCat(n){ return !_topoCategory || _catCat(n.group_category)===_topoCategory; }
+function _matchesEnv(n){ return !_topoEnvFilter || (_topoEnvFilter==='Non-Prod' ? n.environment!=='Prod' : n.environment===_topoEnvFilter); }
+
+function setLedgerMode(mode){
+    _ledgerMode = mode;
+    document.getElementById('ledgerTabActive').classList.toggle('active', mode==='active');
+    document.getElementById('ledgerTabAll').classList.toggle('active', mode==='all');
+    document.getElementById('rcLedgerTitle').textContent = mode==='active' ? 'Fix First — Root Causes' : 'All Device Groups';
+    document.getElementById('rcLedgerSub').textContent = mode==='active' ? 'ranked by blast radius · top-down' : 'browse dependencies, alerts & devices';
+    renderLedger();
+}
+
+function _rcRow(n, subLine, blastLine, extraCls){
+    const sc=_sevClass(n.alert_sev), dim = !_matchesCat(n)||!_matchesEnv(n) ? 'dim':'';
+    return `<div class="rc-root ${sc} ${extraCls||''} ${_selectedRoot===n.id?'sel':''} ${dim}" onclick="selectRoot(${esc(JSON.stringify(n.id))})">
+      <div class="rc-root-top">
+        <span class="dotc" style="width:9px;height:9px;border-radius:50%;background:var(--rc-${sc})"></span>
+        <span class="rc-root-name">${esc(n.name)}</span>
+        <span class="rc-catbadge rc-cb-${_catCat(n.group_category)}">${_catShort(n.group_category)}</span>
+      </div>
+      <div class="rc-root-sub">${subLine}</div>
+      <div class="rc-root-blast ${extraCls||''}">${blastLine}</div>
+    </div>`;
+}
+
+// ── Left rail: ranked root causes (or, in "All Groups" mode, every device group) ──
+function renderLedger(){
+    const nodes = _topoData.nodes||[];
+    const downCount = nodes.filter(n=>(n.alert_count||0)>0).length;
+    const roots = nodes.filter(n=>_isRoot(n.id))
+        .map(n=>({id:n.id, n, b:_blast(n.id).size}))
+        .sort((a,b)=> b.b-a.b || (a.n.name||'').localeCompare(b.n.name||''));
+    const connected = roots.filter(r=>r.b>0), iso = roots.filter(r=>r.b===0);
+
+    // stat strip — always reflects live alert state regardless of ledger mode
+    const impacted=new Set(); connected.forEach(r=>_blast(r.id).forEach(x=>impacted.add(x)));
+    document.getElementById('rcStatRoot').textContent = connected.length;
+    document.getElementById('rcStatImp').textContent  = impacted.size;
+    document.getElementById('rcStatOk').textContent   = nodes.length - downCount;
+
+    const el=document.getElementById('rcLedger');
+
+    if(_ledgerMode==='all'){
+        if(!nodes.length){ el.innerHTML='<div class="rc-empty">No device groups registered yet.</div>'; _clearCascade(); return; }
+        const sevRank = {Critical:0, Major:1, Warning:2, Clear:3};
+        const all = nodes.slice().sort((a,b)=>
+            (sevRank[a.alert_sev]??3)-(sevRank[b.alert_sev]??3) || (a.name||'').localeCompare(b.name||''));
+        el.innerHTML = all.map(n=>{
+            const dn = _blastAny(n.id).size;
+            const sub = `${n.alert_count||0} device${(n.alert_count||0)!==1?'s':''} alerting · ${esc(n.location||'—')}`;
+            const blast = dn>0 ? `↳ ${dn} group${dn!==1?'s':''} depend on this` : 'no downstream dependencies mapped';
+            return _rcRow(n, sub, blast, dn===0?'iso':'');
+        }).join('');
+        if(!_selectedRoot || !nodes.some(n=>n.id===_selectedRoot)) _selectedRoot = all[0].id;
+        renderCascade(_selectedRoot);
+        el.querySelectorAll('.rc-root').forEach(x=>x.classList.remove('sel'));
+        return;
+    }
+
+    if(!roots.length){
+        el.innerHTML = downCount
+            ? '<div class="rc-empty">Alarms are firing but no dependency chains are mapped yet.<br>Map dependencies in Criticality → Dependencies to enable root-cause tracing.</div>'
+            : '<div class="rc-empty">✓ All groups healthy — no active root failures.<br><span style="opacity:.7">Switch to “All Groups” to browse every device group anyway.</span></div>';
+        _clearCascade();
+        return;
+    }
+    const row = r => _rcRow(r.n,
+        `${r.n.alert_count||0} device${(r.n.alert_count||0)!==1?'s':''} alerting · ${esc(r.n.location||'—')}`,
+        r.b>0?`↳ ${r.b} group${r.b!==1?'s':''} impacted`:'isolated · no downstream mapped',
+        r.b===0?'iso':'');
+    let h = connected.map(row).join('');
+    if(iso.length) h += `<div class="rc-divider">Isolated alerts</div>` + iso.map(row).join('');
+    el.innerHTML = h;
+
+    // keep/refresh selection
+    if(!_selectedRoot || !roots.some(r=>r.id===_selectedRoot)) _selectedRoot = (connected[0]||iso[0]).id;
+    renderCascade(_selectedRoot);
+    // re-highlight now that selection may have changed
+    el.querySelectorAll('.rc-root').forEach(x=>x.classList.remove('sel'));
+}
+
+function selectRoot(id){
+    _selectedRoot = id;
+    document.querySelectorAll('#rcLedger .rc-root').forEach((el,i)=>el.classList.remove('sel'));
+    renderLedger();
+    closeTopoDevPanel();
+}
+
+function _clearCascade(){
+    document.getElementById('rcCascTitle').textContent='Impact of —';
+    document.getElementById('rcCascLead').textContent='';
+    const stage=document.getElementById('rcStage');
+    stage.querySelectorAll('.rc-node').forEach(n=>n.remove());
+    document.getElementById('rcConns').innerHTML='';
+}
+
+// ── Center: left→right impact cascade for the selected root ────────────────────
+function renderCascade(rootId){
+    if(rootId===undefined||rootId===null||!_nodeById(rootId)){ _clearCascade(); return; }
+    const g=_nodeById(rootId);
+    const browse = _ledgerMode==='all';
+    document.getElementById('rcCascTitle').textContent=(browse?'Dependencies of:  ':'Impact of:  ')+g.name;
+    const b = browse ? _blastAny(rootId) : _blast(rootId);
+    document.getElementById('rcCascLead').textContent = b.size>0
+        ? (browse ? `${b.size} group${b.size!==1?'s':''} depend on this — trace right` : `${b.size} downstream group${b.size!==1?'s':''} affected — trace right, fix left`)
+        : (browse ? 'nothing depends on this group (leaf node)' : 'isolated — nothing else depends on this (no mapped downstream)');
+
+    const lv = browse ? _levelsAny(rootId) : _levels(rootId);
+    const ids=Object.keys(lv);
+    const byLevel={}; ids.forEach(id=>{(byLevel[lv[id]]=byLevel[lv[id]]||[]).push(id);});
+    const maxL=Math.max(...ids.map(id=>lv[id]));
+    const colW=150,colGap=64,nodeH=62,nodeGap=18,padTop=24,padLeft=28;
+    const colHeights={}; Object.keys(byLevel).forEach(L=>colHeights[L]=byLevel[L].length*nodeH+(byLevel[L].length-1)*nodeGap);
+    const maxColH=Math.max(...Object.values(colHeights));
+    const wrap=document.getElementById('rcStage').parentElement;
+    const availH=Math.max(wrap.clientHeight-40, maxColH+padTop+30);
+    const stageW=(maxL+1)*colW+maxL*colGap+padLeft*2;
+    const stage=document.getElementById('rcStage');
+    stage.style.width=Math.max(stageW, wrap.clientWidth)+'px'; stage.style.height=availH+'px';
+    const midY=padTop+maxColH/2;
+
+    const pos={};
+    Object.keys(byLevel).forEach(L=>{
+        const arr=byLevel[L], ch=colHeights[L], top=Math.max(padTop, midY-ch/2);
+        arr.forEach((id,i)=>{ pos[id]={x:padLeft+L*(colW+colGap), y:top+i*(nodeH+nodeGap)}; });
+    });
+
+    stage.querySelectorAll('.rc-node').forEach(n=>n.remove());
+    ids.forEach(id=>{
+        const gg=_nodeById(id), p=pos[id], sc=_sevClass(gg.alert_sev);
+        const dim = !_matchesCat(gg)||!_matchesEnv(gg) ? 'dim':'';
+        const div=document.createElement('div');
+        const isSelf = id===rootId;
+        div.className=`rc-node ${sc} ${isSelf ? (browse?'browse':'root') : ''} ${dim}`;
+        div.style.left=p.x+'px'; div.style.top=p.y+'px';
+        div.onclick=()=>openTopoDevPanel(gg.name, gg.group_id);
+        div.innerHTML=`${isSelf && !browse?'<span class="rc-rootflag">◀ ROOT</span>':''}
+          <div class="rc-node-nm">${esc(gg.name)}</div>
+          <div class="rc-node-meta">
+            <span class="rc-node-sev ${sc}">${(gg.alert_sev||'').toUpperCase()}</span>
+            <span class="rc-catbadge rc-cb-${_catCat(gg.group_category)}">${_catShort(gg.group_category)}</span>
+          </div>
+          <div class="rc-node-dev">${gg.alert_count||0} device(s) alerting</div>`;
+        stage.appendChild(div);
+    });
+
+    // connectors: root-side → dependent, left→right
+    const svg=document.getElementById('rcConns');
+    svg.setAttribute('width',stage.style.width); svg.setAttribute('height',availH);
+    let paths=`<defs><marker id="rcAh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+       <path d="M0,0 L8,4 L0,8 Z" fill="#6b6b8a"/></marker></defs>`;
+    (_topoData.edges||[]).forEach(e=>{
+        const from=e.from_group, to=e.to_group;
+        if(pos[from]&&pos[to]){
+            const a=pos[to], c=pos[from];
+            const x1=a.x+colW, y1=a.y+nodeH/2, x2=c.x, y2=c.y+nodeH/2, mx=(x1+x2)/2;
+            paths+=`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#6b6b8a" stroke-width="1.6" marker-end="url(#rcAh)" opacity=".8"/>`;
+        }
+    });
+    svg.innerHTML=paths;
+}
+
+// ── Device side panel ──────────────────────────────────────────────────────────
+// Opens when a group node is clicked. Shrinks the graph column (CSS width
+// transition on .noc-topo-dev-panel) rather than covering it, and lets a NOC
+// engineer select alerting devices to Acknowledge/Clear in bulk via OpManager.
+
+let _topoDevPanelGroup = null;   // { name, id } of the group currently shown
+let _topoDevicesCache  = [];     // last-loaded devices for the open panel
+let _topoSelDevices    = new Set();
+
+function openTopoDevPanel(groupName, groupId) {
+    _topoDevPanelGroup = { name: groupName, id: groupId };
+    document.getElementById('tdpTitle').textContent = groupName;
+    document.getElementById('tdpSubtitle').textContent = '';
+    document.getElementById('tdpBody').innerHTML = '<div class="nlp-loading">Loading devices…</div>';
+    document.getElementById('tdpActionBar').style.display = 'none';
+    const wasOpen = document.getElementById('nocTopoDevPanel').classList.contains('open');
+    document.getElementById('nocTopoDevPanel').classList.add('open');
+    if (!wasOpen) setTimeout(_onTopoPaneResize, 260); // matches CSS transition duration
+    loadTopoDevPanelDevices(groupName, groupId);
+}
+
+function closeTopoDevPanel() {
+    const panel = document.getElementById('nocTopoDevPanel');
+    if (!panel.classList.contains('open')) return;
+    panel.classList.remove('open');
+    _topoDevPanelGroup = null;
+    _topoSelDevices.clear();
+    setTimeout(_onTopoPaneResize, 260);
+}
+
+// Re-measure the graph column after the panel's width transition finishes, and
+// re-fit the view to the new space — no need to re-run the force simulation.
+function _onTopoPaneResize() {
+    // Cascade columns are absolutely positioned off the container width, so re-lay
+    // it out when the device panel slides open/closed and the space changes.
+    if (_selectedRoot) renderCascade(_selectedRoot);
+}
+
+async function loadTopoDevPanelDevices(groupName, groupId) {
+    try {
+        let url = `/infraportal/api/noc/group-devices?name=${encodeURIComponent(groupName)}`;
+        if (groupId) url += `&group_id=${groupId}`;
+        const r = await fetch(url);
+        const d = await r.json();
+        if (d.status !== 'ok') {
+            document.getElementById('tdpBody').innerHTML = '<div class="nlp-empty">Error loading devices.</div>';
+            return;
+        }
+        const devices = d.devices || [];
+        document.getElementById('tdpSubtitle').textContent =
+            `${devices.length} device${devices.length!==1?'s':''}`;
+        _renderTopoDevPanel(devices, d.group_found);
+    } catch(e) {
+        document.getElementById('tdpBody').innerHTML = '<div class="nlp-empty">Failed to load devices.</div>';
+    }
+}
+
+function _renderTopoDevPanel(devices, groupFound) {
+    _topoDevicesCache = devices;
+    _topoSelDevices.clear();
+    const body = document.getElementById('tdpBody');
+    if (!groupFound || !devices.length) {
+        document.getElementById('tdpActionBar').style.display = 'none';
+        body.innerHTML = `<div class="nlp-empty">${!groupFound
+            ? 'Group not registered in Criticality.<br><small style="color:var(--text4)">Create a Device Group with this name.</small>'
+            : 'No devices in this group.<br><small style="color:var(--text4)">Use Bulk Register in Criticality → Device Groups.</small>'
+        }</div>`;
+        return;
+    }
+    const sevOrder = ['Critical','Major','Warning','Clear'];
+    const bySev = Object.fromEntries(sevOrder.map(s=>[s,[]]));
+    devices.forEach(d => (bySev[d.alarm_sev]||bySev.Clear).push(d));
+    const anyAlerting = devices.some(d => (d.alarm_ids||[]).length);
+    let html = '';
+    for (const sev of sevOrder) {
+        const devs = bySev[sev];
+        if (!devs.length) continue;
+        const col = _SEV_COL[sev];
+        html += `<div class="nlp-section-hdr" style="color:${col}">${sev} — ${devs.length} device${devs.length!==1?'s':''}</div>`;
+        for (const d of devs) {
+            const hasAlarm = (d.alarm_ids||[]).length > 0;
+            const subText = d.alarm_text
+                ? `<div style="font-size:10px;margin-top:3px;color:${col};line-height:1.4">${esc(d.alarm_text.slice(0,65))}${d.alarm_text.length>65?'…':''}</div>`
+                : (d.team ? `<div style="font-size:10px;margin-top:3px;color:var(--text4)">${esc(d.team)}</div>` : '');
+            const tierBadge = d.tier
+                ? `<span style="display:inline-block;margin-top:4px;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(15,155,142,.12);color:var(--accent);border:1px solid rgba(15,155,142,.28)">${esc(d.tier)}</span>`
+                : '';
+            html += `<div style="display:flex;align-items:flex-start;gap:8px;border-left:4px solid ${col};background:var(--bg3);border-radius:0 5px 5px 0;border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 12px;min-height:40px;box-sizing:border-box">
+${hasAlarm ? `<input type="checkbox" style="margin-top:2px;flex-shrink:0;cursor:pointer" onchange='toggleTopoDevSel(${JSON.stringify(d.name)},this.checked)'>` : '<span style="width:13px;flex-shrink:0"></span>'}
+<div style="flex:1;min-width:0"><div style="font-family:Consolas,'SF Mono',monospace;font-size:11px;font-weight:600;color:var(--text)">${esc(d.name)||'(unnamed)'}</div>${subText}${tierBadge}</div>
+</div>`;
+        }
+    }
+    body.innerHTML = html;
+    document.getElementById('tdpActionBar').style.display = anyAlerting ? 'flex' : 'none';
+    _updateTopoSelCount();
+}
+
+function toggleTopoDevSel(name, checked) {
+    if (checked) _topoSelDevices.add(name); else _topoSelDevices.delete(name);
+    _updateTopoSelCount();
+}
+
+function selectAllTopoAlerting() {
+    _topoDevicesCache.forEach(d => { if ((d.alarm_ids||[]).length) _topoSelDevices.add(d.name); });
+    document.querySelectorAll('#tdpBody input[type=checkbox]').forEach(cb => cb.checked = true);
+    _updateTopoSelCount();
+}
+
+function clearTopoSel() {
+    _topoSelDevices.clear();
+    document.querySelectorAll('#tdpBody input[type=checkbox]').forEach(cb => cb.checked = false);
+    _updateTopoSelCount();
+}
+
+function _updateTopoSelCount() {
+    const n = _topoSelDevices.size;
+    const el = document.getElementById('tdpSelCount');
+    if (el) el.textContent = n ? `${n} selected` : '';
+    const ackBtn = document.getElementById('tdpAckBtn');
+    const clrBtn = document.getElementById('tdpClearBtn');
+    if (ackBtn) ackBtn.disabled = n === 0;
+    if (clrBtn) clrBtn.disabled = n === 0;
+}
+
+function _selectedAlarmIds() {
+    return _topoDevicesCache
+        .filter(d => _topoSelDevices.has(d.name))
+        .flatMap(d => d.alarm_ids || []);
+}
+
+async function ackTopoSelected() {
+    const ids = _selectedAlarmIds();
+    if (!ids.length) return;
+    const n = _topoSelDevices.size;
+    const btn = document.getElementById('tdpAckBtn');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/infraportal/api/alerts/acknowledge', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({alarm_ids: ids}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') alert('Error: ' + (d.message||'unknown'));
+        else if (d.failed) alert(`Acknowledged ${d.success}, failed ${d.failed}.`);
+    } catch(e) { alert('Request failed: ' + e.message); }
+    if (_topoDevPanelGroup) await loadTopoDevPanelDevices(_topoDevPanelGroup.name, _topoDevPanelGroup.id);
+    loadTopology();
+}
+
+async function clearTopoSelected() {
+    const ids = _selectedAlarmIds();
+    if (!ids.length) return;
+    const n = _topoSelDevices.size;
+    if (!confirm(`Clear ${n} device alert${n!==1?'s':''} (${ids.length} alarm${ids.length!==1?'s':''}) in OpManager?\n\nThis acts on live monitoring data and cannot be undone.`)) return;
+    const btn = document.getElementById('tdpClearBtn');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/infraportal/api/alerts/clear', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({alarm_ids: ids}),
+        });
+        const d = await r.json();
+        if (d.status !== 'ok') alert('Error: ' + (d.message||'unknown'));
+        else if (d.failed) alert(`Cleared ${d.success}, failed ${d.failed}.`);
+    } catch(e) { alert('Request failed: ' + e.message); }
+    if (_topoDevPanelGroup) await loadTopoDevPanelDevices(_topoDevPanelGroup.name, _topoDevPanelGroup.id);
+    loadTopology();
+}
+
+
+// ── World map location panel ──────────────────────────────────────────────────
+let _activeLocName = null;
+
+const _SEV_COL = { Critical:'#ff2222', Major:'#ff6600', Warning:'#ffaa00', Clear:'#22bb55' };
+const _ENV_CSS = {
+    Prod:       'background:rgba(255,68,68,.12);color:#ff4444;border:1px solid rgba(255,68,68,.3)',
+    'Non-Prod': 'background:rgba(15,155,142,.12);color:var(--accent);border:1px solid rgba(15,155,142,.3)',
+};
+
+async function openLocPanel(locName) {
+    _activeLocName = locName;
+    const panel = document.getElementById('nocLocPanel');
+    document.getElementById('nlpTitle').textContent = locName;
+    document.getElementById('nlpSubtitle').textContent = '';
+    document.getElementById('nlpBody').innerHTML = '<div class="nlp-loading">Loading groups…</div>';
+    panel.classList.add('open');
+    try {
+        const r = await fetch(`/infraportal/api/noc/location-groups?name=${encodeURIComponent(locName)}`);
+        const d = await r.json();
+        if (d.status !== 'ok') {
+            document.getElementById('nlpBody').innerHTML =
+                `<div class="nlp-empty">Error: ${esc(d.error||'unknown')}</div>`;
+            return;
+        }
+        const { location, groups } = d;
+        const total = groups.reduce((s,g)=>s+g.device_count, 0);
+        document.getElementById('nlpSubtitle').textContent =
+            `${groups.length} group${groups.length!==1?'s':''} · ${total} device${total!==1?'s':''}`;
+        _renderLocGroups(groups, location);
+    } catch(e) {
+        document.getElementById('nlpBody').innerHTML = '<div class="nlp-empty">Failed to load groups.</div>';
+    }
+}
+
+function closeLocPanel() {
+    document.getElementById('nocLocPanel').classList.remove('open');
+    _activeLocName = null;
+    if (_leafletMap && _leafletBounds.length > 1)
+        _leafletMap.flyToBounds(_leafletBounds, { padding:[40,40], duration:0.5 });
+    else if (_leafletMap && _leafletBounds.length === 1)
+        _leafletMap.flyTo(_leafletBounds[0], 6, { duration:0.5 });
+}
+
+function _renderLocGroups(groups, loc) {
+    const body = document.getElementById('nlpBody');
+    if (!groups.length) {
+        body.innerHTML = '<div class="nlp-empty">No groups assigned to this location.<br><small style="color:var(--text4)">Set location in Criticality → Device Groups.</small></div>';
+        return;
+    }
+    const sevOrder = ['Critical','Major','Warning','Clear'];
+    const bySev = Object.fromEntries(sevOrder.map(s=>[s,[]]));
+    groups.forEach(g => (bySev[g.alarm_sev]||bySev.Clear).push(g));
+    let html = '';
+    for (const sev of sevOrder) {
+        const cards = bySev[sev];
+        if (!cards.length) continue;
+        const col = _SEV_COL[sev];
+        html += `<div class="nlp-section-hdr" style="color:${col}">${sev} — ${cards.length} group${cards.length!==1?'s':''}</div>`;
+        for (const g of cards) {
+            const envCss = _ENV_CSS[g.environment] || _ENV_CSS.Unknown;
+            const alarmHtml = g.alarm_count
+                ? `<span style="font-size:10px;font-weight:700;color:${col}">⚠ ${g.alarm_count} alarm${g.alarm_count!==1?'s':''}</span>`
+                : `<span style="font-size:10px;color:var(--success)">✓ Clear</span>`;
+            html += `<div class="nlp-group-card" onclick='openGroupPanel(${g.id},${JSON.stringify(g.name)},${JSON.stringify(loc.name)})'>
+              <div class="nlp-card-strip" style="background:${col}"></div>
+              <div class="nlp-card-body">
+                <div class="nlp-card-name">${esc(g.name)}</div>
+                <div class="nlp-card-meta">
+                  <span style="${envCss};font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600">${esc(g.environment||'Unknown')}</span>
+                  ${g.owner_team?`<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(15,155,142,.1);color:var(--accent);border:1px solid rgba(15,155,142,.25)">${esc(g.owner_team)}</span>`:''}
+                </div>
+                <div class="nlp-card-stat">${g.device_count} device${g.device_count!==1?'s':''} · ${alarmHtml}</div>
+              </div>
+              <div class="nlp-arr">›</div>
+            </div>`;
+        }
+    }
+    body.innerHTML = html;
+}
+
+async function openGroupPanel(groupId, groupName, locName) {
+    document.getElementById('nlpTitle').textContent = groupName;
+    document.getElementById('nlpSubtitle').innerHTML =
+        `<button class="nlp-back" onclick='openLocPanel(${JSON.stringify(locName)})'>← ${esc(locName)}</button>`;
+    document.getElementById('nlpBody').innerHTML = '<div class="nlp-loading">Loading devices…</div>';
+    try {
+        const url = `/infraportal/api/noc/group-devices?group_id=${groupId}&name=${encodeURIComponent(groupName)}`;
+        const r = await fetch(url);
+        const d = await r.json();
+        if (d.status !== 'ok') {
+            document.getElementById('nlpBody').innerHTML = '<div class="nlp-empty">Error loading devices.</div>';
+            return;
+        }
+        const cnt = (d.devices||[]).length;
+        document.getElementById('nlpSubtitle').innerHTML =
+            `<span style="color:var(--text4);font-size:11px;">${cnt} device${cnt!==1?'s':''}</span>&nbsp;·&nbsp;<button class="nlp-back" onclick='openLocPanel(${JSON.stringify(locName)})'>← ${esc(locName)}</button>`;
+        _renderLocDevices(d.devices||[], d.group_found);
+    } catch(e) {
+        document.getElementById('nlpBody').innerHTML = '<div class="nlp-empty">Failed to load devices.</div>';
+    }
+}
+
+function _renderLocDevices(devices, groupFound) {
+    const body = document.getElementById('nlpBody');
+    if (!groupFound || !devices.length) {
+        body.innerHTML = `<div class="nlp-empty">${!groupFound
+            ? 'Group not registered in Criticality.<br><small style="color:var(--text4)">Create a Device Group with this name.</small>'
+            : 'No devices in this group.<br><small style="color:var(--text4)">Use Bulk Register in Criticality → Device Groups.</small>'
+        }</div>`;
+        return;
+    }
+    const sevOrder = ['Critical','Major','Warning','Clear'];
+    const bySev = Object.fromEntries(sevOrder.map(s=>[s,[]]));
+    devices.forEach(d => (bySev[d.alarm_sev]||bySev.Clear).push(d));
+    let html = '';
+    for (const sev of sevOrder) {
+        const devs = bySev[sev];
+        if (!devs.length) continue;
+        const col = _SEV_COL[sev];
+        html += `<div class="nlp-section-hdr" style="color:${col}">${sev} — ${devs.length} device${devs.length!==1?'s':''}</div>`;
+        for (const d of devs) {
+            const subText = d.alarm_text
+                ? `<div style="font-size:10px;margin-top:3px;color:${col};line-height:1.4">${esc(d.alarm_text.slice(0,65))}${d.alarm_text.length>65?'…':''}</div>`
+                : (d.team ? `<div style="font-size:10px;margin-top:3px;color:var(--text4)">${esc(d.team)}</div>` : '');
+            const tierBadge = d.tier
+                ? `<span style="display:inline-block;margin-top:4px;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(15,155,142,.12);color:var(--accent);border:1px solid rgba(15,155,142,.28)">${esc(d.tier)}</span>`
+                : '';
+            html += `<div style="border-left:4px solid ${col};background:var(--bg3);border-radius:0 5px 5px 0;border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 12px;min-height:40px;box-sizing:border-box">
+<div style="font-family:Consolas,'SF Mono',monospace;font-size:11px;font-weight:600;color:var(--text)">${esc(d.name)||'(unnamed)'}</div>${subText}${tierBadge}</div>`;
+        }
+    }
+    body.innerHTML = html;
+}
+
+// Re-overlay alert state onto cached topology data (called on NOC refresh)
+// Re-fetches /api/noc/topology so node alert_count/severity reflect the same
+// correctly-computed data get_named_groups() provides (group-level alarms +
+// device-tree problematic-member counts) — a flat alarm list has no group
+// membership join available, so recomputing it client-side never worked.
+async function overlayAlertOnTopology() {
+    if (!_topoData) return;
+    let d;
+    try {
+        const r = await fetch('/infraportal/api/noc/topology');
+        d = await r.json();
+        if (d.status !== 'ok') return;
+    } catch(e) { return; }
+    _topoData = d;
+    renderLedger();   // recomputes roots/blast/cascade from the fresh alert data
+
+    // Keep an open device panel's alert data in sync too
+    if (_topoDevPanelGroup) loadTopoDevPanelDevices(_topoDevPanelGroup.name, _topoDevPanelGroup.id);
+}
+
+// ── Map tab switching ─────────────────────────────────────────────────────────
+let _topoTabLoaded = false;
+
+function switchMapTab(tab) {
+    const isGeo = tab === 'geo';
+    document.getElementById('mapTabGeo').classList.toggle('active', isGeo);
+    document.getElementById('mapTabTopo').classList.toggle('active', !isGeo);
+    document.getElementById('nocGeoPane').classList.toggle('active', isGeo);
+    document.getElementById('nocTopoPane').classList.toggle('active', !isGeo);
+    if (isGeo) {
+        // Leaflet needs a size nudge after container was hidden
+        setTimeout(() => { if (_leafletMap) _leafletMap.invalidateSize(); }, 50);
+    } else {
+        // Load topology the first time this tab is opened
+        if (!_topoTabLoaded) { _topoTabLoaded = true; loadTopology(); }
+    }
+}
+
+function refreshActiveMapTab() {
+    if (document.getElementById('mapTabGeo').classList.contains('active')) loadNocMap();
+    else loadTopology();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+loadNocMap();
+loadNoc();
+// Check if previous triage result is available
+fetch('/infraportal/api/noc/triage/status').then(r => r.json()).then(d => {
+    if (d.status === 'ok') showTriageResult(d.result);
+    else if (d.status === 'running') pollTriage();
+}).catch(() => {});
+</script>
+{% endblock %}

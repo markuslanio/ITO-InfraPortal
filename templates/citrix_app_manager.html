@@ -1,0 +1,1035 @@
+{% extends "base.html" %}
+{% block title %}App Manager — Citrix — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+
+/* ── Layout ── */
+.am-container { padding: 30px; }
+.am-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text3); text-decoration: none; font-size: 13px; margin-bottom: 20px; }
+.am-back:hover { color: var(--accent); }
+.am-title { font-size: 20px; font-weight: bold; color: var(--text); margin: 0 0 4px 0; }
+.am-subtitle { font-size: 13px; color: var(--text4); margin-bottom: 24px; }
+
+/* ── Stepper ── */
+.stepper { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+.step { display: flex; align-items: center; gap: 9px; padding: 12px 18px; font-size: 13px; color: var(--text4); border-bottom: 2px solid transparent; flex: 1; transition: all 0.15s; cursor: default; }
+.step.active { color: var(--text); border-bottom-color: var(--accent); font-weight: bold; }
+.step.done   { color: var(--success); border-bottom-color: var(--success); cursor: pointer; }
+.step.cutover-ready { color: var(--warning); border-bottom-color: var(--warning); cursor: pointer; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; flex-shrink: 0; }
+
+/* ── Panels ── */
+.panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 14px; }
+.panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.panel-title { font-size: 13px; font-weight: bold; color: var(--accent); }
+.panel-body { padding: 16px; }
+.panel-hint { padding: 10px 14px; background: var(--bg3); border-top: 1px solid var(--border); font-size: 11px; color: var(--text4); line-height: 1.6; }
+
+/* ── Grid ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* ── Form controls ── */
+select, input[type=text] { background: var(--bg3); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 5px; font-size: 13px; width: 100%; }
+select:focus, input[type=text]:focus { outline: none; border-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+
+/* ── Buttons ── */
+.btn      { background: var(--accent); color: white; border: none; padding: 9px 18px; border-radius: 5px; cursor: pointer; font-size: 13px; transition: background 0.15s; }
+.btn:hover { background: var(--accent-dark); }
+.btn:disabled { background: var(--text4); cursor: not-allowed; opacity: 0.6; }
+.btn-secondary { background: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 7px 14px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+.btn-secondary:hover { color: var(--text); background: var(--bg3); }
+.btn-sm   { background: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.btn-sm:hover { color: var(--text); }
+.btn-danger { background: #7a1a1a; color: #ffaaaa; border: none; padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.btn-danger:hover { background: #aa2222; }
+.btn-warn  { background: var(--warning); color: #000; border: none; padding: 9px 18px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; }
+.btn-warn:hover  { opacity: 0.85; }
+.btn-warn:disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+
+/* ── App list ── */
+.app-list-wrap { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; max-height: 280px; overflow-y: auto; }
+.app-row { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+.app-row:last-child { border-bottom: none; }
+.app-row:hover { background: var(--surface); }
+.app-row.selected { background: rgba(15,155,142,0.12); }
+.app-name { font-size: 13px; font-weight: bold; flex: 1; }
+.app-folder { font-size: 11px; color: var(--text4); }
+.app-path { font-size: 11px; color: var(--text3); font-family: monospace; margin-top: 2px; }
+.sa-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); }
+.sel-count { font-size: 12px; color: var(--text4); }
+
+/* ── Attr toggles ── */
+.attr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.attr-toggle { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.1s; }
+.attr-toggle.on   { background: rgba(15,155,142,0.12); border-color: var(--accent); }
+.attr-toggle.warn { background: rgba(255,170,0,0.1);   border-color: var(--warning); }
+.attr-label { font-size: 12px; font-weight: bold; flex: 1; color: var(--text3); }
+.attr-toggle.on   .attr-label { color: var(--accent); }
+.attr-toggle.warn .attr-label { color: var(--warning); }
+.tdot { width: 28px; height: 16px; border-radius: 8px; background: var(--surface); position: relative; flex-shrink: 0; transition: background 0.15s; }
+.tdot.on   { background: var(--accent); }
+.tdot.warn { background: var(--warning); }
+.tdot::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: left 0.15s; }
+.tdot.on::after, .tdot.warn::after { left: 14px; }
+
+/* ── Folder mapping ── */
+.fm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fm-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.fm-table tr:last-child td { border-bottom: none; }
+.fm-src { font-family: monospace; color: var(--text3); white-space: nowrap; }
+.fm-arrow { color: var(--text4); text-align: center; width: 20px; }
+
+/* ── Path rules ── */
+.rule-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.rule-row input[type=text] { font-family: monospace; font-size: 12px; }
+
+/* ── Preview ── */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; font-size: 12px; color: var(--text3); }
+.lsw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+.lsw-changed { background: var(--warning); }
+.lsw-same    { background: var(--success); }
+.lsw-skip    { background: var(--surface); border: 1px solid var(--border); }
+.preview-app { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.preview-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg3); cursor: pointer; }
+.preview-title { font-size: 13px; font-weight: bold; flex: 1; }
+.pat { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pat td { padding: 6px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.pat tr:last-child td { border-bottom: none; }
+.pat .anc { color: var(--text4); width: 120px; font-weight: bold; font-size: 11px; white-space: nowrap; }
+.pat .vs  { font-family: monospace; font-size: 11px; color: var(--text3); }
+.pat .vd  { font-family: monospace; font-size: 11px; }
+.row-changed { background: rgba(255,170,0,0.08); }
+.row-changed .vd { color: var(--warning); font-weight: bold; }
+.row-skip { opacity: 0.5; }
+.row-skip .vs { text-decoration: line-through; }
+.vd-skip { color: var(--text4); font-style: italic; }
+.chevron { font-size: 10px; transition: transform 0.15s; color: var(--text4); }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+.badge-ok     { background: #1a4a2a; color: #aaffaa; }
+.badge-warn   { background: #4a3a00; color: #ffddaa; }
+.badge-danger { background: #4a1a1a; color: #ffaaaa; }
+.badge-info   { background: #1a2a4a; color: #aaaaff; }
+.badge-gray   { background: #2a2a2a; color: var(--text3); }
+.badge-purple { background: #2a1a4a; color: #ddaaff; }
+
+/* ── Test assignees ── */
+.test-box { border: 1px solid var(--warning); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+.test-header { padding: 10px 14px; background: rgba(255,170,0,0.1); border-bottom: 1px solid var(--warning); display: flex; align-items: center; justify-content: space-between; }
+.test-title { font-size: 13px; font-weight: bold; color: var(--warning); }
+.test-body { padding: 14px; }
+.search-row { display: flex; gap: 8px; margin-bottom: 10px; position: relative; }
+.search-row input[type=text] { flex: 1; }
+.dd { position: fixed; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; z-index: 9999; max-height: 240px; overflow-y: auto; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-width: 300px; }
+.dd.open { display: block; }
+.dd-item { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--border); }
+.dd-item:last-child { border-bottom: none; }
+.dd-item:hover { background: var(--surface); }
+.dd-type { font-size: 11px; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; }
+.dd-group { background: #1a2a4a; color: #aaaaff; }
+.dd-user  { background: #1a4a2a; color: #aaffaa; }
+.dd-name   { font-size: 13px; font-weight: bold; color: var(--text); }
+.dd-detail { font-size: 11px; color: var(--text4); }
+.pill-area { display: flex; flex-wrap: wrap; gap: 6px; min-height: 34px; padding: 8px; background: var(--bg3); border-radius: 6px; border: 1px solid var(--border); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: bold; padding: 3px 9px; border-radius: 20px; }
+.pill-group { background: #1a2a4a; color: #aaaaff; border: 1px solid #2a3a6a; }
+.pill-user  { background: #1a4a2a; color: #aaffaa; border: 1px solid #2a6a3a; }
+.pill-x { cursor: pointer; opacity: 0.6; font-size: 14px; line-height: 1; }
+.pill-x:hover { opacity: 1; }
+.empty-pill { font-size: 12px; color: var(--text4); font-style: italic; padding: 4px 0; }
+
+/* ── Cutover ── */
+.cutover-banner { padding: 12px 16px; background: rgba(255,170,0,0.1); border-bottom: 1px solid var(--warning); display: flex; gap: 10px; }
+.cutover-banner-text { font-size: 12px; color: var(--warning); line-height: 1.7; }
+.co-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.co-table th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: bold; color: var(--text4); background: var(--bg3); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: .04em; }
+.co-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.co-table tr:last-child td { border-bottom: none; }
+.gpill { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 2px 7px; border-radius: 20px; border: 1px solid; margin: 2px 2px 2px 0; white-space: nowrap; }
+.gpill-remove { background: rgba(255,170,0,0.15); border-color: var(--warning);  color: var(--warning); }
+.gpill-add    { background: rgba(34,204,102,0.12); border-color: var(--success); color: var(--success); }
+
+/* ── Jobs history ── */
+.job-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; cursor: pointer; transition: background 0.1s; }
+.job-row:last-child { border-bottom: none; }
+.job-row:hover { background: var(--surface); }
+.job-name { flex: 1; font-weight: bold; }
+.job-meta { font-size: 11px; color: var(--text4); }
+.job-del { background: none; border: 1px solid #5a2020; color: #cc6666; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; flex-shrink: 0; }
+.job-del:hover { background: #3a0f0f; color: #ffaaaa; border-color: #aa3333; }
+
+/* ── Result messages ── */
+.result-ok   { padding: 12px 16px; background: rgba(34,204,102,0.12); border: 1px solid var(--success); border-radius: 6px; color: var(--success); font-size: 13px; margin-top: 14px; }
+.result-err  { padding: 12px 16px; background: rgba(255,68,68,0.12);  border: 1px solid var(--danger);  border-radius: 6px; color: var(--danger);  font-size: 13px; margin-top: 14px; }
+.loading { color: var(--text3); font-style: italic; font-size: 13px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent); border-radius: 50%; border-top-color: transparent; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="am-container">
+    <a class="am-back" href="/infraportal/citrix">← Back to Citrix</a>
+    <h1 class="am-title">Published App Manager</h1>
+    <p class="am-subtitle">Clone apps between delivery groups, apply path transformations, assign test access, and cut over security groups when ready to go live.</p>
+
+    <!-- Stepper -->
+    <div class="stepper">
+        <div class="step active" id="s1"><div class="step-num">1</div>Apps &amp; attributes</div>
+        <div class="step"        id="s2"><div class="step-num">2</div>Path rules</div>
+        <div class="step"        id="s3"><div class="step-num">3</div>Preview &amp; clone</div>
+        <div class="step"        id="s4"><div class="step-num">4</div>Security cutover</div>
+    </div>
+
+    <!-- ── STEP 1 ── -->
+    <div id="page1">
+        <div class="grid2">
+            <!-- Left: app picker -->
+            <div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Source delivery group</span>
+                        <span class="sel-count" id="sel-count">0 selected</span>
+                    </div>
+                    <div class="panel-body" style="padding:12px 16px 8px">
+                        <select id="src-dg" onchange="loadSourceApps()">
+                            <option value="">— loading delivery groups —</option>
+                        </select>
+                    </div>
+                    <div class="sa-bar">
+                        <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;color:var(--text3)">
+                            <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"> Select all
+                        </label>
+                        <select id="folder-filter" style="width:auto;padding:3px 8px;font-size:11px" onchange="renderAppList()">
+                            <option value="">All folders</option>
+                        </select>
+                    </div>
+                    <div id="filter-warn" style="display:none;padding:8px 12px;background:rgba(255,170,0,0.1);border-bottom:1px solid var(--warning);font-size:12px;color:var(--warning)">
+                        ⚠ Citrix API did not return delivery group associations — showing all apps. Use the folder column to identify which delivery group each app belongs to, and deselect any that don't belong.
+                    </div>
+                    <div class="app-list-wrap">
+                        <div id="app-list"><div style="padding:14px;color:var(--text4);font-size:13px">Select a delivery group above.</div></div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Target delivery group</span></div>
+                    <div class="panel-body" style="padding:12px 16px">
+                        <select id="dst-dg" onchange="updateFolderSuggestions()">
+                            <option value="">— loading —</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: attrs + folder mapping -->
+            <div>
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Attributes to copy</span></div>
+                    <div class="panel-body">
+                        <div class="attr-grid" id="attr-grid"></div>
+                        <div class="panel-hint" style="margin-top:10px;border-radius:4px">
+                            <strong style="color:var(--warning)">Amber</strong> = contains paths. Set up transform rules in step 2 if the target servers use a different drive letter or UNC path.
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Folder mapping</span>
+                        <span style="font-size:11px;color:var(--text4)">auto-detected from selection</span>
+                    </div>
+                    <div class="panel-body" style="padding:8px 16px 14px">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                            <label style="font-size:12px;color:var(--text3);white-space:nowrap;font-weight:bold">Root folder prefix:</label>
+                            <input type="text" id="folder-prefix-input" placeholder="e.g. NewAppProd"
+                                   style="background:var(--bg3);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:5px;font-family:monospace;font-size:13px;flex:1"
+                                   oninput="applyFolderPrefix(this.value)">
+                        </div>
+                        <table class="fm-table" id="folder-map"></table>
+                        <div class="panel-hint" style="margin-top:10px;border-radius:4px">Type a root folder name above and the rest of the path is preserved automatically — <strong>App Prod\Tool\app</strong> becomes <strong>NewAppProd\Tool\app</strong>. Individual rows are still editable if needed.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="nav-row">
+            <div></div>
+            <button class="btn" onclick="goStep(2)">Continue to path rules →</button>
+        </div>
+    </div>
+
+    <!-- ── STEP 2 ── -->
+    <div id="page2" style="display:none">
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Path transformation rules</span>
+                <button class="btn-sm" onclick="addRule()">+ add rule</button>
+            </div>
+            <div class="panel-body">
+                <p style="font-size:12px;color:var(--text3);margin:0 0 14px 0;line-height:1.7">
+                    Rules run in order against <strong>application path</strong>, <strong>working directory</strong>, and <strong>command-line arguments</strong> simultaneously. Anything that changes will appear amber in the preview. Regex is supported — use <code>\\</code> for a literal backslash.
+                </p>
+                <div id="rules-container"></div>
+            </div>
+            <div class="panel-hint">Rules that match nothing are silently ignored — no false positives in the preview.</div>
+        </div>
+        <div class="nav-row">
+            <button class="btn-secondary" onclick="goStep(1)">← Back</button>
+            <button class="btn" onclick="goStep(3)">Preview changes →</button>
+        </div>
+    </div>
+
+    <!-- ── STEP 3 ── -->
+    <div id="page3" style="display:none">
+        <div class="legend">
+            <strong style="color:var(--text3)">Legend:</strong>
+            <span><span class="lsw lsw-changed"></span>Transformed by rule</span>
+            <span><span class="lsw lsw-same"></span>Copied unchanged</span>
+            <span><span class="lsw lsw-skip"></span>Skipped</span>
+        </div>
+
+        <div id="preview-list"></div>
+
+        <!-- Test assignment box -->
+        <div class="test-box">
+            <div class="test-header">
+                <span class="test-title">⚗ Test access — applied to all cloned apps at clone time</span>
+                <span style="font-size:11px;color:var(--warning)" id="test-count-lbl">0 assigned</span>
+            </div>
+            <div class="test-body">
+                <p style="font-size:12px;color:var(--warning);line-height:1.7;margin:0 0 12px 0">
+                    Add your admin account or a test group here. These will be the only users who can launch the cloned apps during testing — no production groups are copied. They are automatically removed when you run the step 4 cutover.
+                </p>
+                <div class="search-row">
+                    <input type="text" id="test-search" placeholder="Search Entra users or groups…"
+                           oninput="searchEntra()" onfocus="openDd()" onblur="setTimeout(closeDd,180)"
+                           onkeydown="if(event.key==='Enter')addTestAssignee()">
+                    <div class="dd" id="dd"></div>
+                    <button class="btn-sm" onclick="addTestAssignee()" style="border-color:var(--warning);color:var(--warning)">Add</button>
+                </div>
+                <div class="pill-area" id="pill-area"><span class="empty-pill">No test accounts or groups added yet</span></div>
+            </div>
+        </div>
+
+        <div class="nav-row">
+            <button class="btn-secondary" onclick="goStep(2)">← Back</button>
+            <button class="btn" id="clone-btn" onclick="runClone()">
+                Clone <span id="clone-count"></span> apps to <span id="clone-dst-name"></span>
+            </button>
+        </div>
+        <div id="clone-result" style="display:none"></div>
+    </div>
+
+    <!-- ── STEP 4 ── -->
+    <div id="page4" style="display:none">
+        <div class="panel">
+            <div class="cutover-banner">
+                <div style="font-size:18px;flex-shrink:0">⚠️</div>
+                <div class="cutover-banner-text">
+                    <strong>Run this step only when testing is complete and you're ready to go live.</strong>
+                    For each app, test assignments are removed and the matching production security groups
+                    from the source delivery group are applied to the cloned app. Users will lose access
+                    to the old apps and gain access to the new ones immediately.
+                </div>
+            </div>
+            <div class="panel-header">
+                <span class="panel-title">Security cutover — app by app</span>
+                <span class="sel-count" id="co-count-lbl"></span>
+            </div>
+            <div style="overflow-x:auto">
+                <table class="co-table">
+                    <thead>
+                        <tr>
+                            <th style="width:22%">App</th>
+                            <th style="width:26%">Remove from cloned app</th>
+                            <th style="width:26%">Add to cloned app</th>
+                            <th style="width:26%">Net result</th>
+                        </tr>
+                    </thead>
+                    <tbody id="co-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+        <p style="font-size:12px;color:var(--text4);margin-bottom:14px;line-height:1.7">
+            Apps matched by name. Red pills = test/temp assignments being removed. Green pills = production groups from the source app being applied. The net result column is what users will see after cutover.
+        </p>
+        <div class="nav-row">
+            <button class="btn-secondary" onclick="goStep(3)">← Back</button>
+            <button class="btn-warn" id="co-btn" onclick="runCutover()">
+                Run cutover for <span id="co-app-count"></span> apps
+            </button>
+        </div>
+        <div id="co-result" style="display:none"></div>
+    </div>
+
+    <!-- Jobs history -->
+    <div class="panel" style="margin-top:30px">
+        <div class="panel-header">
+            <span class="panel-title">Clone job history</span>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn-sm" style="border-color:#5a2020;color:#cc6666" onclick="clearCompletedJobs()">Clear completed</button>
+                <button class="btn-sm" style="border-color:#5a3a00;color:#ccaa66" onclick="clearPendingJobs()">Clear pending</button>
+                <button class="btn-sm" onclick="loadJobs()">↻ Refresh</button>
+            </div>
+        </div>
+        <div id="jobs-area">
+            <div style="padding:14px;color:var(--text4);font-size:13px">Loading jobs…</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const BASE = '/infraportal';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let allApps   = [];   // apps loaded for source DG
+let selected  = new Set();
+let folderMap = {};
+let testAssignees = [];
+let ddSelected    = null;
+let activeJobId   = null;
+let rules = [];  // No default path rules — add only if target servers use a different drive letter
+
+const attrs = [
+    { key: 'path',    label: 'Application path',   warn: true,  on: true  },
+    { key: 'workdir', label: 'Working directory',   warn: true,  on: true  },
+    { key: 'args',    label: 'Command-line args',   warn: true,  on: true  },
+    { key: 'icon',    label: 'Icon',                warn: false, on: true  },
+    { key: 'folder',  label: 'Folder (mapped)',     warn: false, on: true  },
+    { key: 'enabled', label: 'Enabled state',       warn: false, on: true  },
+    { key: 'groups',  label: 'Security groups',     warn: false, on: false },
+];
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+    renderAttrGrid();
+    renderFolderMap();
+    await loadDeliveryGroups();
+    await loadJobs();
+}
+
+// ── Delivery groups ────────────────────────────────────────────────────────
+async function loadDeliveryGroups() {
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/delivery-groups?refresh=true`);
+        const data = await res.json();
+        const dgs  = (data.delivery_groups || []).sort((a, b) => a.name.localeCompare(b.name));
+
+        const srcSel = document.getElementById('src-dg');
+        const dstSel = document.getElementById('dst-dg');
+        const opts   = dgs.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        srcSel.innerHTML = '<option value="">— select source delivery group —</option>' + opts;
+        dstSel.innerHTML = '<option value="">— select target delivery group —</option>' + opts;
+    } catch (e) {
+        console.error('Failed to load delivery groups:', e);
+    }
+}
+
+// ── Apps for source DG ─────────────────────────────────────────────────────
+async function loadSourceApps() {
+    const dgId = document.getElementById('src-dg').value;
+    if (!dgId) return;
+    document.getElementById('app-list').innerHTML =
+        '<div style="padding:14px;"><span class="spinner"></span><span class="loading">Loading apps…</span></div>';
+    selected.clear();
+    allApps = [];
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/applications?dg_id=${encodeURIComponent(dgId)}`);
+        const data = await res.json();
+        if (data.status !== 'ok') throw new Error(data.message);
+        allApps = data.apps;
+        const filterUnavailable = allApps.length > 0 && allApps[0]._filter_unavailable;
+        const warn = document.getElementById('filter-warn');
+        if (filterUnavailable) {
+            warn.style.display = '';
+        } else {
+            warn.style.display = 'none';
+        }
+        // Populate folder filter
+        const folders = [...new Set(allApps.map(a => a.folder).filter(Boolean))].sort();
+        const ff = document.getElementById('folder-filter');
+        ff.innerHTML = '<option value="">All folders</option>' +
+            folders.map(f => `<option value="${f}">${f}</option>`).join('');
+        renderAppList();
+        updateFolderSuggestions();
+    } catch (e) {
+        document.getElementById('app-list').innerHTML =
+            `<div style="padding:14px;color:var(--danger);font-size:13px">Error: ${e.message}</div>`;
+    }
+}
+
+function renderAppList() {
+    const ff   = document.getElementById('folder-filter').value;
+    const apps = allApps.filter(a => !ff || a.folder === ff);
+    if (!apps.length) {
+        document.getElementById('app-list').innerHTML =
+            '<div style="padding:14px;color:var(--text4);font-size:13px">No apps found.</div>';
+        return;
+    }
+    const showDg = allApps.length > 0 && allApps[0]._filter_unavailable;
+    document.getElementById('app-list').innerHTML = apps.map(a => {
+        const dgNames = (a.delivery_groups || []).map(d => d.name).filter(Boolean).join(', ');
+        const dgTag = (showDg && dgNames)
+            ? `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(255,170,0,0.15);color:var(--warning);border:1px solid var(--warning);flex-shrink:0">${esc(dgNames)}</span>`
+            : '';
+        return `
+        <div class="app-row ${selected.has(a.id) ? 'selected' : ''}" onclick="toggleApp('${a.id}')">
+            <input type="checkbox" ${selected.has(a.id) ? 'checked' : ''}
+                   onclick="event.stopPropagation();toggleApp('${a.id}')">
+            <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span class="app-name">${esc(a.published_name || a.name)}</span>
+                    <span class="app-folder">${esc(a.folder)}</span>
+                    ${dgTag}
+                </div>
+                <div class="app-path">${esc((a.command_line || '').slice(0, 55))}${(a.command_line || '').length > 55 ? '…' : ''}</div>
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('sel-count').textContent = selected.size + ' selected';
+    document.getElementById('select-all').checked = selected.size === allApps.length && allApps.length > 0;
+    updateFolderSuggestions();
+}
+
+function toggleApp(id) {
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    renderAppList();
+}
+
+function toggleSelectAll(cb) {
+    if (cb.checked) allApps.forEach(a => selected.add(a.id));
+    else selected.clear();
+    renderAppList();
+}
+
+// ── Attributes ─────────────────────────────────────────────────────────────
+function renderAttrGrid() {
+    document.getElementById('attr-grid').innerHTML = attrs.map((a, i) => `
+        <div class="attr-toggle ${a.on ? (a.warn ? 'warn' : 'on') : ''}" onclick="toggleAttr(${i})">
+            <span class="attr-label">${a.label}</span>
+            <div class="tdot ${a.on ? (a.warn ? 'warn' : 'on') : ''}"></div>
+        </div>`).join('');
+}
+
+function toggleAttr(i) {
+    attrs[i].on = !attrs[i].on;
+    renderAttrGrid();
+}
+
+// ── Folder mapping ─────────────────────────────────────────────────────────
+function getUniqueFolders() {
+    return [...new Set(
+        allApps.filter(a => selected.has(a.id)).map(a => a.folder).filter(Boolean)
+    )].sort();
+}
+
+function applyFolderPrefix(prefix) {
+    // Replace only the root segment, preserve the rest of the path
+    getUniqueFolders().forEach(f => {
+        const sep   = f.includes('\\') ? '\\' : '/';
+        const parts = f.split(sep);
+        parts[0]    = prefix || parts[0];
+        folderMap[f] = parts.join(sep);
+    });
+    renderFolderMap();
+}
+
+function updateFolderSuggestions() {
+    // Clear prefix input and reset map to identity when DG changes
+    const inp = document.getElementById('folder-prefix-input');
+    if (inp) inp.value = '';
+    getUniqueFolders().forEach(f => { folderMap[f] = f; });
+    renderFolderMap();
+}
+
+function renderFolderMap() {
+    const folders = getUniqueFolders();
+    if (!folders.length) {
+        document.getElementById('folder-map').innerHTML =
+            '<tr><td style="padding:10px;color:var(--text4);font-size:12px">Select apps to see folder mapping.</td></tr>';
+        return;
+    }
+    document.getElementById('folder-map').innerHTML = folders.map(f => `
+        <tr>
+            <td class="fm-src">${esc(f)}</td>
+            <td class="fm-arrow">→</td>
+            <td><input type="text" value="${esc(folderMap[f] || f)}"
+                 oninput="folderMap['${esc(f)}'] = this.value"
+                 style="background:var(--bg3);color:var(--text);border:1px solid var(--border);padding:5px 8px;border-radius:4px;font-family:monospace;font-size:12px;width:100%"></td>
+        </tr>`).join('');
+}
+
+// ── Path rules ─────────────────────────────────────────────────────────────
+function renderRules() {
+    document.getElementById('rules-container').innerHTML = rules.map((r, i) => `
+        <div class="rule-row">
+            <input type="text" placeholder="Find (regex, e.g. C:\\\\)" value="${esc(r.from)}"
+                   oninput="rules[${i}].from = this.value" style="flex:1">
+            <span style="color:var(--text4);flex-shrink:0">→</span>
+            <input type="text" placeholder="Replace with (e.g. D:\\\\)" value="${esc(r.to)}"
+                   oninput="rules[${i}].to = this.value" style="flex:1">
+            <button class="btn-danger" onclick="removeRule(${i})">×</button>
+        </div>`).join('');
+}
+
+function addRule()       { rules.push({ from: '', to: '' }); renderRules(); }
+function removeRule(i)   { rules.splice(i, 1); renderRules(); }
+
+function applyRules(val) {
+    let v = val;
+    rules.forEach(r => {
+        if (!r.from) return;
+        try   { v = v.replace(new RegExp(r.from, 'gi'), r.to); }
+        catch { v = v.replace(r.from, r.to); }
+    });
+    return v;
+}
+
+// ── Preview ────────────────────────────────────────────────────────────────
+function renderPreview() {
+    const selApps = allApps.filter(a => selected.has(a.id));
+    const dstSel  = document.getElementById('dst-dg');
+    const dstName = dstSel.options[dstSel.selectedIndex]?.text?.split(' ')[0] || '—';
+    document.getElementById('clone-count').textContent     = selApps.length;
+    document.getElementById('clone-dst-name').textContent  = dstName;
+
+    const pathKeys = ['command_line', 'command_line_args', 'working_directory'];
+
+    document.getElementById('preview-list').innerHTML = selApps.map(a => {
+        const rows = attrs.map(attr => {
+            let sv = '', dv = '', changed = false;
+            switch (attr.key) {
+                case 'path':    sv = a.command_line;      break;
+                case 'args':    sv = a.command_line_args; break;
+                case 'workdir': sv = a.working_directory; break;
+                case 'folder':  sv = a.folder;            break;
+                case 'enabled': sv = String(a.enabled);   break;
+                case 'groups':  sv = (a.included_users || []).join(', ') || '(none)'; break;
+                default:        sv = '';
+            }
+            sv = sv || '';
+            dv = sv;
+            if (attr.on) {
+                if (['path','args','workdir'].includes(attr.key)) {
+                    dv = applyRules(sv); changed = dv !== sv;
+                } else if (attr.key === 'folder') {
+                    dv = folderMap[sv] || sv; changed = dv !== sv;
+                }
+            }
+            const rc    = !attr.on ? 'row-skip' : changed ? 'row-changed' : '';
+            const badge = !attr.on
+                ? `<span class="badge badge-gray">skipped</span>`
+                : changed
+                    ? `<span class="badge badge-warn">transformed</span>`
+                    : `<span class="badge badge-ok">copied</span>`;
+            const dstCell = !attr.on
+                ? `<span class="vd-skip">not copied</span>`
+                : `<span class="vd">${esc(dv.length > 55 ? dv.slice(0, 55) + '…' : dv)}</span>`;
+            return `<tr class="${rc}">
+                <td class="anc">${attr.label}</td>
+                <td><span class="vs">${esc(sv.length > 45 ? sv.slice(0,45)+'…' : sv)}</span></td>
+                <td style="color:var(--text4);text-align:center;width:18px">→</td>
+                <td>${dstCell}</td>
+                <td style="text-align:right">${badge}</td>
+            </tr>`;
+        }).join('');
+        const targetFolder = folderMap[a.folder] || a.folder;
+        return `<div class="preview-app">
+            <div class="preview-hdr" onclick="toggleExpand(this)">
+                <span class="preview-title">${esc(a.published_name || a.name)}</span>
+                <span class="badge badge-info" style="margin-right:6px">${esc(targetFolder)}</span>
+                <span class="chevron">▼</span>
+            </div>
+            <div class="preview-body">
+                <table class="pat">${rows}</table>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleExpand(hdr) {
+    const body = hdr.nextElementSibling;
+    const ch   = hdr.querySelector('.chevron');
+    body.style.display = body.style.display === 'none' ? '' : 'none';
+    ch.style.transform = body.style.display === 'none' ? 'rotate(-90deg)' : '';
+}
+
+// ── Entra search ───────────────────────────────────────────────────────────
+let _searchTimer = null;
+function searchEntra() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(async () => {
+        const q = document.getElementById('test-search').value.trim();
+        if (q.length < 2) { closeDd(); return; }
+        const dd = document.getElementById('dd');
+        dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text4)">Searching…</div>';
+        dd.classList.add('open');
+        try {
+            const res  = await fetch(`${BASE}/api/citrix/entra-search?q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if (data.status === 'error') {
+                dd.innerHTML = `<div style="padding:10px 12px;font-size:12px">
+                    <div style="color:var(--danger);margin-bottom:4px">Search failed: ${esc(data.message)}</div>
+                    <div style="color:var(--text4)">Check that Group.Read.All and User.Read.All are granted on the app registration in Entra.</div>
+                </div>`;
+                return;
+            }
+            if (!data.results || !data.results.length) {
+                dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text4)">No results found</div>';
+            } else {
+                const already = new Set(testAssignees.map(a => a.id));
+                const items   = data.results.filter(r => !already.has(r.id));
+                if (!items.length) {
+                    dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text4)">All matching results already added</div>';
+                } else {
+                    dd.innerHTML = items.map((r, i) => `
+                        <div class="dd-item" onmousedown="ddPick(${i})" data-idx="${i}">
+                            <span class="dd-type ${r.type === 'group' ? 'dd-group' : 'dd-user'}">${r.type}</span>
+                            <div>
+                                <div class="dd-name">${esc(r.name)}</div>
+                                <div class="dd-detail">${esc(r.detail)}</div>
+                            </div>
+                        </div>`).join('');
+                    dd._results = items;
+                }
+            }
+        } catch(e) {
+            dd.innerHTML = `<div style="padding:10px 12px;font-size:12px;color:var(--danger)">Network error: ${esc(e.message)}</div>`;
+        }
+        positionDd();
+        ddSelected = null;
+    }, 280);
+}
+
+function ddPick(i) {
+    const dd = document.getElementById('dd');
+    ddSelected = (dd._results || [])[i];
+    if (ddSelected) {
+        document.getElementById('test-search').value = ddSelected.name;
+        closeDd();
+    }
+}
+function positionDd() {
+    const inp  = document.getElementById('test-search');
+    const dd   = document.getElementById('dd');
+    const rect = inp.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    // Prefer opening downward, but flip up if not enough space below
+    if (spaceBelow >= 200 || spaceBelow >= spaceAbove) {
+        dd.style.top    = (rect.bottom + 4) + 'px';
+        dd.style.bottom = 'auto';
+    } else {
+        const ddHeight = Math.min(240, dd.scrollHeight || 200);
+        dd.style.top    = (rect.top - ddHeight - 4) + 'px';
+        dd.style.bottom = 'auto';
+    }
+    dd.style.left  = rect.left + 'px';
+    dd.style.width = (rect.width) + 'px';
+}
+function openDd()  {
+    if (document.getElementById('test-search').value.length > 1) searchEntra();
+}
+function closeDd() { document.getElementById('dd').classList.remove('open'); }
+
+function addTestAssignee() {
+    const inp   = document.getElementById('test-search');
+    const match = ddSelected || null;
+    if (!match) return;
+    if (testAssignees.find(a => a.id === match.id)) return;
+    testAssignees.push(match);
+    ddSelected = null;
+    inp.value  = '';
+    renderPills();
+}
+
+function removeAssignee(i) { testAssignees.splice(i, 1); renderPills(); }
+
+function renderPills() {
+    const area = document.getElementById('pill-area');
+    document.getElementById('test-count-lbl').textContent = testAssignees.length + ' assigned';
+    if (!testAssignees.length) {
+        area.innerHTML = '<span class="empty-pill">No test accounts or groups added yet</span>';
+        return;
+    }
+    area.innerHTML = testAssignees.map((a, i) => `
+        <span class="pill ${a.type === 'group' ? 'pill-group' : 'pill-user'}">
+            ${a.type === 'group' ? '⬡' : '○'} ${esc(a.name)}
+            <span class="pill-x" onclick="removeAssignee(${i})">×</span>
+        </span>`).join('');
+}
+
+// ── Clone ──────────────────────────────────────────────────────────────────
+async function runClone() {
+    const btn = document.getElementById('clone-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Cloning apps…';
+
+    const srcDg  = document.getElementById('src-dg');
+    const dstDg  = document.getElementById('dst-dg');
+    const srcId  = srcDg.value;
+    const dstId  = dstDg.value;
+    const srcName = srcDg.options[srcDg.selectedIndex]?.text || '';
+    const dstName = dstDg.options[dstDg.selectedIndex]?.text || '';
+
+    const attrFlags = {};
+    attrs.forEach(a => { attrFlags[a.key] = a.on; });
+
+    const body = {
+        source_dg_id:   srcId,
+        source_dg_name: srcName,
+        target_dg_id:   dstId,
+        target_dg_name: dstName,
+        app_ids:        [...selected],
+        attr_flags:     attrFlags,
+        folder_map:     folderMap,
+        path_rules:     rules,
+        test_assignees: testAssignees,
+    };
+
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/applications/clone`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(body),
+        });
+        const data = await res.json();
+        const resultDiv = document.getElementById('clone-result');
+        resultDiv.style.display = 'block';
+
+        if (data.status !== 'ok') {
+            resultDiv.className = 'result-err';
+            resultDiv.textContent = '❌ Clone failed: ' + data.message;
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+            return;
+        }
+
+        activeJobId = data.job_id;
+        const testNote = testAssignees.length
+            ? ` Test access assigned to: ${testAssignees.map(a => a.name).join(', ')}.`
+            : '';
+        const errNote  = data.errors?.length
+            ? ` ⚠️ ${data.errors.length} app(s) failed — check logs.`
+            : '';
+
+        resultDiv.className = 'result-ok';
+        resultDiv.innerHTML = `✅ ${data.cloned.length} apps cloned to ${esc(dstName)}.${testNote}${errNote}
+            Production security groups were not copied — proceed to step 4 when ready to cut over.`;
+
+        // Unlock step 4
+        const s4 = document.getElementById('s4');
+        s4.className   = 'step cutover-ready';
+        s4.style.cursor = 'pointer';
+        s4.onclick      = () => goStep(4);
+
+        btn.style.display = 'none';
+        await loadJobs();
+        setTimeout(() => goStep(4), 2000);
+
+    } catch (e) {
+        document.getElementById('clone-result').className = 'result-err';
+        document.getElementById('clone-result').textContent = '❌ Error: ' + e.message;
+        btn.disabled    = false;
+        btn.textContent = 'Retry';
+    }
+}
+
+// ── Cutover preview ────────────────────────────────────────────────────────
+function renderCutoverPreview() {
+    const selApps = allApps.filter(a => selected.has(a.id));
+    document.getElementById('co-app-count').textContent = selApps.length;
+    document.getElementById('co-count-lbl').textContent  = selApps.length + ' apps';
+
+    const testPills  = testAssignees.length
+        ? testAssignees.map(t => `<span class="gpill gpill-remove">− ${esc(t.name)}</span>`).join('')
+        : '<span style="color:var(--text4);font-size:11px">none</span>';
+
+    document.getElementById('co-tbody').innerHTML = selApps.map(a => {
+        const prodPills = (a.included_users || []).map(u =>
+            `<span class="gpill gpill-add">+ ${esc(u)}</span>`
+        ).join('') || '<span style="color:var(--text4);font-size:11px">none</span>';
+        const netPills = (a.included_users || []).map(u =>
+            `<span class="gpill gpill-add">${esc(u)}</span>`
+        ).join('') || '<span style="color:var(--text4);font-size:11px">open access</span>';
+        const dstFolder = folderMap[a.folder] || a.folder;
+        return `<tr>
+            <td>
+                <div style="font-weight:bold;font-size:13px">${esc(a.published_name || a.name)}</div>
+                <div style="font-size:11px;color:var(--text4)">${esc(dstFolder)}</div>
+            </td>
+            <td>${testPills}</td>
+            <td>${prodPills}</td>
+            <td>${netPills}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Cutover run ────────────────────────────────────────────────────────────
+async function runCutover() {
+    if (!activeJobId) {
+        alert('No clone job found. Complete step 3 first.');
+        return;
+    }
+    if (!confirm(
+        `This will remove test access and apply production groups to all ${selected.size} cloned apps.\n\n` +
+        `Users will immediately lose access to old apps and gain access to new ones.\n\nProceed?`
+    )) return;
+
+    const btn = document.getElementById('co-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Running cutover…';
+
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/clone-jobs/${activeJobId}/cutover`, { method: 'POST' });
+        const data = await res.json();
+        const resultDiv = document.getElementById('co-result');
+        resultDiv.style.display = 'block';
+
+        if (data.status !== 'ok') {
+            resultDiv.className   = 'result-err';
+            resultDiv.textContent = '❌ Cutover failed: ' + data.message;
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+            return;
+        }
+
+        const failed = data.failed || [];
+        if (failed.length) {
+            resultDiv.className = 'result-err';
+            resultDiv.innerHTML = `⚠️ Cutover partial: ${data.succeeded.length} ok, ${failed.length} failed.<br>` +
+                failed.map(f => `${esc(f.name)}: ${esc(f.error)}`).join('<br>');
+        } else {
+            resultDiv.className   = 'result-ok';
+            resultDiv.textContent = `✅ Cutover complete. ${data.succeeded.length} apps updated — test access removed, production groups applied.`;
+        }
+        btn.style.display = 'none';
+        await loadJobs();
+    } catch (e) {
+        document.getElementById('co-result').className   = 'result-err';
+        document.getElementById('co-result').textContent = '❌ Error: ' + e.message;
+        btn.disabled    = false;
+        btn.textContent = 'Retry';
+    }
+}
+
+// ── Jobs history ───────────────────────────────────────────────────────────
+async function loadJobs() {
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/clone-jobs`);
+        const data = await res.json();
+        const area = document.getElementById('jobs-area');
+        if (!data.jobs || !data.jobs.length) {
+            area.innerHTML = '<div style="padding:14px;color:var(--text4);font-size:13px">No clone jobs yet.</div>';
+            return;
+        }
+        area.innerHTML = data.jobs.map(j => {
+            const statusBadge = j.status === 'cutover'
+                ? '<span class="badge badge-ok">cutover complete</span>'
+                : '<span class="badge badge-warn">awaiting cutover</span>';
+            const appCount = (j.cloned_apps || []).length;
+            const ts       = (j.created_at || '').replace('T', ' ').slice(0, 16);
+            return `<div class="job-row" onclick="resumeJob('${j.id}')">
+                <div class="job-name">${esc(j.source_dg_name)} → ${esc(j.target_dg_name)}</div>
+                <div class="job-meta">${appCount} apps</div>
+                <div class="job-meta">${ts}</div>
+                ${statusBadge}
+                <button class="job-del" onclick="event.stopPropagation();deleteJob('${j.id}')">✕ Delete</button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load jobs:', e);
+    }
+}
+
+async function deleteJob(jobId) {
+    if (!confirm('Delete this clone job record? This only removes the history entry — it does not delete any apps from Citrix.')) return;
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/clone-jobs/${jobId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status !== 'ok') { alert('Delete failed: ' + data.message); return; }
+        await loadJobs();
+    } catch (e) {
+        alert('Delete failed: ' + e.message);
+    }
+}
+
+async function clearCompletedJobs() {
+    if (!confirm('Delete all completed (cutover) job records? This only removes history entries — no Citrix apps are affected.')) return;
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/clone-jobs?status=cutover`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status !== 'ok') { alert('Clear failed: ' + data.message); return; }
+        await loadJobs();
+    } catch (e) {
+        alert('Clear failed: ' + e.message);
+    }
+}
+
+async function clearPendingJobs() {
+    if (!confirm('Delete all pending (awaiting cutover) job records? This only removes history entries — no Citrix apps are deleted from Citrix.')) return;
+    try {
+        const res  = await fetch(`${BASE}/api/citrix/clone-jobs?status=cloned`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status !== 'ok') { alert('Clear failed: ' + data.message); return; }
+        await loadJobs();
+    } catch (e) {
+        alert('Clear failed: ' + e.message);
+    }
+}
+
+async function resumeJob(jobId) {
+    const res  = await fetch(`${BASE}/api/citrix/clone-jobs/${jobId}`);
+    const data = await res.json();
+    if (data.status !== 'ok') return;
+    const job = data.job;
+    activeJobId = jobId;
+    if (job.status === 'cloned') {
+        const s4 = document.getElementById('s4');
+        s4.className    = 'step cutover-ready';
+        s4.style.cursor = 'pointer';
+        s4.onclick      = () => goStep(4);
+        goStep(4);
+    }
+}
+
+// ── Step navigation ────────────────────────────────────────────────────────
+function goStep(n) {
+    [1, 2, 3, 4].forEach(i => {
+        document.getElementById('page' + i).style.display = i === n ? '' : 'none';
+        const s  = document.getElementById('s' + i);
+        const sn = s.querySelector('.step-num');
+        if (i < n) {
+            s.className = 'step done';
+            sn.textContent = '✓';
+        } else if (i === n && i === 4) {
+            s.className = 'step cutover-ready active';
+            sn.textContent = i;
+        } else if (i === n) {
+            s.className = 'step active';
+            sn.textContent = i;
+        } else {
+            // Keep cutover-ready state if already unlocked
+            if (!s.className.includes('cutover-ready')) s.className = 'step';
+            sn.textContent = i;
+        }
+    });
+    if (n === 2) renderRules();
+    if (n === 3) renderPreview();
+    if (n === 4) renderCutoverPreview();
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+init();
+</script>
+{% endblock %}

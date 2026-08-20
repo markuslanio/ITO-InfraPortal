@@ -1,0 +1,713 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Header ───────────────────────────────────────────────────────────────── */
+.dash-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+}
+.dash-meta { font-size: 13px; color: var(--text3); }
+.dash-meta a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.dash-meta a:hover { text-decoration: underline; }
+
+/* ── View toggle ──────────────────────────────────────────────────────────── */
+.view-toggle { display: flex; background: var(--bg3); border-radius: 8px; padding: 3px; gap: 2px; }
+.view-btn {
+  padding: 7px 18px; border: none; border-radius: 6px; font-size: 13px;
+  cursor: pointer; background: transparent; color: var(--text3); transition: all .2s;
+}
+.view-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* ── System cards grid ────────────────────────────────────────────────────── */
+.sys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.sys-card {
+  background: var(--bg2);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--text4);
+  display: flex; flex-direction: column;
+  overflow: hidden; transition: box-shadow .2s;
+}
+.sys-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.sys-card.status-ok       { border-top-color: var(--success); }
+.sys-card.status-warning  { border-top-color: var(--warning); }
+.sys-card.status-critical { border-top-color: var(--danger); }
+
+.sys-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 16px 10px;
+}
+.sys-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.sys-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.sys-card.status-ok       .sys-badge { background: rgba(34,204,102,.12);  color: var(--success); }
+.sys-card.status-warning  .sys-badge { background: rgba(255,170,0,.12);   color: var(--warning); }
+.sys-card.status-critical .sys-badge { background: rgba(255,68,68,.12);   color: var(--danger); }
+.sys-card.status-unknown  .sys-badge { background: rgba(136,135,128,.12); color: var(--text4); }
+
+/* 2×2 sub-tile grid */
+.sys-tiles {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1px; background: var(--border);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  flex: 1;
+}
+.sys-tile {
+  background: var(--bg2); padding: 11px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tile-val {
+  font-size: 24px; font-weight: 700; color: var(--text); line-height: 1;
+}
+.tile-val.crit { color: var(--danger); }
+.tile-val.warn { color: var(--warning); }
+.tile-val.ok   { color: var(--success); }
+.tile-val.muted { color: var(--text4); font-size: 18px; }
+.tile-lbl { font-size: 10px; color: var(--text4); text-transform: uppercase; letter-spacing: .04em; }
+
+.sys-link {
+  display: block; text-align: right; padding: 9px 14px;
+  font-size: 12px; color: var(--accent); text-decoration: none; background: var(--bg2);
+}
+.sys-link:hover { background: var(--surface); color: var(--accent); text-decoration: underline; }
+
+/* ── ITO / Jira summary bar ───────────────────────────────────────────────── */
+.jira-bar {
+  background: var(--bg2); border-radius: 10px; border: 1px solid var(--border);
+  padding: 13px 18px; margin-bottom: 22px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+}
+.jira-bar-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text4); min-width: 100px;
+}
+.jira-stat { display: flex; align-items: baseline; gap: 5px; }
+.jira-stat-val { font-size: 20px; font-weight: 700; color: var(--text); }
+.jira-stat-val.warn { color: var(--warning); }
+.jira-stat-val.crit { color: var(--danger); }
+.jira-stat-lbl { font-size: 12px; color: var(--text4); }
+.jira-bar-links { margin-left: auto; display: flex; gap: 14px; }
+.jira-bar-links a { font-size: 12px; color: var(--accent); text-decoration: none; }
+.jira-bar-links a:hover { text-decoration: underline; }
+
+/* ── Tech view: grouped findings ──────────────────────────────────────────── */
+.findings-group { margin-bottom: 18px; }
+.group-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0 8px; border-bottom: 1px solid var(--border);
+  margin-bottom: 8px; font-size: 12px; font-weight: 700;
+  color: var(--text3); text-transform: uppercase; letter-spacing: .06em;
+}
+.group-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px;
+}
+.group-badge-crit { background: rgba(255,68,68,.12);  color: var(--danger); }
+.group-badge-warn { background: rgba(255,170,0,.12);  color: var(--warning); }
+.group-badge-ok   { background: rgba(34,204,102,.10); color: var(--success); }
+.group-head-link { font-size: 11px; color: var(--accent); text-decoration: none; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.group-head-link:hover { text-decoration: underline; }
+.group-clear { font-size: 12px; color: var(--success); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.group-chevron { margin-left: auto; font-size: 13px; color: var(--text4); transition: transform .2s; cursor: pointer; user-select: none; }
+.group-head.collapsed .group-chevron { transform: rotate(-90deg); }
+.group-body { overflow: hidden; transition: max-height .25s ease, opacity .2s ease; max-height: 2000px; opacity: 1; }
+.group-body.collapsed { max-height: 0; opacity: 0; }
+
+/* ── Finding cards (tech view) ────────────────────────────────────────────── */
+.finding-card {
+  display: flex; align-items: center; gap: 0;
+  background: var(--bg2); border-radius: 8px; margin-bottom: 6px;
+  border: 1px solid var(--border); cursor: pointer;
+  transition: background .15s; overflow: hidden;
+}
+.finding-card:hover { background: var(--surface); }
+.finding-bar { width: 4px; align-self: stretch; flex-shrink: 0; }
+.finding-body { flex: 1; padding: 10px 14px; min-width: 0; }
+.finding-badges { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; flex-wrap: wrap; }
+.finding-title { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.finding-detail { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.finding-arrow { padding: 0 14px; color: var(--text4); font-size: 18px; flex-shrink: 0; }
+.sev-1 .finding-bar { background: var(--danger); }
+.sev-2 .finding-bar { background: var(--warning); }
+.sev-3 .finding-bar { background: var(--accent); }
+
+.badge {
+  font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-crit { background: rgba(255,68,68,.12);  color: var(--danger); }
+.badge-warn { background: rgba(255,170,0,.12);  color: var(--warning); }
+.badge-info { background: rgba(15,155,142,.10); color: var(--accent); }
+.badge-age  { background: transparent; color: var(--text4); font-size: 10px; }
+
+/* ── Detail drawer ────────────────────────────────────────────────────────── */
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.drawer-overlay.open { opacity: 1; pointer-events: all; }
+.detail-drawer {
+  position: fixed; top: 0; right: -480px; width: 460px; max-width: 95vw;
+  height: 100vh; background: var(--bg2); z-index: 201;
+  box-shadow: -4px 0 30px rgba(0,0,0,.4); display: flex; flex-direction: column;
+  transition: right .25s ease; overflow: hidden;
+}
+.detail-drawer.open { right: 0; }
+.drawer-header {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 20px 20px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.drawer-sev-bar { width: 4px; border-radius: 2px; align-self: stretch; flex-shrink: 0; }
+.drawer-title { flex: 1; font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.drawer-close { background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; padding: 0; line-height: 1; }
+.drawer-close:hover { color: var(--text); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 20px; }
+.drawer-section { margin-bottom: 20px; }
+.drawer-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text4); margin: 0 0 10px; }
+.drawer-kv { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.drawer-kv:last-child { border-bottom: none; }
+.drawer-kv .k { color: var(--text3); }
+.drawer-kv .v { color: var(--text); font-weight: 500; text-align: right; max-width: 260px; word-break: break-word; }
+.drawer-detail { font-size: 13px; color: var(--text2); line-height: 1.6; padding: 10px 0; }
+.ai-section { background: var(--bg3); border-radius: 8px; padding: 14px; }
+.ai-result { font-size: 13px; color: var(--text2); line-height: 1.6; margin-top: 10px; white-space: pre-wrap; }
+.drawer-actions { display: flex; flex-direction: column; gap: 8px; }
+.btn-drawer {
+  display: block; padding: 10px 16px; border-radius: 8px; text-align: center;
+  font-size: 13px; font-weight: 500; text-decoration: none; border: none; cursor: pointer; transition: background .2s;
+}
+.btn-drawer-primary { background: var(--accent); color: #fff; }
+.btn-drawer-primary:hover { background: var(--accent-dark); }
+.btn-drawer-secondary { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+.btn-drawer-secondary:hover { background: var(--surface); }
+.btn-drawer-ai { background: rgba(15,155,142,.15); color: var(--accent); border: 1px solid rgba(15,155,142,.3); }
+.btn-drawer-ai:hover { background: rgba(15,155,142,.25); }
+.btn-drawer-ai:disabled { opacity: .5; cursor: default; }
+
+.hidden { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="dash-header">
+  <div class="dash-meta">
+    {% if findings_age_str %}Findings last updated {{ findings_age_str }} · {% endif %}
+    <a onclick="refreshFindings(this)">↻ Refresh now</a>
+  </div>
+  <div class="view-toggle">
+    <button class="view-btn" id="btn-exec" onclick="setView('exec')">Executive</button>
+    <button class="view-btn" id="btn-tech" onclick="setView('tech')">Technical</button>
+  </div>
+</div>
+
+{# ── Precompute per-system finding sets (used in both views) ─────────────── #}
+{% set vmw_f   = findings | selectattr("system","eq","VMware")     | list %}
+{% set ctx_f   = findings | selectattr("system","eq","Citrix")     | list %}
+{% set ad_f    = findings | selectattr("system","eq","Auth")       | list %}
+{% set mon_f   = findings | selectattr("system","eq","Monitoring") | list %}
+{% set jira_f  = findings | selectattr("system","eq","Jira")       | list %}
+{% set net_f   = findings | selectattr("system","eq","Network")    | list %}
+{% set cert_f  = findings | selectattr("system","eq","Certs")      | list %}
+{% set asset_f = findings | selectattr("system","eq","Assets")     | list %}
+
+{% set vmw_disk  = vmw_f  | selectattr("category","eq","disk")     | list | length %}
+{% set net_off   = net_f  | selectattr("category","eq","offline")  | list | length %}
+{% set net_deg   = net_f  | selectattr("category","eq","degraded") | list | length %}
+
+{# Jira card health: critical if sev1, warning if sev2, ok otherwise #}
+{% set jira_health = "critical" if jira_stats.itsd.sev1 > 0 else ("warning" if jira_stats.itsd.sev2 > 0 else "ok") %}
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     EXECUTIVE VIEW
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="exec-view">
+
+  <div class="sys-grid">
+
+    <!-- ── VMware ───────────────────────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('VMware','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">VMware</span>
+        <span class="sys-badge">{{ system_health.get('VMware','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.vm_count | default('—') }}</div>
+          <div class="tile-lbl">Total VMs</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.vm_powered_on | default('—') }}</div>
+          <div class="tile-lbl">Powered On</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.host_count | default('—') }}</div>
+          <div class="tile-lbl">ESXi Hosts</div>
+        </div>
+        <div class="sys-tile">
+          {% set dv = vmw_disk %}
+          <div class="tile-val {% if dv > 0 %}warn{% endif %}">{{ dv }}</div>
+          <div class="tile-lbl">Disk Issues</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/vmware">View VMware →</a>
+    </div>
+
+    <!-- ── Citrix ───────────────────────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('Citrix','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Citrix</span>
+        <span class="sys-badge">{{ system_health.get('Citrix','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.citrix_sessions | default('—') }}</div>
+          <div class="tile-lbl">Active Sessions</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.citrix_machines | default('—') }}</div>
+          <div class="tile-lbl">Total Machines</div>
+        </div>
+        <div class="sys-tile">
+          {% set cu = metrics.citrix_unregistered | default(0) %}
+          <div class="tile-val {% if cu > 0 %}warn{% endif %}">{{ cu if metrics.citrix_unregistered is defined else '—' }}</div>
+          <div class="tile-lbl">Unregistered</div>
+        </div>
+        <div class="sys-tile">
+          {% set cf = metrics.citrix_faults | default(0) %}
+          <div class="tile-val {% if cf > 0 %}crit{% endif %}">{{ cf if metrics.citrix_faults is defined else '—' }}</div>
+          <div class="tile-lbl">With Faults</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/citrix">View Citrix →</a>
+    </div>
+
+    <!-- ── Active Directory ─────────────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('Auth','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Active Directory</span>
+        <span class="sys-badge">{{ system_health.get('Auth','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.ad_users | default('—') }}</div>
+          <div class="tile-lbl">Active Users</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.ad_computers | default('—') }}</div>
+          <div class="tile-lbl">Computers</div>
+        </div>
+        <div class="sys-tile">
+          {% set su = metrics.ad_stale_users | default(0) %}
+          <div class="tile-val {% if su > 200 %}crit{% elif su > 50 %}warn{% endif %}">{{ su if metrics.ad_stale_users is defined else '—' }}</div>
+          <div class="tile-lbl">Stale Users</div>
+        </div>
+        <div class="sys-tile">
+          {% set pn = metrics.ad_pwd_never | default(0) %}
+          <div class="tile-val {% if pn > 500 %}crit{% elif pn > 100 %}warn{% endif %}">{{ pn if metrics.ad_pwd_never is defined else '—' }}</div>
+          <div class="tile-lbl">Pwd Never Expires</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/active-directory">View Active Directory →</a>
+    </div>
+
+    <!-- ── Monitoring (OpManager) ──────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('Monitoring','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Monitoring</span>
+        <span class="sys-badge">{{ system_health.get('Monitoring','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          {% set s1 = metrics.opm_sev1 | default(0) %}
+          <div class="tile-val {% if s1 > 0 %}crit{% endif %}">{{ s1 if metrics.opm_sev1 is defined else '—' }}</div>
+          <div class="tile-lbl">Critical</div>
+        </div>
+        <div class="sys-tile">
+          {% set s2 = metrics.opm_sev2 | default(0) %}
+          <div class="tile-val {% if s2 > 0 %}warn{% endif %}">{{ s2 if metrics.opm_sev2 is defined else '—' }}</div>
+          <div class="tile-lbl">Major</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.opm_minor | default('—') }}</div>
+          <div class="tile-lbl">Minor</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val muted">{{ metrics.opm_total | default('—') }}</div>
+          <div class="tile-lbl">Total Active</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/alerts">View Alerts →</a>
+    </div>
+
+    <!-- ── Certificates ─────────────────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('Certs','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Certificates</span>
+        <span class="sys-badge">{{ system_health.get('Certs','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          {% set c14 = metrics.certs_expiring_14 | default(0) %}
+          <div class="tile-val {% if c14 > 0 %}crit{% endif %}">{{ c14 if metrics.certs_expiring_14 is defined else '—' }}</div>
+          <div class="tile-lbl">Expiring ≤14 days</div>
+        </div>
+        <div class="sys-tile">
+          {% set c30 = metrics.certs_expiring_30 | default(0) %}
+          <div class="tile-val {% if c30 > 0 %}warn{% endif %}">{{ c30 if metrics.certs_expiring_30 is defined else '—' }}</div>
+          <div class="tile-lbl">Expiring ≤30 days</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val muted">{{ metrics.certs_expired | default('—') }}</div>
+          <div class="tile-lbl">Expired on Record</div>
+        </div>
+        <div class="sys-tile">
+          {% set ca = cert_f | list | length %}
+          <div class="tile-val {% if ca > 0 %}warn{% endif %}">{{ ca }}</div>
+          <div class="tile-lbl">Active Findings</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/certificates">View Certificates →</a>
+    </div>
+
+    <!-- ── Assets (Lansweeper) ──────────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('Assets','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Assets</span>
+        <span class="sys-badge">{{ system_health.get('Assets','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          <div class="tile-val">{{ metrics.asset_count | default('—') }}</div>
+          <div class="tile-lbl">Total Assets</div>
+        </div>
+        <div class="sys-tile">
+          {% set eol = metrics.eol_count | default(0) %}
+          <div class="tile-val {% if eol > 0 %}warn{% endif %}">{{ eol if metrics.eol_count is defined else '—' }}</div>
+          <div class="tile-lbl">EOL Systems</div>
+        </div>
+        <div class="sys-tile">
+          {% set ns30 = metrics.asset_not_seen_30d | default(0) %}
+          <div class="tile-val {% if ns30 > 20 %}warn{% endif %}">{{ ns30 if metrics.asset_not_seen_30d is defined else '—' }}</div>
+          <div class="tile-lbl">Offline 30d+</div>
+        </div>
+        <div class="sys-tile">
+          {% set af = asset_f | list | length %}
+          <div class="tile-val {% if af > 0 %}warn{% endif %}">{{ af }}</div>
+          <div class="tile-lbl">Active Findings</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/assets">View Assets →</a>
+    </div>
+
+    <!-- ── Network (Meraki) ─────────────────────────────────────────── -->
+    <div class="sys-card status-{{ system_health.get('Network','unknown') }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Network</span>
+        <span class="sys-badge">{{ system_health.get('Network','No data')|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          <div class="tile-val {% if net_off > 0 %}crit{% endif %}">{{ net_off if net_f else '—' }}</div>
+          <div class="tile-lbl">Offline</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val {% if net_deg > 0 %}warn{% endif %}">{{ net_deg if net_f else '—' }}</div>
+          <div class="tile-lbl">Degraded</div>
+        </div>
+        <div class="sys-tile">
+          {% set nf = net_f | list | length %}
+          <div class="tile-val {% if nf > 0 %}warn{% endif %}">{{ nf }}</div>
+          <div class="tile-lbl">Active Issues</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val muted">—</div>
+          <div class="tile-lbl">Devices</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/network">View Network →</a>
+    </div>
+
+    <!-- ── Jira / Incidents ─────────────────────────────────────────── -->
+    <div class="sys-card status-{{ jira_health }}">
+      <div class="sys-card-head">
+        <span class="sys-name">Jira / Incidents</span>
+        <span class="sys-badge">{{ jira_health|title }}</span>
+      </div>
+      <div class="sys-tiles">
+        <div class="sys-tile">
+          <div class="tile-val {% if jira_stats.itsd.sev1 > 0 %}crit{% endif %}">{{ jira_stats.itsd.sev1 }}</div>
+          <div class="tile-lbl">Sev-1 Open</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val {% if jira_stats.itsd.sev2 > 0 %}warn{% endif %}">{{ jira_stats.itsd.sev2 }}</div>
+          <div class="tile-lbl">Sev-2 Open</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ jira_stats.itsd.open }}</div>
+          <div class="tile-lbl">Total Open ITSD</div>
+        </div>
+        <div class="sys-tile">
+          <div class="tile-val">{{ jira_stats.tasi.changes_48h }}</div>
+          <div class="tile-lbl">TASI Changes 48h</div>
+        </div>
+      </div>
+      <a class="sys-link" href="/infraportal/jira-intelligence">View Jira →</a>
+    </div>
+
+  </div>{# end .sys-grid #}
+
+  <!-- ── ITO Projects bar ───────────────────────────────────────────── -->
+  <div class="jira-bar">
+    <span class="jira-bar-label">ITO Projects</span>
+    <div class="jira-stat">
+      <span class="jira-stat-val">{{ jira_stats.ito.open_epics }}</span>
+      <span class="jira-stat-lbl">Open Epics</span>
+    </div>
+    <div class="jira-stat">
+      <span class="jira-stat-val {% if jira_stats.ito.overdue > 0 %}warn{% endif %}">{{ jira_stats.ito.overdue }}</span>
+      <span class="jira-stat-lbl">Overdue</span>
+    </div>
+    <div class="jira-stat">
+      <span class="jira-stat-val {% if jira_stats.ito.stalled > 0 %}warn{% endif %}">{{ jira_stats.ito.stalled }}</span>
+      <span class="jira-stat-lbl">Stalled &gt;30d</span>
+    </div>
+    <div class="jira-stat">
+      <span class="jira-stat-val {% if jira_stats.itsd.open_24h_plus > 0 %}warn{% endif %}">{{ jira_stats.itsd.open_24h_plus }}</span>
+      <span class="jira-stat-lbl">ITSD Open &gt;24h</span>
+    </div>
+    <div class="jira-bar-links">
+      <a href="/infraportal/jira-intelligence?tab=ito">Projects →</a>
+      <a href="/infraportal/jira-intelligence?tab=itsd">Incidents →</a>
+      <a href="/infraportal/jira-intelligence?tab=tasi">Changes →</a>
+    </div>
+  </div>
+
+</div>{# end #exec-view #}
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TECHNICAL VIEW — findings grouped by system
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="tech-view" class="hidden">
+
+{% set sys_order = [
+  ("Monitoring", mon_f,   "/infraportal/alerts"),
+  ("VMware",     vmw_f,   "/infraportal/vmware"),
+  ("Certs",      cert_f,  "/infraportal/certificates"),
+  ("Jira",       jira_f,  "/infraportal/jira-intelligence"),
+  ("Auth",       ad_f,    "/infraportal/active-directory"),
+  ("Assets",     asset_f, "/infraportal/assets"),
+  ("Network",    net_f,   "/infraportal/network"),
+  ("Citrix",     ctx_f,   "/infraportal/citrix"),
+] %}
+
+{% for sys_name, sys_finds, sys_url in sys_order %}
+  {% set crit_n = sys_finds | selectattr("severity","eq",1) | list | length %}
+  {% set warn_n = sys_finds | selectattr("severity","eq",2) | list | length %}
+  {% set start_collapsed = (sys_finds|length == 0) %}
+  <div class="findings-group">
+    <div class="group-head {% if start_collapsed %}collapsed{% endif %}" onclick="toggleGroup(this)">
+      {{ sys_name }}
+      {% if crit_n > 0 %}
+        <span class="group-badge group-badge-crit">{{ crit_n }} critical</span>
+      {% endif %}
+      {% if warn_n > 0 %}
+        <span class="group-badge group-badge-warn">{{ warn_n }} warning</span>
+      {% endif %}
+      {% if sys_finds|length == 0 %}
+        <span class="group-clear">✓ All clear</span>
+      {% endif %}
+      <a class="group-head-link" href="{{ sys_url }}" onclick="event.stopPropagation()">{{ sys_name }} page →</a>
+      <span class="group-chevron">▾</span>
+    </div>
+
+    <div class="group-body {% if start_collapsed %}collapsed{% endif %}">
+      {% for f in sys_finds %}
+      <div class="finding-card sev-{{ f.severity }}" onclick="openDrawer({{ f.id }})">
+        <div class="finding-bar"></div>
+        <div class="finding-body">
+          <div class="finding-badges">
+            {% if f.severity == 1 %}<span class="badge badge-crit">Critical</span>
+            {% elif f.severity == 2 %}<span class="badge badge-warn">Warning</span>
+            {% else %}<span class="badge badge-info">Info</span>{% endif %}
+            <span class="badge badge-age">{{ f.category }}</span>
+          </div>
+          <div class="finding-title">{{ f.title }}</div>
+          {% if f.detail %}<div class="finding-detail">{{ f.detail }}</div>{% endif %}
+        </div>
+        <div class="finding-arrow">›</div>
+      </div>
+      {% endfor %}
+      {% if sys_finds|length == 0 %}
+      <div style="padding:10px 0 4px;font-size:13px;color:var(--text4)">No active findings for this system.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+
+</div>{# end #tech-view #}
+
+
+<!-- ── Detail drawer ───────────────────────────────────────────────────────── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="detail-drawer" id="detail-drawer">
+  <div class="drawer-header">
+    <div class="drawer-sev-bar" id="drawer-sev-bar"></div>
+    <div class="drawer-title" id="drawer-title">Loading…</div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-section" id="drawer-badges-section"></div>
+    <div class="drawer-section">
+      <p class="drawer-detail" id="drawer-detail"></p>
+    </div>
+    <div class="drawer-section" id="drawer-meta-section"></div>
+    <div class="drawer-section ai-section">
+      <p class="drawer-section-title">AI Assessment</p>
+      <button class="btn-drawer btn-drawer-ai" id="ai-btn" onclick="getAI()">Get AI Analysis</button>
+      <div class="ai-result hidden" id="ai-result"></div>
+    </div>
+    <div class="drawer-section drawer-actions" id="drawer-actions"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const FINDINGS = {{ findings | tojson }};
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+
+function setView(v) {
+  document.getElementById('exec-view').classList.toggle('hidden', v !== 'exec');
+  document.getElementById('tech-view').classList.toggle('hidden', v !== 'tech');
+  document.getElementById('btn-exec').classList.toggle('active', v === 'exec');
+  document.getElementById('btn-tech').classList.toggle('active', v === 'tech');
+  localStorage.setItem('dash_view', v);
+}
+
+(function() {
+  const saved = localStorage.getItem('dash_view');
+  setView(saved || (IS_ADMIN ? 'exec' : 'tech'));
+})();
+
+function toggleGroup(head) {
+  head.classList.toggle('collapsed');
+  head.nextElementSibling.classList.toggle('collapsed');
+}
+
+function refreshFindings(el) {
+  const orig = el.textContent;
+  el.textContent = 'Refreshing…';
+  el.style.pointerEvents = 'none';
+  fetch('/infraportal/api/dashboard/refresh-findings', {method:'POST'})
+    .then(() => { setTimeout(() => location.reload(), 4000); })
+    .catch(() => { el.textContent = orig; el.style.pointerEvents = ''; });
+}
+
+let _activeFindingId = null;
+
+function openDrawer(id) {
+  const f = FINDINGS.find(x => x.id === id);
+  if (!f) return;
+  _activeFindingId = id;
+
+  const sevColors = {1:'var(--danger)',2:'var(--warning)',3:'var(--accent)'};
+  document.getElementById('drawer-sev-bar').style.background = sevColors[f.severity] || 'var(--accent)';
+  document.getElementById('drawer-title').textContent = f.title;
+  document.getElementById('drawer-detail').textContent = f.detail || '';
+
+  const sevLabels = {1:'Critical',2:'Warning',3:'Info'};
+  const sevClasses = {1:'badge-crit',2:'badge-warn',3:'badge-info'};
+  document.getElementById('drawer-badges-section').innerHTML =
+    `<div style="display:flex;gap:6px;flex-wrap:wrap">
+       <span class="badge badge-age">${esc(f.system)}</span>
+       <span class="badge ${sevClasses[f.severity]||'badge-info'}">${sevLabels[f.severity]||'Info'}</span>
+       <span class="badge badge-age">${esc(f.category)}</span>
+     </div>`;
+
+  let meta = {};
+  try { meta = JSON.parse(f.meta_json || '{}'); } catch(e) {}
+  const kvRows = Object.entries(meta)
+    .filter(([k,v]) => v !== null && v !== undefined && v !== '' && !Array.isArray(v) && typeof v !== 'object')
+    .map(([k,v]) => `<div class="drawer-kv"><span class="k">${esc(humanKey(k))}</span><span class="v">${esc(String(v))}</span></div>`)
+    .join('');
+  document.getElementById('drawer-meta-section').innerHTML = kvRows
+    ? `<p class="drawer-section-title">Details</p>${kvRows}` : '';
+
+  const actions = [];
+  if (f.action_url) {
+    const isExt = f.action_url.startsWith('http');
+    actions.push(`<a class="btn-drawer btn-drawer-primary" href="${esc(f.action_url)}"${isExt?' target="_blank"':''}>View in ${esc(f.system)} →</a>`);
+  }
+  actions.push(`<button class="btn-drawer btn-drawer-secondary" onclick="createTicket(${id})">+ Create ITSD Ticket</button>`);
+  document.getElementById('drawer-actions').innerHTML = actions.join('');
+
+  document.getElementById('ai-btn').disabled = false;
+  document.getElementById('ai-btn').textContent = 'Get AI Analysis';
+  document.getElementById('ai-result').classList.add('hidden');
+  document.getElementById('ai-result').textContent = '';
+
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('detail-drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('detail-drawer').classList.remove('open');
+  _activeFindingId = null;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+function getAI() {
+  if (_activeFindingId === null) return;
+  const btn = document.getElementById('ai-btn');
+  const result = document.getElementById('ai-result');
+  btn.disabled = true;
+  btn.textContent = 'Analysing…';
+  result.classList.add('hidden');
+  fetch('/infraportal/api/dashboard/finding-ai', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({finding_id: _activeFindingId})
+  })
+  .then(r => r.json())
+  .then(d => {
+    result.textContent = d.status === 'ok' ? d.analysis : 'Error: ' + (d.error || 'Unknown');
+    result.classList.remove('hidden');
+    btn.textContent = d.status === 'ok' ? '↻ Refresh Analysis' : 'Get AI Analysis';
+    btn.disabled = false;
+  })
+  .catch(() => {
+    result.textContent = 'Request failed.';
+    result.classList.remove('hidden');
+    btn.textContent = 'Get AI Analysis';
+    btn.disabled = false;
+  });
+}
+
+function createTicket(findingId) {
+  alert('Smart ticket creation coming soon — will pre-fill ITSD fields from this finding.');
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function humanKey(k) {
+  return k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+</script>
+{% endblock %}

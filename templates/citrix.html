@@ -1,0 +1,570 @@
+{% extends "base.html" %}
+{% block title %}Citrix - Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/infraportal/static/tableutils.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ── */
+.section { background: var(--bg2); border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.page-title  { font-size: 18px; font-weight: 600; color: var(--text); }
+.page-meta   { font-size: 12px; color: var(--text4); }
+
+/* ── Stat strip ── */
+.stat-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.stat-chip  { background: var(--bg3); border-radius: 8px; padding: 10px 16px; min-width: 75px; }
+.stat-chip .val { font-size: 22px; font-weight: bold; display: block; }
+.stat-chip .lbl { font-size: 11px; color: var(--text4); display: block; }
+.stat-ok   .val { color: #4ade80; }
+.stat-warn .val { color: #fbbf24; }
+.stat-crit .val { color: #f87171; }
+.stat-info .val { color: #60a5fa; }
+.stat-purp .val { color: #c084fc; }
+
+/* ── Alert boxes ── */
+.alert-box { border-radius: 6px; padding: 9px 13px; margin-bottom: 8px; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; }
+.alert-warn { background: rgba(255,170,0,0.1);  border-left: 3px solid #fbbf24; }
+.alert-crit { background: rgba(248,113,113,0.1); border-left: 3px solid #f87171; }
+.alert-info { background: rgba(96,165,250,0.1);  border-left: 3px solid #60a5fa; }
+
+/* ── Side-by-side DG / Catalog grid ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+.panel { background: var(--bg2); border-radius: 10px; padding: 14px 16px; overflow: hidden; }
+.panel-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
+
+/* ── Gridline table ── */
+.zt { width: 100%; border-collapse: collapse; font-size: 12px; }
+.zt thead th { background: var(--bg3); color: var(--text3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.zt tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: middle; }
+.zt tbody tr:last-child td { border-bottom: none; }
+.zt tbody tr:hover td { background: var(--bg3); }
+.zt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+
+/* ── VDA agent pills ── */
+.agent-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.agent-pill { background: #1a2a3a; border-radius: 12px; padding: 3px 10px; font-size: 11px; color: #aaaaff; }
+
+/* ── Tab bar ── */
+.tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+.tab { padding: 9px 16px; cursor: pointer; font-size: 13px; color: var(--text3); border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Reports area ── */
+.report-section { background: var(--bg2); border-radius: 10px; padding: 16px 20px; }
+.report-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 7px; }
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filter-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.filter-row label { font-size: 12px; color: var(--text3); }
+.filter-row select { background: var(--bg3); color: var(--text); border: 1px solid var(--border); padding: 5px 10px; border-radius: 5px; font-size: 12px; }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+.badge-ok     { background: #14352a; color: #4ade80; }
+.badge-warn   { background: #3a2a0a; color: #fbbf24; }
+.badge-danger { background: #3a0f0f; color: #f87171; }
+.badge-info   { background: #0f2744; color: #60a5fa; }
+.badge-purple { background: #2a1040; color: #c084fc; }
+.badge-gray   { background: var(--bg3); color: var(--text4); }
+
+/* ── Misc ── */
+.loading { color: var(--text3); font-style: italic; font-size: 13px; }
+.ts-bar  { font-size: 12px; color: var(--text4); margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+
+/* ── Confirm modal ── */
+.modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--bg2); border-radius:10px; padding:28px; max-width:400px; width:90%; border:1px solid var(--border); }
+.modal h3 { color:#f87171; margin-top:0; }
+.modal p  { color:var(--text2); font-size:14px; }
+.modal-btns { display:flex; gap:10px; margin-top:20px; justify-content:flex-end; }
+.btn-sm { background:var(--accent); color:#fff; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; }
+.btn-sm.danger { background:#7a1a1a; }
+.btn-sm.danger:hover { background:#aa2222; }
+.btn-sm.warn { background:#7a5a00; }
+.btn-sm.warn:hover { background:#aa8800; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+    <div class="modal">
+        <h3>⚠️ Confirm Logoff</h3>
+        <p id="confirm-text">Are you sure you want to log off this session?</p>
+        <div class="modal-btns">
+            <button class="btn" style="background:var(--bg3)" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-sm danger" style="padding:10px 20px;font-size:14px" id="confirm-btn">Log Off</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Page header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title">🖥️ Citrix Cloud</div>
+            <div class="page-meta" id="ctx-ts">Loading...</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <a href="/infraportal/vdi-cost"
+               style="display:inline-flex;align-items:center;gap:8px;background:#1e3a2a;color:#4ade80;border:1px solid #2d5a3d;
+                      text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600">
+                💰 VDI Cost Report
+            </a>
+            <a href="/infraportal/citrix/app-manager"
+               style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;
+                      text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600">
+                📋 App Manager
+            </a>
+        </div>
+    </div>
+
+    <!-- Stat strip -->
+    <div class="stat-strip" id="ctx-stats">
+        <div class="stat-chip"><span class="val">—</span><span class="lbl">Loading...</span></div>
+    </div>
+
+    <!-- Alert banners -->
+    <div id="ctx-alerts"></div>
+
+    <!-- Delivery Groups + Machine Catalogs side by side -->
+    <div class="two-col">
+        <div class="panel">
+            <div class="panel-label">
+                <span>📦 Delivery Groups</span>
+                <button class="btn-refresh" onclick="loadDeliveryGroups(true)" style="font-size:11px;padding:2px 8px">↻</button>
+            </div>
+            <div id="dg-area"><p class="loading">Loading...</p></div>
+        </div>
+        <div class="panel">
+            <div class="panel-label">
+                <span>🗂️ Machine Catalogs</span>
+                <button class="btn-refresh" onclick="loadCatalogs(true)" style="font-size:11px;padding:2px 8px">↻</button>
+            </div>
+            <div id="catalog-area"><p class="loading">Loading...</p></div>
+        </div>
+    </div>
+
+    <!-- Reports + AI Insights tabs -->
+    <div class="report-section">
+        <div class="tab-bar">
+            <div class="tab active" id="tab-machines"   onclick="switchReportTab('machines')"  >🖥️ Machines</div>
+            <div class="tab"        id="tab-sessions"   onclick="switchReportTab('sessions')"  >👤 Sessions</div>
+            <div class="tab"        id="tab-ai-lens"    onclick="switchReportTab('ai-lens')"   >🧠 AI Insights</div>
+        </div>
+        <div id="report-content">
+            <p class="loading">Click a tab above to load data...</p>
+        </div>
+    </div>
+
+</div>
+
+<script src="/infraportal/static/tableutils.js"></script>
+<script>
+const BASE = '/infraportal';
+let _allSessions = [];
+let _sessionMode = '';
+let _activeReportTab = null;
+let _ctxAiState = 'idle';
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function showConfirm(text, onConfirm) {
+    document.getElementById('confirm-text').textContent = text;
+    document.getElementById('confirm-btn').onclick = () => { closeModal(); onConfirm(); };
+    document.getElementById('confirm-modal').classList.add('show');
+}
+function closeModal() { document.getElementById('confirm-modal').classList.remove('show'); }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function badge(text, type) { return '<span class="badge badge-' + type + '">' + escHtml(text) + '</span>'; }
+function powerBadge(s)   { return !s ? badge('Unknown','gray') : s==='On' ? badge('On','ok') : s==='Off' ? badge('Off','danger') : badge(s,'gray'); }
+function regBadge(s)     { return !s ? badge('Unknown','gray') : s==='Registered' ? badge('Registered','ok') : s==='Unregistered' ? badge('Unregistered','danger') : badge(s,'warn'); }
+function sessBadge(s)    { return !s ? badge('Unknown','gray') : s==='Active' ? badge('Active','ok') : s==='Disconnected' ? badge('Disconnected','warn') : badge(s,'gray'); }
+function apiUrl(path, r) { return BASE + path + '?refresh=' + (r ? 'true' : 'false'); }
+
+// ── Logoff / Shadow ───────────────────────────────────────────────────────────
+async function logoffSession(id, user) {
+    showConfirm('Log off session for ' + user + '?', async () => {
+        const res = await fetch(BASE + '/api/citrix/sessions/' + id + '/logoff', {method:'POST'});
+        const d   = await res.json();
+        if (d.status === 'ok') { alert('Session logged off.'); loadSessions(true, _sessionMode); }
+        else alert('Logoff failed: ' + d.message);
+    });
+}
+function shadowSession(id, user) {
+    if (!confirm('Shadow session for ' + user + '?\nThis will download an ICA file.')) return;
+    window.location.href = BASE + '/api/citrix/sessions/' + id + '/shadow';
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
+async function loadSummary(refresh) {
+    const res  = await fetch(apiUrl('/api/citrix/summary', refresh));
+    const data = await res.json();
+    if (data.status === 'error') {
+        document.getElementById('ctx-alerts').innerHTML = '<div class="alert-box alert-crit">❌ ' + escHtml(data.message) + '</div>';
+        return;
+    }
+    const d = data.data;
+    document.getElementById('ctx-ts').textContent = 'Last updated: ' + data.timestamp;
+
+    // Stat strip
+    const unreg  = d.unregistered        || 0;
+    const faults = d.with_faults          || 0;
+    const maint  = d.in_maintenance       || 0;
+    const discn  = d.disconnected_sessions|| 0;
+    const upgr   = d.upgrade_available    || 0;
+    function chip(val, lbl, cls) {
+        return '<div class="stat-chip ' + cls + '"><span class="val">' + (val??'—') + '</span><span class="lbl">' + lbl + '</span></div>';
+    }
+    document.getElementById('ctx-stats').innerHTML =
+        chip(d.active_sessions,       'Active sessions',  '')
+      + chip(discn,                   'Disconnected',     discn  > 20 ? 'stat-warn' : '')
+      + chip(d.registered,            'Registered',       'stat-ok')
+      + chip(unreg,                   'Unregistered',     unreg  >  0 ? 'stat-crit' : 'stat-ok')
+      + chip(maint,                   'Maintenance',      maint  >  0 ? 'stat-warn' : '')
+      + chip(d.total_machines,        'Total machines',   'stat-info')
+      + chip(d.total_delivery_groups, 'Delivery groups',  '')
+      + chip(d.total_catalogs,        'Catalogs',         '')
+      + chip(faults,                  'Faults',           faults >  0 ? 'stat-crit' : 'stat-ok')
+      + chip(upgr,                    'LTSR upgrades',    upgr   >  0 ? 'stat-warn' : '');
+
+    // Alert banners
+    let alerts = '';
+    if (unreg  > 0) alerts += '<div class="alert-box alert-warn">⚠️ <strong>' + unreg + ' machine(s) unregistered</strong> — cannot accept sessions.</div>';
+    if (faults > 0) alerts += '<div class="alert-box alert-crit">🚨 <strong>' + faults + ' machine(s) in fault state.</strong></div>';
+    if (d.image_out_of_date > 0) alerts += '<div class="alert-box alert-warn">⚠️ <strong>' + d.image_out_of_date + ' machine(s) have stale master images.</strong></div>';
+    if (upgr   > 0) alerts += '<div class="alert-box alert-info">ℹ️ <strong>' + upgr + ' catalog(s) have LTSR upgrades available.</strong></div>';
+    document.getElementById('ctx-alerts').innerHTML = alerts;
+
+    // VDA versions at bottom of stats
+    if (d.agent_versions && Object.keys(d.agent_versions).length) {
+        let bar = '<div class="agent-bar">';
+        for (const [ver, cnt] of Object.entries(d.agent_versions).sort((a,b)=>b[1]-a[1]))
+            bar += '<div class="agent-pill">' + escHtml(ver) + ' <strong style="color:#fff">×' + cnt + '</strong></div>';
+        bar += '</div>';
+        document.getElementById('ctx-stats').insertAdjacentHTML('afterend', '<div style="margin-bottom:12px"><span style="font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.05em">VDA Agent Versions</span>' + bar + '</div>');
+    }
+}
+
+// ── Delivery Groups ───────────────────────────────────────────────────────────
+async function loadDeliveryGroups(refresh) {
+    const res  = await fetch(apiUrl('/api/citrix/delivery-groups', refresh));
+    const data = await res.json();
+    const wrap = document.getElementById('dg-area');
+    if (data.status === 'error') { wrap.innerHTML = '<div class="alert-box alert-crit">❌ ' + escHtml(data.message) + '</div>'; return; }
+
+    const rows = data.delivery_groups.map(dg => {
+        const isMulti = dg.session_support === 'MultiSession';
+        const typeClr = isMulti ? '#60a5fa' : '#c084fc';
+        const unreg   = dg.desktops_unregistered || 0;
+        const discn   = dg.disconnected_sessions || 0;
+        const avail   = dg.desktops_available    || 0;
+        const zone    = dg.zone ? '<span style="font-size:9px;color:var(--text4);margin-left:4px">' + escHtml(dg.zone) + '</span>' : '';
+        const dis     = !dg.enabled ? ' <span class="badge badge-danger" style="font-size:9px">Disabled</span>' : '';
+        return '<tr>'
+            + '<td><span style="font-weight:500">' + escHtml(dg.name) + '</span>' + zone + dis + '</td>'
+            + '<td><span style="color:' + typeClr + ';font-size:11px">' + (isMulti?'XenApp':'VDI') + '</span></td>'
+            + '<td style="text-align:right;font-family:monospace">' + (dg.total_desktops||0) + '</td>'
+            + '<td style="text-align:right;font-family:monospace">' + (dg.desktops_in_use||0) + '</td>'
+            + '<td style="text-align:right"><span style="color:' + (avail>0?'#4ade80':'#fbbf24') + ';font-family:monospace">' + avail + '</span></td>'
+            + '<td style="text-align:right"><span style="color:' + (unreg>0?'#f87171':'#4ade80') + ';font-family:monospace">' + unreg + '</span></td>'
+            + '<td style="text-align:right;font-family:monospace">' + (dg.total_sessions||0) + '</td>'
+            + '<td style="text-align:right"><span style="color:' + (discn>0?'#fbbf24':'var(--text3)') + ';font-family:monospace">' + discn + '</span></td>'
+            + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="zt-wrap"><table class="zt"><thead><tr>'
+        + '<th>Delivery Group</th><th>Type</th>'
+        + '<th style="text-align:right">Total</th><th style="text-align:right">In Use</th>'
+        + '<th style="text-align:right">Avail.</th><th style="text-align:right">Unreg.</th>'
+        + '<th style="text-align:right">Sessions</th><th style="text-align:right">Disconn.</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── Machine Catalogs ──────────────────────────────────────────────────────────
+async function loadCatalogs(refresh) {
+    const res  = await fetch(apiUrl('/api/citrix/catalogs', refresh));
+    const data = await res.json();
+    const wrap = document.getElementById('catalog-area');
+    if (data.status === 'error') { wrap.innerHTML = '<div class="alert-box alert-crit">❌ ' + escHtml(data.message) + '</div>'; return; }
+
+    const rows = data.catalogs.map(c => {
+        const isMulti = c.session_support === 'MultiSession';
+        const typeClr = isMulti ? '#60a5fa' : '#c084fc';
+        const avail   = c.available_count || 0;
+        const zone    = c.zone ? '<span style="font-size:9px;color:var(--text4)">' + escHtml(c.zone) + '</span>' : '—';
+        const img     = c.master_image_server ? '<div style="font-size:9px;color:var(--text4);font-family:monospace">🖼 ' + escHtml(c.master_image_server) + '</div>' : '';
+
+        let statusBadge = '';
+        if (c.is_broken)
+            statusBadge = badge('Broken','danger');
+        else if (c.upgrade_state === 'UpgradeAvailable')
+            statusBadge = badge('Upgrade','warn');
+        else {
+            const wc = (c.warnings?.length||0) + (c.errors?.length||0);
+            statusBadge = wc > 0 ? badge(wc + ' warn','warn') : badge('OK','ok');
+        }
+
+        return '<tr>'
+            + '<td><span style="font-weight:500">' + escHtml(c.name) + '</span>' + img + '</td>'
+            + '<td>' + zone + '</td>'
+            + '<td><span style="color:' + typeClr + ';font-size:11px">' + (isMulti?'XenApp':'VDI') + '</span>'
+            +    '<span style="font-size:10px;color:var(--text4);margin-left:4px">' + escHtml(c.provisioning_type||'') + '</span></td>'
+            + '<td style="text-align:right;font-family:monospace">' + (c.total_count||0) + '</td>'
+            + '<td style="text-align:right;font-family:monospace">' + (c.used_count||0) + '</td>'
+            + '<td style="text-align:right"><span style="color:' + (avail>0?'#4ade80':'#fbbf24') + ';font-family:monospace">' + avail + '</span></td>'
+            + '<td>' + statusBadge + '</td>'
+            + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="zt-wrap"><table class="zt"><thead><tr>'
+        + '<th>Catalog</th><th>Zone</th><th>Type / Prov.</th>'
+        + '<th style="text-align:right">Total</th><th style="text-align:right">In Use</th>'
+        + '<th style="text-align:right">Avail.</th><th>Status</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── Report tabs ───────────────────────────────────────────────────────────────
+function switchReportTab(tab) {
+    _activeReportTab = tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    const content = document.getElementById('report-content');
+    if (tab === 'machines') {
+        content.innerHTML = '<div class="btn-group">'
+            + '<button class="btn" onclick="loadMachines(false)">🖥️ All Machines</button>'
+            + '<button class="btn" onclick="loadMachines(false,\'Unregistered\')">⚠️ Unregistered</button>'
+            + '<button class="btn" onclick="loadMachines(false,\'maintenance\')">🔧 In Maintenance</button>'
+            + '</div><div id="machines-results"><p class="loading">Click a button to load machine data.</p></div>';
+    } else if (tab === 'sessions') {
+        content.innerHTML = '<div class="btn-group">'
+            + '<button class="btn" onclick="loadSessions(false,\'Active\')">✅ Active</button>'
+            + '<button class="btn" onclick="loadSessions(false,\'Disconnected\')">🔌 Disconnected</button>'
+            + '<button class="btn" onclick="loadSessions(false)">📋 All Sessions</button>'
+            + '</div>'
+            + '<div class="filter-row" id="session-filters" style="display:none">'
+            + '<label>Delivery Group:</label><select id="filter-dg" onchange="applySessionFilters()"><option value="">All</option></select>'
+            + '<label>Catalog:</label><select id="filter-catalog" onchange="applySessionFilters()"><option value="">All</option></select>'
+            + '</div>'
+            + '<div id="sessions-results"><p class="loading">Click a button to load session data.</p></div>';
+    } else if (tab === 'ai-lens') {
+        renderCtxAiLens();
+    }
+}
+
+// ── Machines ──────────────────────────────────────────────────────────────────
+async function loadMachines(refresh, filter) {
+    document.getElementById('machines-results').innerHTML = '<p class="loading">Loading machines...</p>';
+    const res  = await fetch(apiUrl('/api/citrix/machines', refresh));
+    const data = await res.json();
+    if (data.status === 'error') { document.getElementById('machines-results').innerHTML = '<div class="alert-box alert-crit">❌ ' + escHtml(data.message) + '</div>'; return; }
+
+    let machines = data.machines;
+    let title = 'All Machines';
+    if (filter === 'Unregistered') { machines = machines.filter(m => m.registration_state === 'Unregistered'); title = 'Unregistered Machines'; }
+    else if (filter === 'maintenance') { machines = machines.filter(m => m.in_maintenance_mode); title = 'Machines In Maintenance'; }
+
+    document.getElementById('machines-results').innerHTML = '<p>' + title + ': <strong>' + machines.length + '</strong></p><div id="machines-table"></div>';
+    new SmartTable('machines-table', { filename: 'zinnia-citrix-machines', title })
+        .setData(
+            ['Machine','Catalog','Delivery Group','Zone','Power','Registration','Sessions','OS','Agent Version','Maintenance','Fault','Master Image','Last Connection'],
+            machines.map(m => [m.name, m.catalog_name||'—', m.delivery_group_name||'—', m.zone||'—',
+                powerBadge(m.power_state), regBadge(m.registration_state), m.session_count||0,
+                m.os_type||'—', m.agent_version||'—',
+                m.in_maintenance_mode ? badge('Yes','warn') : badge('No','ok'),
+                m.fault_state && m.fault_state !== 'None' ? badge(m.fault_state,'danger') : badge('None','ok'),
+                m.is_master_image ? badge('Master Image','purple') : '—',
+                m.last_connection_time||'—'])
+        );
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+async function loadSessions(refresh, filterState) {
+    _sessionMode = filterState || '';
+    document.getElementById('sessions-results').innerHTML = '<p class="loading">Loading sessions...</p>';
+    const res  = await fetch(apiUrl('/api/citrix/sessions', refresh));
+    const data = await res.json();
+    if (data.status === 'error') { document.getElementById('sessions-results').innerHTML = '<div class="alert-box alert-crit">❌ ' + escHtml(data.message) + '</div>'; return; }
+    _allSessions = data.sessions;
+
+    const dgs  = [...new Set(_allSessions.map(s=>s.delivery_group).filter(Boolean))].sort();
+    const cats = [...new Set(_allSessions.map(s=>s.catalog).filter(Boolean))].sort();
+    document.getElementById('filter-dg').innerHTML  = '<option value="">All Delivery Groups</option>' + dgs.map(d=>'<option>'+escHtml(d)+'</option>').join('');
+    document.getElementById('filter-catalog').innerHTML = '<option value="">All Catalogs</option>' + cats.map(c=>'<option>'+escHtml(c)+'</option>').join('');
+    document.getElementById('session-filters').style.display = 'flex';
+
+    renderSessions(data.timestamp);
+}
+
+function applySessionFilters() { renderSessions(); }
+
+function renderSessions(timestamp) {
+    const dgF  = document.getElementById('filter-dg')?.value || '';
+    const catF = document.getElementById('filter-catalog')?.value || '';
+    let sessions = _allSessions;
+    if (_sessionMode) sessions = sessions.filter(s => s.state === _sessionMode);
+    if (dgF)          sessions = sessions.filter(s => s.delivery_group === dgF);
+    if (catF)         sessions = sessions.filter(s => s.catalog === catF);
+
+    const title = (_sessionMode || 'All') + ' Sessions';
+    document.getElementById('sessions-results').innerHTML = '<p>' + title + ': <strong>' + sessions.length + '</strong></p><div id="sessions-table"></div>';
+    new SmartTable('sessions-table', { filename: 'zinnia-citrix-sessions', title })
+        .setData(
+            ['User','Machine','Delivery Group','Catalog','State','Protocol','Client','Platform','Start Time','State Changed','Actions'],
+            sessions.map(s => {
+                const actions = [];
+                if (s.state === 'Active' || !_sessionMode)
+                    actions.push('<button class="btn-sm danger" onclick="logoffSession(\'' + s.id + '\',\'' + (s.user_name||'').replace(/'/g,"\\'") + '\')">Logoff</button>');
+                if (s.state === 'Active')
+                    actions.push('<button class="btn-sm warn" onclick="shadowSession(\'' + s.id + '\',\'' + (s.user_name||'').replace(/'/g,"\\'") + '\')">Shadow</button>');
+                return [s.user_name||s.user_display||'—', s.machine_name||'—', s.delivery_group||'—', s.catalog||'—',
+                    sessBadge(s.state), s.protocol||'—', s.client_name||'—', s.client_platform||'—',
+                    s.start_time||'—', s.state_change_time||'—', actions.join(' ')||'—'];
+            })
+        );
+}
+
+// ── Citrix AI Lens ────────────────────────────────────────────────────────────
+function gradeColor(l) { return {'A':'#4ade80','B':'#a3e635','C':'#fbbf24','D':'#fb923c','F':'#f87171'}[l]||'#888'; }
+function gradeBg(l)    { return {'A':'#0d2a1a','B':'#1a2a0d','C':'#2a220d','D':'#2a150d','F':'#2a0d0d'}[l]||'var(--bg3)'; }
+
+function renderCtxAiLens() {
+    const content = document.getElementById('report-content');
+    content.innerHTML = '<div>'
+        + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
+        + '<button class="btn" style="padding:6px 16px;font-size:13px;margin:0" onclick="runCtxAiLens(true)">🔄 Refresh Analysis</button>'
+        + '<span style="font-size:12px;color:var(--text4)" id="ctx-ai-ts"></span>'
+        + '</div><div id="ctx-ai-body"><p class="loading">Loading cached analysis...</p></div></div>';
+
+    fetch(BASE + '/api/citrix/ai-analysis', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({refresh: false})
+    })
+    .then(r=>r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            document.getElementById('ctx-ai-ts').textContent = 'Last run: ' + data.timestamp;
+            paintCtxAiLens(data.result);
+        } else {
+            document.getElementById('ctx-ai-body').innerHTML = '<p class="loading">No analysis yet — click <strong>Refresh Analysis</strong>.</p>';
+        }
+    })
+    .catch(() => { document.getElementById('ctx-ai-body').innerHTML = '<div class="alert-box alert-crit">Could not load analysis.</div>'; });
+}
+
+async function runCtxAiLens(refresh) {
+    if (_ctxAiState === 'running') return;
+    _ctxAiState = 'running';
+    const body = document.getElementById('ctx-ai-body');
+    const ts   = document.getElementById('ctx-ai-ts');
+    if (body) body.innerHTML = '<p class="loading">Analyzing Citrix with Claude AI...</p>';
+    if (ts)   ts.textContent = '';
+
+    try {
+        const kick = await fetch(BASE + '/api/citrix/ai-analysis', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({refresh: true})
+        });
+        const d = await kick.json();
+        if (d.status === 'ok') { _ctxAiState='done'; if(ts) ts.textContent='Just now'; paintCtxAiLens(d.result); return; }
+        if (d.status !== 'running') throw new Error(d.message||'Unknown error');
+    } catch(e) {
+        _ctxAiState='error';
+        if(body) body.innerHTML = '<div class="alert-box alert-crit">Error: ' + escHtml(e.message) + '</div>';
+        return;
+    }
+
+    const poll = setInterval(async () => {
+        try {
+            const res  = await fetch(BASE + '/api/citrix/ai-analysis/status');
+            const data = await res.json();
+            if (data.status === 'running') return;
+            clearInterval(poll); _ctxAiState = data.status;
+            if (data.status === 'ok') { if(ts) ts.textContent='Just now'; paintCtxAiLens(data.result); }
+            else if(body) body.innerHTML = '<div class="alert-box alert-crit">Error: ' + escHtml(data.message||'Failed') + '</div>';
+        } catch(e) { clearInterval(poll); _ctxAiState='error'; }
+    }, 3000);
+}
+
+function paintCtxAiLens(r) {
+    const body = document.getElementById('ctx-ai-body');
+    if (!body) return;
+    _ctxAiState = 'done';
+    const gc = gradeColor(r.grade);
+    const gb = gradeBg(r.grade);
+
+    let html = '<div style="display:flex;align-items:center;gap:20px;background:var(--bg3);border-radius:10px;padding:16px 20px;margin-bottom:20px;border-left:4px solid ' + gc + '">'
+        + '<div style="font-size:48px;font-weight:bold;color:' + gc + ';background:' + gb + ';padding:8px 14px;border-radius:8px">' + escHtml(r.grade) + '</div>'
+        + '<div><div style="font-size:15px;font-weight:500;margin-bottom:4px">' + escHtml(r.grade_note||'') + '</div>'
+        + '<div style="font-size:13px;color:var(--text3)">' + escHtml(r.summary||'') + '</div></div></div>';
+
+    // Charts grid
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">';
+    function barChart(title, data) {
+        if (!data || !Object.keys(data).length) return '';
+        const max = Math.max(...Object.values(data), 1);
+        const colors = ['#60a5fa','#4ade80','#fbbf24','#f87171','#c084fc'];
+        let h = '<div style="background:var(--bg3);border-radius:10px;padding:14px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">' + title + '</div>';
+        Object.entries(data).forEach(([k,v],i) => {
+            const pct = Math.round((v/max)*100);
+            h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px">'
+                + '<div style="width:110px;flex-shrink:0;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(k) + '</div>'
+                + '<div style="flex:1;background:var(--bg);border-radius:4px;height:12px;overflow:hidden"><div style="height:100%;background:' + colors[i%colors.length] + ';width:' + pct + '%"></div></div>'
+                + '<div style="width:28px;text-align:right;color:var(--text3)">' + v + '</div></div>';
+        });
+        return h + '</div>';
+    }
+    if (r.chart_machines)  html += barChart('Machine Health',      r.chart_machines);
+    if (r.chart_sessions)  html += barChart('Session Breakdown',   r.chart_sessions);
+    if (r.chart_catalogs)  html += barChart('Catalog Status',      r.chart_catalogs);
+    if (r.chart_zones)     html += barChart('Machines by Zone',    r.chart_zones);
+    html += '</div>';
+
+    // Patterns
+    if (r.patterns?.length) {
+        html += '<div style="margin-bottom:18px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">🔍 Detected Patterns</div>';
+        r.patterns.forEach(p => {
+            const b = p.severity==='critical'?'#f87171':p.severity==='warning'?'#fbbf24':'#60a5fa';
+            html += '<div style="background:var(--bg3);border-radius:8px;padding:11px 14px;margin-bottom:8px;border-left:3px solid '+b+'">'
+                + '<div style="font-size:13px;font-weight:bold;color:var(--text);margin-bottom:3px">' + escHtml(p.title||'') + '</div>'
+                + '<div style="font-size:12px;color:var(--text3);line-height:1.5">' + escHtml(p.detail||'') + '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    // Recommendations
+    if (r.recommendations?.length) {
+        html += '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">🎯 Recommendations</div>';
+        r.recommendations.forEach(rec => {
+            const pri = (rec.priority||'medium').toLowerCase();
+            const pc  = pri==='high'?'#f87171':pri==='medium'?'#fbbf24':'#60a5fa';
+            const pb  = pri==='high'?'#3a0f0f':pri==='medium'?'#3a2a0a':'#0f2744';
+            html += '<div style="display:flex;gap:12px;align-items:flex-start;background:var(--bg3);border-radius:8px;padding:11px 14px;margin-bottom:8px">'
+                + '<span style="font-size:11px;font-weight:bold;padding:2px 8px;border-radius:10px;flex-shrink:0;background:'+pb+';color:'+pc+'">' + pri.toUpperCase() + '</span>'
+                + '<div style="font-size:13px;color:var(--text2);line-height:1.5">' + escHtml(rec.action||'')
+                + (rec.devices ? '<div style="font-size:11px;color:var(--text4);margin-top:3px">📍 ' + escHtml(rec.devices) + '</div>' : '')
+                + '</div></div>';
+        });
+        html += '</div>';
+    }
+
+    body.innerHTML = html;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadSummary(false);
+loadDeliveryGroups(false);
+loadCatalogs(false);
+switchReportTab('machines');
+
+setInterval(() => { if (_allSessions.length > 0 || _sessionMode) loadSessions(true, _sessionMode); }, 60000);
+setInterval(() => { loadSummary(true); }, 300000);
+</script>
+{% endblock %}

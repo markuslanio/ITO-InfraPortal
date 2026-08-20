@@ -1,0 +1,1031 @@
+{% extends "base.html" %}
+{% block title %}SOC Reports — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Page header ── */
+.soc-page-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px; }
+.soc-page-header h2 { margin:0; color:var(--accent); font-size:22px; }
+.soc-page-meta { font-size:12px; color:var(--text4); }
+
+/* ── Top-level page tabs ── */
+.soc-page-tabbar { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:24px; flex-wrap:wrap; }
+.soc-page-tab { background:none; border:none; color:var(--text3); padding:8px 18px; font-size:14px; cursor:pointer;
+                border-bottom:2px solid transparent; transition:color .15s, border-color .15s; white-space:nowrap; }
+.soc-page-tab:hover { color:var(--text); }
+.soc-page-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.soc-page-pane { display:none; }
+.soc-page-pane.active { display:block; }
+
+/* ── SOC Audit (TASI Change Audit) ── */
+.soc-panel { background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+             padding:20px 24px; margin-bottom:16px; }
+.soc-panel h3 { margin:0 0 14px; color:var(--accent); font-size:14px; }
+.soc-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.soc-label { font-size:12px; color:var(--text3); min-width:90px; flex-shrink:0; }
+.soc-input { background:var(--bg3); border:1px solid var(--border); color:var(--text);
+             border-radius:5px; padding:6px 10px; font-size:13px; }
+.soc-input:focus { border-color:var(--accent); outline:none; }
+.soc-input[type=date] { font-family:monospace; }
+.soc-cb-group { display:flex; gap:14px; flex-wrap:wrap; }
+.soc-cb { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text2); cursor:pointer; }
+.soc-cb input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+
+.soc-btn { padding:8px 18px; border-radius:6px; font-size:13px; cursor:pointer;
+           border:1px solid var(--border); background:var(--surface); color:var(--text3);
+           transition:background .15s, color .15s; white-space:nowrap; }
+.soc-btn:hover:not(:disabled) { background:var(--bg3); color:var(--text); }
+.soc-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.soc-btn.primary:hover:not(:disabled) { background:var(--accent-dark); }
+.soc-btn:disabled { opacity:.45; cursor:not-allowed; }
+
+.soc-preview-wrap { overflow-x:auto; }
+.soc-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.soc-tbl th { background:var(--bg3); color:var(--text3); padding:7px 10px; text-align:left;
+              font-weight:600; border-bottom:1px solid var(--border); white-space:nowrap; }
+.soc-tbl td { padding:7px 10px; border-bottom:1px solid var(--border); color:var(--text2); vertical-align:middle; }
+.soc-tbl tr:last-child td { border-bottom:none; }
+.soc-tbl tr:hover td { background:var(--surface); }
+.soc-tbl input[type=checkbox] { accent-color:var(--accent); width:13px; height:13px; }
+.soc-key { color:var(--accent); font-weight:600; text-decoration:none; font-family:monospace; }
+.soc-key:hover { text-decoration:underline; }
+
+.soc-progress { background:var(--bg3); border-radius:4px; height:8px; overflow:hidden; margin:10px 0 6px; }
+.soc-progress-fill { height:100%; background:var(--accent); border-radius:4px; transition:width .3s; }
+.soc-prog-lbl { font-size:12px; color:var(--text4); }
+
+.soc-preview-iframe { width:100%; height:700px; border:1px solid var(--border);
+                       border-radius:6px; background:#fff; }
+
+.soc-info-box { background:rgba(15,155,142,.08); border:1px solid rgba(15,155,142,.25);
+                 border-radius:6px; padding:10px 14px; font-size:12px; color:var(--text3); margin-bottom:12px; }
+.soc-warn-box { background:rgba(255,170,0,.08); border:1px solid rgba(255,170,0,.25);
+                 border-radius:6px; padding:10px 14px; font-size:12px; color:var(--warning); margin-bottom:12px; }
+.soc-err-box  { background:rgba(255,68,68,.08);  border:1px solid rgba(255,68,68,.25);
+                 border-radius:6px; padding:10px 14px; font-size:12px; color:var(--danger); margin-bottom:12px; }
+.soc-select-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+                   margin-bottom:10px; font-size:12px; color:var(--text4); }
+.soc-select-row a { color:var(--accent); cursor:pointer; text-decoration:none; }
+.soc-select-row a:hover { text-decoration:underline; }
+
+.soc-subtask-row td { background:var(--bg3); font-size:11px; }
+.soc-subtask-row td:first-child { padding-left:28px; }
+.soc-subtask-row:last-of-type td { border-bottom:2px solid var(--border); }
+.soc-expand-btn { background:none; border:none; color:var(--accent); cursor:pointer;
+                  font-size:11px; padding:2px 6px; border-radius:4px; white-space:nowrap; }
+.soc-expand-btn:hover { background:var(--surface); }
+
+/* ── Pills (used by SOC audit) ── */
+.pill { display:inline-block; border-radius:4px; padding:2px 7px; font-size:11px; font-weight:600; margin:1px; }
+.pill-accent { background:rgba(15,155,142,.12); color:var(--accent); border:1px solid rgba(15,155,142,.3); }
+.pill-muted  { background:var(--bg3); color:var(--text4); border:1px solid var(--border); }
+
+/* ── Server Share Audit ── */
+.sa-server-card { background:var(--bg3); border-radius:8px; margin-bottom:8px; overflow:hidden; border:1px solid var(--border); }
+.sa-server-header { padding:10px 14px; cursor:pointer; display:flex; align-items:center; gap:8px; flex-wrap:wrap; user-select:none; }
+.sa-server-header:hover { background:var(--surface); }
+.sa-server-body { padding:12px 16px; border-top:1px solid var(--border); }
+.sa-share-block { border-left:3px solid var(--accent); padding-left:12px; margin-bottom:14px; }
+.sa-share-name  { font-size:13px; font-weight:bold; color:var(--text); margin-bottom:3px; }
+.sa-share-meta  { font-size:11px; color:var(--text3); margin-bottom:6px; font-family:monospace; }
+.sa-acl-label   { font-size:11px; font-weight:bold; color:var(--accent); margin:8px 0 4px; }
+.sa-acl-table   { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:11px; }
+.sa-acl-table th { background:var(--bg); color:var(--text3); padding:4px 8px; text-align:left; font-size:10px; text-transform:uppercase; border-bottom:1px solid var(--border); }
+.sa-acl-table td { padding:3px 8px; border-bottom:1px solid var(--bg); color:var(--text2); }
+.sa-acl-table tr:last-child td { border-bottom:none; }
+.sa-progress      { background:var(--bg3); border-radius:6px; height:8px; margin:8px 0 4px; overflow:hidden; border:1px solid var(--border); }
+.sa-progress-fill { height:100%; background:var(--accent); border-radius:6px; transition:width 0.4s; }
+.sa-env-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.sa-tab  { padding:5px 14px; border-radius:20px; font-size:12px; cursor:pointer; border:1px solid var(--border); background:var(--bg3); color:var(--text3); transition:all 0.15s; }
+.sa-tab:hover { background:var(--surface); color:var(--text); }
+.sa-caret { font-size:10px; color:var(--text4); min-width:14px; }
+
+.section { background-color:var(--bg2); border-radius:10px; padding:20px; margin-bottom:20px; }
+.section h2 { color:var(--accent); margin-top:0; }
+.badge { display:inline-block; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:bold; }
+.btn { padding:7px 16px; border-radius:6px; font-size:12px; cursor:pointer; border:1px solid var(--border); background:var(--bg3); color:var(--text3); transition:background .15s, color .15s; }
+.btn:hover:not(:disabled) { background:var(--surface); color:var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="soc-page-header">
+    <h2>SOC Reports</h2>
+    <span class="soc-page-meta">Compliance &amp; audit reports for IT Operations</span>
+  </div>
+
+  <!-- Top-level tab bar -->
+  <div class="soc-page-tabbar">
+    <button class="soc-page-tab active" onclick="switchSocPage('tasi')">TASI Change Audit</button>
+    <button class="soc-page-tab" onclick="switchSocPage('share')">Server Share Audit</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  Tab 1: TASI Change Audit (SOC compliance report)         -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="soc-page-tasi" class="soc-page-pane active">
+
+    <!-- Step 1: Query builder -->
+    <div class="soc-panel">
+      <h3>Step 1 — Define Audit Scope</h3>
+
+      <div class="soc-row">
+        <span class="soc-label">Project</span>
+        <select id="soc-project" class="soc-input" style="min-width:280px" onchange="socOnProjectChange()">
+          <option value="TASI">TASI — Infrastructure Changes</option>
+          <option value="ITSD">ITSD — Service Desk</option>
+          <option value="ITO">ITO — Operations</option>
+          <option value="TAS">TAS — App Services</option>
+          <option value="OSC">OSC</option>
+          <option value="IMG">IMG</option>
+        </select>
+      </div>
+
+      <div class="soc-row">
+        <span class="soc-label">Period</span>
+        <input type="date" id="soc-start" class="soc-input" value="">
+        <span style="color:var(--text4);font-size:12px">to</span>
+        <input type="date" id="soc-end" class="soc-input" value="">
+        <button class="soc-btn" onclick="setSocYear(new Date().getFullYear())">This Year</button>
+        <button class="soc-btn" onclick="setSocYear(new Date().getFullYear()-1)">Last Year</button>
+      </div>
+
+      <div class="soc-row" style="align-items:flex-start">
+        <span class="soc-label" style="padding-top:4px">Statuses</span>
+        <div>
+          <div class="soc-cb-group" id="soc-status-boxes">
+            <!-- populated by socUpdateStatusPresets() -->
+          </div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text4)" id="soc-date-hint"></div>
+        </div>
+      </div>
+
+      <div class="soc-row">
+        <span class="soc-label">Options</span>
+        <label class="soc-cb"><input type="checkbox" id="soc-images" checked> Embed screenshot attachments</label>
+        <span id="soc-img-warn" style="font-size:11px;color:var(--warning);display:none">⚠ May increase report size significantly</span>
+        <label class="soc-cb"><input type="checkbox" id="soc-subtasks"> Show sub-tasks in preview</label>
+      </div>
+
+      <div class="soc-row" style="margin-top:6px;margin-bottom:0">
+        <button class="soc-btn primary" id="soc-preview-btn" onclick="socPreview()">🔍 Preview Tickets</button>
+        <span id="soc-preview-status" style="font-size:12px;color:var(--text4)"></span>
+      </div>
+    </div>
+
+    <!-- Step 2: Ticket list preview -->
+    <div class="soc-panel" id="soc-preview-panel" style="display:none">
+      <h3>Step 2 — Review &amp; Select Tickets</h3>
+
+      <div id="soc-preview-info"></div>
+
+      <div class="soc-select-row">
+        <span id="soc-selected-count">0 of 0 selected</span>
+        <a onclick="socSelectAll(true)">Select All</a>
+        <a onclick="socSelectAll(false)">Deselect All</a>
+      </div>
+
+      <div class="soc-preview-wrap">
+        <table class="soc-tbl">
+          <thead>
+            <tr>
+              <th style="width:28px"></th>
+              <th>Ticket</th>
+              <th>Project</th>
+              <th>Summary</th>
+              <th>Status</th>
+              <th>TAS Type</th>
+              <th>Resource Group</th>
+              <th>Environment</th>
+              <th>TAS Start</th>
+              <th>TAS End</th>
+              <th>Reporter</th>
+              <th style="text-align:center">📎</th>
+              <th style="text-align:center">Sub-tasks</th>
+            </tr>
+          </thead>
+          <tbody id="soc-preview-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="soc-row" style="margin-top:16px;margin-bottom:0">
+        <button class="soc-btn primary" id="soc-generate-btn" onclick="socGenerate()" disabled>
+          📄 Generate Full Report
+        </button>
+        <span style="font-size:12px;color:var(--text4)">Fetches full details, history, and attachments for each selected ticket.</span>
+      </div>
+    </div>
+
+    <!-- Step 3: Generation progress -->
+    <div class="soc-panel" id="soc-progress-panel" style="display:none">
+      <h3>Generating Report…</h3>
+      <div class="soc-progress"><div class="soc-progress-fill" id="soc-prog-fill" style="width:0%"></div></div>
+      <div class="soc-prog-lbl" id="soc-prog-lbl">Starting…</div>
+      <div style="font-size:11px;color:var(--text4);margin-top:6px">
+        Fetching full ticket details, change history, and downloading attachments. This may take 1–3 minutes for large reports.
+      </div>
+    </div>
+
+    <!-- Step 4: Report ready -->
+    <div class="soc-panel" id="soc-result-panel" style="display:none">
+      <h3>Report Ready</h3>
+      <div id="soc-result-meta" class="soc-info-box"></div>
+      <div class="soc-row" style="margin-bottom:14px">
+        <button class="soc-btn primary" onclick="socDownload()">⬇ Download HTML</button>
+        <button class="soc-btn" id="soc-pdf-btn" onclick="socDownloadPdf()">📄 Download PDF</button>
+        <button class="soc-btn" onclick="socNewReport()">↩ New Report</button>
+      </div>
+      <div id="soc-pdf-status" style="font-size:12px;color:var(--text4);margin:0 0 10px;display:none"></div>
+      <iframe id="soc-report-iframe" class="soc-preview-iframe" sandbox="allow-same-origin"></iframe>
+    </div>
+
+  </div><!-- /soc-page-tasi -->
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!--  Tab 2: Server Share Audit                                 -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="soc-page-share" class="soc-page-pane">
+
+    <div class="section">
+      <h2>🗂️ Server Share Audit</h2>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px">
+        Enumerate SMB shares, share permissions, and folder (NTFS) permissions on AD-joined servers.
+        Naming convention: last character P&nbsp;=&nbsp;Production, Q&nbsp;=&nbsp;QA, T&nbsp;=&nbsp;Test, D&nbsp;=&nbsp;Dev.
+      </p>
+
+      <!-- Scan controls -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <select id="sa-env-select" style="padding:7px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:12px">
+          <option value="production">Production Only</option>
+          <option value="qa">QA Only</option>
+          <option value="test">Test Only</option>
+          <option value="dev">Dev Only</option>
+          <option value="other">Other / Unclassified</option>
+          <option value="all">All Environments</option>
+        </select>
+        <select id="sa-sample-select" style="padding:7px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:12px">
+          <option value="5">Sample: 5 servers</option>
+          <option value="10">Sample: 10 servers</option>
+          <option value="25">Sample: 25 servers</option>
+          <option value="50">Sample: 50 servers</option>
+          <option value="">Full scan (loading count…)</option>
+        </select>
+        <button class="btn" id="sa-scan-btn" onclick="saScanStart()">▶ Start Scan</button>
+        <button class="btn" id="sa-download-btn" onclick="saDownloadPdf()" style="display:none">📄 Download PDF</button>
+        <button class="btn" id="sa-excel-btn" onclick="saDownloadExcel()" style="display:none">📊 Export Excel</button>
+      </div>
+
+      <!-- Progress -->
+      <div id="sa-progress-area" style="display:none;margin-bottom:12px">
+        <div class="sa-progress"><div class="sa-progress-fill" id="sa-progress-bar" style="width:0%"></div></div>
+        <div id="sa-progress-label" style="font-size:11px;color:var(--text3);margin-top:2px">Starting...</div>
+      </div>
+
+      <!-- Env filter tabs -->
+      <div class="sa-env-tabs" id="sa-env-tabs" style="display:none">
+        <button class="sa-tab" id="sa-tab-all"        onclick="saFilterResults('all')">All</button>
+        <button class="sa-tab" id="sa-tab-production" onclick="saFilterResults('production')">Production</button>
+        <button class="sa-tab" id="sa-tab-qa"         onclick="saFilterResults('qa')">QA</button>
+        <button class="sa-tab" id="sa-tab-test"       onclick="saFilterResults('test')">Test</button>
+        <button class="sa-tab" id="sa-tab-dev"        onclick="saFilterResults('dev')">Dev</button>
+        <button class="sa-tab" id="sa-tab-other"      onclick="saFilterResults('other')">Other</button>
+      </div>
+
+      <!-- Results grid -->
+      <div id="sa-results-area">
+        <p style="color:var(--text3);font-size:12px">Select an environment and click Start Scan to enumerate server shares.</p>
+      </div>
+    </div>
+
+  </div><!-- /soc-page-share -->
+
+  <!-- Share detail modal (outside tabs so it overlays both) -->
+  <div id="sa-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10000;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto">
+    <div style="background:var(--bg2);border-radius:10px;width:min(860px,100%);border:1px solid var(--border);position:relative">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap">
+        <strong id="sa-modal-server" style="font-size:15px;color:var(--text)"></strong>
+        <span id="sa-modal-env"></span>
+        <span id="sa-modal-os" style="font-size:12px;color:var(--text3)"></span>
+        <button onclick="saCloseModal()" style="margin-left:auto;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);line-height:1">&#x2715;</button>
+      </div>
+      <div id="sa-modal-body" style="padding:16px 18px;max-height:70vh;overflow-y:auto"></div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BASE = '/infraportal';
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+const esc = escHtml;
+
+// ── Page tab switching ────────────────────────────────────────────────────────
+function switchSocPage(name) {
+  document.querySelectorAll('.soc-page-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.soc-page-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('soc-page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TASI Change Audit (SOC compliance report)
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _socTickets = [];
+const _TASI_STATUSES = ['Validated', 'Pending Production Validation', 'In Review', 'Done'];
+const _TASI_DEFAULT  = new Set(['Validated', 'Pending Production Validation']);
+
+(function initSocDates() {
+  const y = new Date().getFullYear();
+  document.getElementById('soc-start').value = `${y}-01-01`;
+  document.getElementById('soc-end').value   = `${y}-12-31`;
+  document.getElementById('soc-images').addEventListener('change', function() {
+    document.getElementById('soc-img-warn').style.display = this.checked ? '' : 'none';
+  });
+  socOnProjectChange();
+})();
+
+function setSocYear(year) {
+  document.getElementById('soc-start').value = `${year}-01-01`;
+  document.getElementById('soc-end').value   = `${year}-12-31`;
+}
+
+function getSocProjects() {
+  return [document.getElementById('soc-project').value];
+}
+
+function getSocStatuses() {
+  return [...document.querySelectorAll('#soc-status-boxes input[type=checkbox]:checked')]
+    .map(cb => cb.value);
+}
+
+function _renderStatusBoxes(statuses, defaultSet) {
+  const container = document.getElementById('soc-status-boxes');
+  const checkSet  = defaultSet || new Set(statuses.slice(0, 2));
+  container.innerHTML = statuses.map(s => {
+    const id = 'soc-st-' + s.replace(/\s+/g, '-').toLowerCase();
+    return `<label class="soc-cb">
+      <input type="checkbox" id="${id}" value="${esc(s)}"${checkSet.has(s) ? ' checked' : ''}> ${esc(s)}
+    </label>`;
+  }).join('');
+}
+
+async function socOnProjectChange() {
+  const project   = document.getElementById('soc-project').value;
+  const container = document.getElementById('soc-status-boxes');
+  const hint      = document.getElementById('soc-date-hint');
+
+  if (project === 'TASI') {
+    _renderStatusBoxes(_TASI_STATUSES, _TASI_DEFAULT);
+    hint.textContent = 'Filtered by TAS Start Time';
+    return;
+  }
+
+  container.innerHTML = '<span style="color:var(--text4);font-size:12px">⏳ Loading statuses…</span>';
+  hint.textContent = 'Filtered by ticket Created date';
+
+  try {
+    const r = await fetch(`/infraportal/api/soc/project-statuses?project=${encodeURIComponent(project)}`);
+    const d = await r.json();
+    if (d.status !== 'ok' || !d.statuses?.length) throw new Error(d.error || 'No statuses returned');
+    _renderStatusBoxes(d.statuses, null);
+  } catch(e) {
+    container.innerHTML = `<span style="color:var(--danger);font-size:12px">
+      Could not load statuses: ${esc(e.message)}
+      — <a onclick="socOnProjectChange()" style="cursor:pointer">Retry</a>
+    </span>`;
+  }
+}
+
+async function socPreview() {
+  const start    = document.getElementById('soc-start').value;
+  const end      = document.getElementById('soc-end').value;
+  const statuses = getSocStatuses();
+  const projects = getSocProjects();
+  if (!start) { alert('Please select a start date.'); return; }
+  if (!projects.length) { alert('Select at least one project.'); return; }
+  if (!statuses.length) { alert('Select at least one status.'); return; }
+
+  const el      = document.getElementById('soc-preview-status');
+  const prevBtn = document.getElementById('soc-preview-btn');
+  el.textContent = '⏳ Searching Jira…';
+  if (prevBtn) prevBtn.disabled = true;
+
+  try {
+    const params = new URLSearchParams({start, end, statuses: statuses.join(','), projects: projects.join(',')});
+    const r = await fetch(`/infraportal/api/soc/preview?${params}`);
+    const rawText = await r.text();
+
+    let d;
+    try { d = JSON.parse(rawText); }
+    catch(_) { throw new Error(`Server returned non-JSON (HTTP ${r.status}): ${rawText.substring(0,200)}`); }
+
+    if (!r.ok || d.status !== 'ok') {
+      const msg = d.error || d.detail || d.status || `HTTP ${r.status}`;
+      throw new Error(typeof msg === 'object' ? JSON.stringify(msg) : String(msg));
+    }
+
+    _socTickets = d.tickets || [];
+    el.textContent = `Found ${_socTickets.length} ticket${_socTickets.length !== 1 ? 's' : ''}.`;
+    renderSocPreview();
+  } catch(e) {
+    console.error('SOC preview error:', e);
+    el.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+  } finally {
+    if (prevBtn) prevBtn.disabled = false;
+  }
+}
+
+function renderSocPreview() {
+  const panel = document.getElementById('soc-preview-panel');
+  const tbody = document.getElementById('soc-preview-tbody');
+  const genBtn = document.getElementById('soc-generate-btn');
+  const infoEl = document.getElementById('soc-preview-info');
+
+  if (!_socTickets.length) {
+    infoEl.innerHTML = '<div class="soc-warn-box">No tickets found for the selected criteria. Try adjusting the date range or statuses.</div>';
+    panel.style.display = '';
+    genBtn.disabled = true;
+    tbody.innerHTML = '';
+    return;
+  }
+
+  const totalAtt = _socTickets.reduce((s, t) => s + (t.attachment_count || 0), 0);
+  infoEl.innerHTML = `<div class="soc-info-box">
+    <strong>${_socTickets.length} tickets found</strong> · ${totalAtt} total attachments
+    &nbsp;|&nbsp; Date range: ${document.getElementById('soc-start').value} — ${document.getElementById('soc-end').value || 'present'}
+  </div>`;
+
+  const projColors = {
+    TASI:'var(--accent)', ITSD:'var(--warning)', ITO:'var(--success)',
+    TAS:'var(--text3)', OSC:'var(--text3)', IMG:'var(--text3)'
+  };
+  const showSubtasks = document.getElementById('soc-subtasks')?.checked;
+
+  tbody.innerHTML = _socTickets.map(t => {
+    const pc = projColors[t.project] || 'var(--text3)';
+    const stCount = (t.subtasks || []).length;
+    const stBadge = stCount > 0
+      ? `<button class="soc-expand-btn" onclick="socToggleSubtasks('${t.key}',this)">▶ ${stCount}</button>`
+      : '<span style="color:var(--text4);font-size:11px">—</span>';
+
+    let rows = `
+    <tr data-parent-key="${t.key}">
+      <td><input type="checkbox" class="soc-row-cb" value="${t.key}" checked onchange="updateSocCount()"></td>
+      <td><a class="soc-key" href="https://zinnia.atlassian.net/browse/${t.key}" target="_blank">${t.key}</a></td>
+      <td><span style="font-size:10px;font-weight:600;color:${pc}">${esc(t.project||'')}</span></td>
+      <td style="max-width:240px;word-break:break-word">${esc(t.summary)}</td>
+      <td><span class="pill pill-accent" style="font-size:10px">${esc(t.status)}</span></td>
+      <td style="font-size:11px">${esc(t.tas_type)}</td>
+      <td style="font-size:11px">${esc(t.group)}</td>
+      <td style="font-size:11px">${esc(t.env)}</td>
+      <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(t.tas_start ? t.tas_start.substring(0,16) : '—')}</td>
+      <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(t.tas_end ? t.tas_end.substring(0,16) : '—')}</td>
+      <td style="font-size:11px">${esc(t.reporter)}</td>
+      <td style="text-align:center;color:var(--text4);font-size:11px">${t.attachment_count || 0}</td>
+      <td style="text-align:center">${stBadge}</td>
+    </tr>`;
+
+    if (showSubtasks && stCount > 0) {
+      rows += socSubtaskRows(t.key, t.subtasks || []);
+    }
+    return rows;
+  }).join('');
+
+  updateSocCount();
+  panel.style.display = '';
+  panel.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function socSubtaskRows(parentKey, subtasks) {
+  return subtasks.map(st => `
+    <tr class="soc-subtask-row" data-subtask-of="${parentKey}" style="display:table-row">
+      <td><input type="checkbox" class="soc-row-cb" value="${st.key}" onchange="updateSocCount()"></td>
+      <td><a class="soc-key" href="https://zinnia.atlassian.net/browse/${st.key}" target="_blank"
+             style="padding-left:16px">↳ ${st.key}</a></td>
+      <td style="color:var(--text4);font-size:10px">sub-task</td>
+      <td style="max-width:240px;word-break:break-word;color:var(--text3)">${esc(st.summary)}</td>
+      <td><span class="pill pill-muted" style="font-size:10px">${esc(st.status)}</span></td>
+      <td colspan="7" style="color:var(--text4);font-size:11px">—</td>
+      <td></td>
+    </tr>`).join('');
+}
+
+function socToggleSubtasks(parentKey, btn) {
+  const t = _socTickets.find(t => t.key === parentKey);
+  if (!t || !t.subtasks?.length) return;
+  const existing = document.querySelectorAll(`[data-subtask-of="${parentKey}"]`);
+  if (existing.length) {
+    existing.forEach(r => r.remove());
+    btn.textContent = `▶ ${t.subtasks.length}`;
+  } else {
+    const parentRow = document.querySelector(`[data-parent-key="${parentKey}"]`);
+    if (!parentRow) return;
+    const fragment = document.createElement('tbody');
+    fragment.innerHTML = socSubtaskRows(parentKey, t.subtasks);
+    parentRow.after(...fragment.rows);
+    btn.textContent = `▼ ${t.subtasks.length}`;
+  }
+  updateSocCount();
+}
+
+function updateSocCount() {
+  const all = document.querySelectorAll('.soc-row-cb');
+  const sel = document.querySelectorAll('.soc-row-cb:checked');
+  document.getElementById('soc-selected-count').textContent = `${sel.length} of ${all.length} selected`;
+  document.getElementById('soc-generate-btn').disabled = sel.length === 0;
+}
+
+function socSelectAll(v) {
+  document.querySelectorAll('.soc-row-cb').forEach(cb => cb.checked = v);
+  updateSocCount();
+}
+
+async function socGenerate() {
+  const keys = [...document.querySelectorAll('.soc-row-cb:checked')].map(cb => cb.value);
+  if (!keys.length) return;
+
+  const includeImages = document.getElementById('soc-images').checked;
+  const start    = document.getElementById('soc-start').value;
+  const end      = document.getElementById('soc-end').value || 'present';
+  const year     = start.substring(0,4);
+  const projects = getSocProjects();
+  const projLabel = projects.length === 1 ? projects[0] : projects.join('/');
+  const title  = `${projLabel} SOC Audit Report — ${year}`;
+  const range  = `${start} to ${end}`;
+
+  document.getElementById('soc-preview-panel').style.display  = 'none';
+  document.getElementById('soc-progress-panel').style.display = '';
+  document.getElementById('soc-result-panel').style.display   = 'none';
+  document.getElementById('soc-prog-lbl').textContent = `Starting generation for ${keys.length} tickets…`;
+
+  try {
+    const r = await fetch('/infraportal/api/soc/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ticket_keys: keys, include_images: includeImages, date_range: range, title})
+    });
+    const d = await r.json();
+    if (d.status === 'already_running') {
+      alert('A report is already being generated. Please wait.');
+      socPollProgress();
+      return;
+    }
+    if (d.status !== 'started') throw new Error(d.error || d.status);
+    socPollProgress();
+  } catch(e) {
+    document.getElementById('soc-prog-lbl').innerHTML =
+      `<span style="color:var(--danger)">Failed to start: ${e.message}</span>`;
+  }
+}
+
+let _socPollTimer = null;
+function socPollProgress() {
+  clearInterval(_socPollTimer);
+  _socPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch('/infraportal/api/soc/status');
+      const d = await r.json();
+      const fill = document.getElementById('soc-prog-fill');
+      const lbl  = document.getElementById('soc-prog-lbl');
+
+      if (d.total > 0) {
+        const pct = Math.round((d.progress / d.total) * 100);
+        fill.style.width = pct + '%';
+        lbl.textContent  = d.running
+          ? `Processing ${d.current_ticket} (${d.progress}/${d.total})…`
+          : `Done — ${d.total} tickets processed.`;
+      }
+
+      if (d.error) {
+        clearInterval(_socPollTimer);
+        document.getElementById('soc-prog-lbl').innerHTML =
+          `<span style="color:var(--danger)">Error: ${esc(d.error)}</span>`;
+        return;
+      }
+
+      if (d.has_result && !d.running) {
+        clearInterval(_socPollTimer);
+        socShowResult(d);
+      }
+    } catch(e) { /* ignore transient failures */ }
+  }, 2000);
+}
+
+async function socShowResult(statusData) {
+  document.getElementById('soc-progress-panel').style.display = 'none';
+  document.getElementById('soc-result-panel').style.display   = '';
+
+  const meta = statusData.report_meta || {};
+  document.getElementById('soc-result-meta').innerHTML =
+    `Report generated at <strong>${statusData.completed_at}</strong> &nbsp;·&nbsp; ` +
+    `Period: <strong>${esc(meta.date_range || '')}</strong> &nbsp;·&nbsp; ` +
+    `${statusData.total} ticket${statusData.total!==1?'s':''} included`;
+
+  try {
+    const r = await fetch('/infraportal/api/soc/download');
+    const html = await r.text();
+    const iframe = document.getElementById('soc-report-iframe');
+    iframe.srcdoc = html;
+  } catch(e) {
+    document.getElementById('soc-result-meta').innerHTML +=
+      `<br><span style="color:var(--danger)">Failed to load preview: ${e.message}</span>`;
+  }
+  document.getElementById('soc-result-panel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function socDownload() {
+  window.location.href = '/infraportal/api/soc/download';
+}
+
+async function socDownloadPdf() {
+  const btn = document.getElementById('soc-pdf-btn');
+  const statusEl = document.getElementById('soc-pdf-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating PDF…';
+  statusEl.style.display = '';
+  statusEl.style.color = 'var(--text4)';
+  statusEl.textContent = 'Converting report to PDF on the server…';
+  try {
+    const r = await fetch('/infraportal/api/soc/pdf');
+    if (r.ok && r.headers.get('Content-Type')?.includes('application/pdf')) {
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'SOC_Report.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+      statusEl.textContent = 'PDF downloaded.';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      if (d.install_hint) {
+        statusEl.style.color = 'var(--warning)';
+        statusEl.innerHTML = `PDF generation requires WeasyPrint. On the server run: <code>${d.install_hint}</code>`;
+      } else {
+        statusEl.style.color = 'var(--danger)';
+        statusEl.textContent = 'PDF generation failed: ' + (d.error || 'unknown error');
+      }
+    }
+  } catch(e) {
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'PDF request failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📄 Download PDF';
+  }
+}
+
+function socNewReport() {
+  document.getElementById('soc-progress-panel').style.display = 'none';
+  document.getElementById('soc-result-panel').style.display   = 'none';
+  document.getElementById('soc-preview-panel').style.display  = '';
+  document.getElementById('soc-generate-btn').disabled = false;
+  document.getElementById('soc-preview-panel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// On page load: resume any in-progress SOC report generation
+(function checkSocStatus() {
+  fetch('/infraportal/api/soc/status').then(r=>r.json()).then(d => {
+    if (d.has_result && !d.running) {
+      socShowResult(d);
+    } else if (d.running) {
+      document.getElementById('soc-progress-panel').style.display = '';
+      document.getElementById('soc-preview-panel').style.display  = 'none';
+      socPollProgress();
+    }
+  }).catch(()=>{});
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Server Share Audit
+// ══════════════════════════════════════════════════════════════════════════════
+
+const SA = BASE + '/api/ad/share-audit';
+let _saPoller   = null;
+let _saResults  = null;
+let _saFiltered = [];
+let _saEnv      = 'production';
+let _saPage     = 0;
+let _saPageSize = 10;
+
+const _envColors = {
+  production: ['rgba(255,68,68,.12)',  'var(--danger)'],
+  qa:         ['rgba(255,170,0,.12)',  'var(--warning)'],
+  test:       ['rgba(15,155,142,.12)', 'var(--accent)'],
+  dev:        ['rgba(34,204,102,.12)', 'var(--success)'],
+  other:      ['rgba(136,136,136,.12)','var(--text3)'],
+};
+const _envLabel = {production:'Production', qa:'QA', test:'Test', dev:'Dev', other:'Other'};
+
+(async () => {
+  try {
+    const r = await fetch(SA + '/servers');
+    const d = await r.json();
+    if (d.status === 'ok') {
+      const opt = document.querySelector('#sa-sample-select option[value=""]');
+      if (opt) opt.textContent = `Full scan (all ${d.total} servers)`;
+    }
+  } catch {}
+})();
+
+async function saScanStart() {
+  const env    = document.getElementById('sa-env-select').value;
+  const sample = document.getElementById('sa-sample-select').value;
+  _saEnv = env;
+  _saPage = 0;
+  const btn = document.getElementById('sa-scan-btn');
+  btn.disabled = true; btn.textContent = '⏳ Scanning...';
+  document.getElementById('sa-progress-area').style.display = 'block';
+  document.getElementById('sa-progress-bar').style.width = '0%';
+  document.getElementById('sa-progress-label').textContent = 'Starting scan...';
+  document.getElementById('sa-results-area').innerHTML =
+    '<p style="color:var(--text3);font-size:12px">Scan in progress...</p>';
+
+  const body = { env_filter: env === 'all' ? null : env };
+  if (sample) body.sample_size = parseInt(sample);
+
+  const r = await fetch(SA + '/scan', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const d = await r.json();
+  if (d.status === 'started' || d.status === 'already_running') {
+    _saPoller = setInterval(saPollStatus, 2000);
+  } else {
+    btn.disabled = false; btn.textContent = '▶ Start Scan';
+    document.getElementById('sa-results-area').innerHTML =
+      '<div class="soc-err-box">Error: ' + escHtml(d.message || d.status) + '</div>';
+  }
+}
+
+async function saPollStatus() {
+  const r = await fetch(SA + '/status');
+  const d = await r.json();
+  const state = d.state || {};
+  const pct = state.total > 0 ? Math.round((state.progress / state.total) * 100) : 0;
+  document.getElementById('sa-progress-bar').style.width = pct + '%';
+  document.getElementById('sa-progress-label').textContent =
+    state.running ? `Scanning... ${state.progress} / ${state.total} servers` :
+    state.error   ? `Error: ${state.error}` :
+    `Scan complete — ${state.total} server(s) scanned at ${state.completed_at || ''}`;
+
+  if (!state.running) {
+    clearInterval(_saPoller);
+    const btn = document.getElementById('sa-scan-btn');
+    btn.disabled = false; btn.textContent = '↻ Rescan';
+    document.getElementById('sa-download-btn').style.display = 'inline-block';
+    document.getElementById('sa-excel-btn').style.display = 'inline-block';
+    await saLoadResults();
+  }
+}
+
+async function saLoadResults() {
+  const r = await fetch(SA + '/results?env=all');
+  const d = await r.json();
+  if (d.status === 'no_data') {
+    document.getElementById('sa-results-area').innerHTML =
+      '<p style="color:var(--text3);font-size:12px">No scan results yet. Run a scan first.</p>';
+    return;
+  }
+  if (d.status === 'error') {
+    document.getElementById('sa-results-area').innerHTML =
+      '<div class="soc-err-box">Error: ' + escHtml(d.message || '') + '</div>';
+    return;
+  }
+  _saResults = d;
+  saUpdateTabs(d);
+  saFilterResults(_saEnv);
+  document.getElementById('sa-download-btn').style.display = 'inline-block';
+}
+
+function saUpdateTabs(d) {
+  const counts = {};
+  for (const srv of (d.servers || [])) counts[srv.env || 'other'] = (counts[srv.env || 'other'] || 0) + 1;
+  document.getElementById('sa-env-tabs').style.display = 'flex';
+  ['all','production','qa','test','dev','other'].forEach(e => {
+    const btn = document.getElementById('sa-tab-' + e);
+    if (!btn) return;
+    const cnt = e === 'all' ? (d.servers || []).length : (counts[e] || 0);
+    btn.textContent  = (e === 'all' ? 'All' : _envLabel[e]) + (cnt ? ` (${cnt})` : '');
+    btn.style.opacity = (cnt || e === 'all') ? '1' : '0.4';
+  });
+}
+
+function saFilterResults(env) {
+  _saEnv = env;
+  _saPage = 0;
+  ['all','production','qa','test','dev','other'].forEach(e => {
+    const btn = document.getElementById('sa-tab-' + e);
+    if (!btn) return;
+    btn.style.background = e === env ? 'var(--accent)' : '';
+    btn.style.color      = e === env ? '#fff'          : '';
+  });
+  if (!_saResults) return;
+  const all = _saResults.servers || [];
+  _saFiltered = (env && env !== 'all') ? all.filter(s => s.env === env) : [...all];
+  saRenderPage();
+}
+
+function saRenderPage() {
+  const results = (_saResults || {}).results || {};
+  const total   = _saFiltered.length;
+  if (!total) {
+    document.getElementById('sa-results-area').innerHTML =
+      '<p style="color:var(--text3);font-size:12px">No servers for this environment.</p>';
+    return;
+  }
+  const ps    = _saPageSize === 0 ? total : _saPageSize;
+  const pages = Math.ceil(total / ps);
+  _saPage     = Math.max(0, Math.min(_saPage, pages - 1));
+  const start = _saPage * ps;
+  const end   = Math.min(start + ps, total);
+  const rows  = _saFiltered.slice(start, end);
+
+  let btnStyle = (active) =>
+    `padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border);` +
+    `background:${active?'var(--accent)':'var(--bg3)'};color:${active?'#fff':'var(--text3)'}`;
+  let ctrl = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">`;
+  ctrl += `<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3)">Per page:`;
+  for (const sz of [10,50,100,0]) {
+    const lbl = sz === 0 ? 'All' : sz;
+    ctrl += `<button onclick="saSetPageSize(${sz})" style="${btnStyle(sz===_saPageSize)}">${lbl}</button>`;
+  }
+  ctrl += `</div>`;
+  ctrl += `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)">`;
+  ctrl += `Showing ${start+1}–${end} of ${total}`;
+  if (_saResults && _saResults.completed_at) ctrl += ` &mdash; scanned ${escHtml(_saResults.completed_at)}`;
+  if (pages > 1) {
+    ctrl += `&nbsp;<button onclick="saGoPage(${_saPage-1})" ${_saPage===0?'disabled':''} style="${btnStyle(false)}">‹</button>`;
+    ctrl += `<span>p.${_saPage+1}/${pages}</span>`;
+    ctrl += `<button onclick="saGoPage(${_saPage+1})" ${_saPage>=pages-1?'disabled':''} style="${btnStyle(false)}">›</button>`;
+  }
+  ctrl += `</div></div>`;
+
+  let th = (t) => `<th style="text-align:left;padding:6px 8px;color:var(--text3);font-size:10px;text-transform:uppercase;font-weight:600;border-bottom:2px solid var(--border)">${t}</th>`;
+  let tbl = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr>${th('Server')}${th('Env')}${th('OS')}${th('Shares')}${th('Last Login')}${th('')}</tr></thead><tbody>`;
+
+  for (const srv of rows) {
+    const name = srv.name;
+    const env  = srv.env || 'other';
+    const [envBg, envFg] = _envColors[env] || _envColors.other;
+    const res  = results[name.toUpperCase()];
+
+    let shareCell = `<span style="color:var(--text4)">Not scanned</span>`;
+    let viewBtn   = '';
+    if (res) {
+      if (res.error) {
+        shareCell = `<span style="color:var(--danger)" title="${escHtml(res.error)}">⚠ Error</span>`;
+      } else {
+        const n = (res.shares || []).length;
+        shareCell = `<span style="color:${n?'var(--accent)':'var(--text3)'}">${n ? n+' share'+(n===1?'':'s') : 'None found'}</span>`;
+        if (n) viewBtn = '<button onclick="saShowModal(\'' + name.replace(/'/g,"\\'") + '\')" style="padding:3px 10px;font-size:11px;border-radius:4px;cursor:pointer;background:var(--bg3);color:var(--text);border:1px solid var(--border)">View ›</button>';
+      }
+    }
+
+    let envCell = `<span class="badge" style="background:${envBg};color:${envFg};border:1px solid ${envFg}55">${_envLabel[env]||env}</span>`;
+    if (env === 'other' || srv.env_override) {
+      envCell += ` <select onchange="saSetEnv('${name.replace(/'/g,"\\'")}',this.value)"
+        style="font-size:10px;margin-top:2px;padding:2px 4px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px">
+        <option value="">Reassign…</option>
+        <option value="production">Production</option><option value="qa">QA</option>
+        <option value="test">Test</option><option value="dev">Dev</option>
+        <option value="other">Other</option></select>`;
+    }
+
+    tbl += `<tr style="border-bottom:1px solid var(--bg3)">
+      <td style="padding:7px 8px;font-weight:500">${escHtml(name)}</td>
+      <td style="padding:7px 8px">${envCell}</td>
+      <td style="padding:7px 8px;color:var(--text3);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(srv.os||'')}">${escHtml(srv.os||'—')}</td>
+      <td style="padding:7px 8px">${shareCell}</td>
+      <td style="padding:7px 8px;color:var(--text4);font-size:11px">${escHtml(srv.last_login||'—')}</td>
+      <td style="padding:7px 8px;text-align:right">${viewBtn}</td>
+    </tr>`;
+  }
+  tbl += `</tbody></table>`;
+  document.getElementById('sa-results-area').innerHTML = ctrl + tbl;
+}
+
+function saSetPageSize(sz) { _saPageSize = sz; _saPage = 0; saRenderPage(); }
+function saGoPage(p)       { _saPage = p; saRenderPage(); }
+
+function saShowModal(serverName) {
+  const results = (_saResults || {}).results || {};
+  const servers = (_saResults || {}).servers || [];
+  const srv = servers.find(s => s.name === serverName) || {};
+  const res = results[serverName.toUpperCase()];
+  if (!res || !res.shares) return;
+
+  const env = srv.env || 'other';
+  const [envBg, envFg] = _envColors[env] || _envColors.other;
+
+  let html = '';
+  for (const sh of res.shares) {
+    const shAcl   = sh.share_acl || [];
+    const ntfsAll = sh.ntfs_acl  || [];
+    const ntfsDir = ntfsAll.filter(a => !a.inherited);
+    const ntfsInh = ntfsAll.filter(a =>  a.inherited);
+
+    html += `<div class="sa-share-block">`;
+    html += `<div class="sa-share-name">${escHtml(sh.name)}</div>`;
+    if (sh.path || sh.description) {
+      html += `<div class="sa-share-meta">`;
+      if (sh.path) html += escHtml(sh.path);
+      if (sh.path && sh.description) html += ' — ';
+      if (sh.description) html += escHtml(sh.description);
+      html += `</div>`;
+    }
+
+    html += `<div class="sa-acl-label">Share Permissions</div>`;
+    if (shAcl.length) {
+      html += `<table class="sa-acl-table"><thead><tr><th>Account</th><th>Right</th><th>Type</th></tr></thead><tbody>`;
+      for (const a of shAcl) html += `<tr><td>${escHtml(a.account)}</td><td>${escHtml(a.right)}</td><td>${escHtml(a.type)}</td></tr>`;
+      html += `</tbody></table>`;
+    } else { html += `<p style="font-size:11px;color:var(--text4)">No share ACL data returned.</p>`; }
+
+    html += `<div class="sa-acl-label">Folder Permissions — Explicit (NTFS)</div>`;
+    if (ntfsDir.length) {
+      html += `<table class="sa-acl-table"><thead><tr><th>Identity</th><th>Rights</th><th>Type</th></tr></thead><tbody>`;
+      for (const a of ntfsDir) html += `<tr><td>${escHtml(a.identity)}</td><td style="font-size:10px">${escHtml(a.rights)}</td><td>${escHtml(a.type)}</td></tr>`;
+      html += `</tbody></table>`;
+    } else { html += `<p style="font-size:11px;color:var(--text4)">No explicit NTFS entries (all inherited).</p>`; }
+
+    if (ntfsInh.length) {
+      html += `<details style="margin-top:6px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">Inherited (${ntfsInh.length})</summary>
+        <table class="sa-acl-table" style="opacity:0.65;margin-top:4px"><thead><tr><th>Identity</th><th>Rights</th><th>Type</th></tr></thead><tbody>`;
+      for (const a of ntfsInh) html += `<tr><td>${escHtml(a.identity)}</td><td style="font-size:10px">${escHtml(a.rights)}</td><td>${escHtml(a.type)}</td></tr>`;
+      html += `</tbody></table></details>`;
+    }
+    html += `</div>`;
+  }
+
+  document.getElementById('sa-modal-server').textContent = serverName;
+  document.getElementById('sa-modal-env').innerHTML = `<span class="badge" style="background:${envBg};color:${envFg};border:1px solid ${envFg}55">${_envLabel[env]||env}</span>`;
+  document.getElementById('sa-modal-os').textContent = srv.os || '';
+  document.getElementById('sa-modal-body').innerHTML = html;
+  document.getElementById('sa-modal').style.display = 'flex';
+}
+
+function saCloseModal() { document.getElementById('sa-modal').style.display = 'none'; }
+document.getElementById('sa-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('sa-modal')) saCloseModal();
+});
+
+async function saSetEnv(serverName, env) {
+  if (!env) return;
+  await fetch(SA + '/set-env', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({server_name: serverName, environment: env})
+  });
+  await saLoadResults();
+}
+
+function saDownloadPdf() {
+  const env = _saEnv || 'production';
+  const btn = document.getElementById('sa-download-btn');
+  btn.disabled = true; btn.textContent = '⏳ Generating PDF...';
+  window.location.href = SA + '/pdf?env=' + encodeURIComponent(env);
+  setTimeout(() => { btn.disabled = false; btn.textContent = '📄 Download PDF'; }, 4000);
+}
+
+function saDownloadExcel() {
+  const env = _saEnv || 'all';
+  const btn = document.getElementById('sa-excel-btn');
+  btn.disabled = true; btn.textContent = '⏳ Building Excel...';
+  window.location.href = SA + '/excel?env=' + encodeURIComponent(env);
+  setTimeout(() => { btn.disabled = false; btn.textContent = '📊 Export Excel'; }, 4000);
+}
+
+// On page load: resume any in-progress scan and show cached results
+(async () => {
+  const r = await fetch(SA + '/status');
+  const d = await r.json();
+  const state = d.state || {};
+  if (state.running) {
+    document.getElementById('sa-progress-area').style.display = 'block';
+    const btn = document.getElementById('sa-scan-btn');
+    btn.disabled = true; btn.textContent = '⏳ Scanning...';
+    _saPoller = setInterval(saPollStatus, 2000);
+  }
+  const r2 = await fetch(SA + '/results?env=all');
+  const d2 = await r2.json();
+  if (d2.status === 'ok') {
+    _saResults = d2;
+    saUpdateTabs(d2);
+    document.getElementById('sa-download-btn').style.display = 'inline-block';
+    document.getElementById('sa-excel-btn').style.display = 'inline-block';
+    saFilterResults('production');
+  }
+})();
+</script>
+{% endblock %}

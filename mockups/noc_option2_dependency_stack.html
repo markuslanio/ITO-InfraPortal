@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOC Mockup — Option 2: Dependency Stack</title>
+<style>
+  :root{
+    --bg:#1a1a2e; --bg2:#16213e; --bg3:#0d1117; --surface:#2a2a4a; --border:#444466;
+    --text:#fff; --text2:#ccc; --text3:#aaa; --text4:#888;
+    --accent:#0f9b8e; --accent-dark:#0d8a7e; --danger:#ff4444; --warning:#ffaa00; --success:#22cc66;
+    --crit:#ff2f2f; --major:#ff6a00; --warn:#ffaa00; --clear:#22cc66;
+    --cat-tech:#ec4899; --cat-app:#3b82f6; --cat-geo:#0f9b8e;
+    --mono:'Consolas','SF Mono','Fira Code',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);
+       height:100vh;overflow:hidden;display:flex;flex-direction:column;font-size:13px;}
+  .mock-tag{position:fixed;bottom:8px;left:8px;z-index:50;font-size:9px;color:var(--text4);
+            background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:3px 8px;opacity:.75;}
+
+  .strip{display:flex;align-items:center;gap:18px;padding:10px 16px;background:var(--bg2);
+         border-bottom:1px solid var(--border);flex-shrink:0;}
+  .strip .title{font-size:13px;font-weight:700;}
+  .strip .title span{color:var(--accent);}
+  .stat{display:flex;align-items:center;gap:6px;font-size:12px;}
+  .stat b{font-family:var(--mono);font-size:15px;font-weight:600;}
+  .stat.crit b{color:var(--crit);} .stat.warn b{color:var(--warn);} .stat.ok b{color:var(--clear);}
+  .dotc{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .spacer{flex:1;}
+  .refresh{font-size:10px;color:var(--text4);font-family:var(--mono);display:flex;align-items:center;gap:6px;}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+  .body{flex:1;display:flex;min-height:0;}
+  .stackwrap{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .hint{font-size:11px;color:var(--text4);padding:8px 16px 0;display:flex;align-items:center;gap:8px;}
+  .hint b{color:var(--text3);}
+
+  .stack{flex:1;position:relative;padding:10px 16px 16px;display:flex;flex-direction:column;gap:0;min-height:0;}
+  svg.conns{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:visible;}
+  .lane{position:relative;z-index:2;flex:1;display:flex;align-items:center;gap:12px;
+        border-bottom:1px dashed var(--border);padding:6px 0;min-height:0;}
+  .lane:last-child{border-bottom:none;}
+  .lane-lbl{width:110px;flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;}
+  .lane-lbl .sub{display:block;font-size:9px;font-weight:400;color:var(--text4);margin-top:2px;text-transform:none;letter-spacing:0;}
+  .lane.geo .lane-lbl{color:var(--cat-geo);}
+  .lane.app .lane-lbl{color:var(--cat-app);}
+  .lane.tech .lane-lbl{color:var(--cat-tech);}
+  .chips{display:flex;align-items:center;gap:9px;flex-wrap:wrap;flex:1;}
+
+  .chip{position:relative;display:flex;flex-direction:column;justify-content:center;min-width:118px;max-width:170px;
+        border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:7px 11px;cursor:pointer;transition:transform .1s,box-shadow .1s;}
+  .chip:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.4);border-color:var(--accent);}
+  .chip.crit{border-color:rgba(255,47,47,.5);}
+  .chip.major{border-color:rgba(255,106,0,.5);}
+  .chip.warn{border-color:rgba(255,170,0,.5);}
+  .chip.root.crit{box-shadow:0 0 0 1px var(--crit),0 0 16px rgba(255,47,47,.25);}
+  .chip.root.major{box-shadow:0 0 0 1px var(--major),0 0 16px rgba(255,106,0,.2);}
+  .chip-top{display:flex;align-items:center;gap:7px;}
+  .chip-nm{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chip-dev{font-family:var(--mono);font-size:9.5px;color:var(--text4);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chip-dev.crit{color:var(--crit);} .chip-dev.major{color:var(--major);}
+  .rootflag{position:absolute;top:-8px;right:8px;font-size:8px;font-weight:700;letter-spacing:.06em;
+            background:var(--crit);color:#fff;padding:1px 6px;border-radius:8px;}
+  .chip.root.major .rootflag{background:var(--major);}
+  .chip.iso .rootflag{background:var(--text4);}
+
+  .healthy-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text4);
+        border:1px dashed var(--border);border-radius:14px;padding:4px 11px;background:transparent;white-space:nowrap;}
+  .healthy-pill .dotc{background:var(--clear);opacity:.6;}
+
+  .site{display:flex;align-items:center;gap:6px;font-size:11px;border:1px solid var(--border);border-radius:14px;padding:4px 12px;background:var(--bg2);}
+  .site.down{border-color:rgba(255,47,47,.5);color:var(--crit);font-weight:600;}
+
+  /* device panel (shared) */
+  .panel{width:0;flex-shrink:0;background:var(--bg2);border-left:1px solid transparent;overflow:hidden;
+         display:flex;flex-direction:column;transition:width .22s ease,border-color .22s ease;}
+  .panel.open{width:344px;border-left-color:var(--border);}
+  .panel-hd{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;flex-shrink:0;}
+  .panel-hd .nm{font-size:14px;font-weight:700;flex:1;}
+  .panel-hd .sub{font-size:11px;color:var(--text4);margin-top:2px;}
+  .panel-x{background:none;border:1px solid var(--border);color:var(--text3);width:26px;height:26px;border-radius:4px;cursor:pointer;font-size:13px;flex-shrink:0;}
+  .panel-x:hover{border-color:var(--danger);color:var(--danger);}
+  .actionbar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+  .abtn{font-size:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer;font-family:inherit;}
+  .abtn:hover{border-color:var(--accent);color:var(--text);}
+  .abtn.danger{background:rgba(255,68,68,.12);border-color:var(--danger);color:var(--danger);}
+  .abtn:disabled{opacity:.4;cursor:not-allowed;}
+  .selcount{font-size:10px;color:var(--text4);flex:1;}
+  .panel-body{flex:1;overflow-y:auto;padding:8px;}
+  .sev-hd{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 4px 3px;}
+  .dev-row{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--border);border-left:4px solid var(--border);
+           border-radius:0 5px 5px 0;background:var(--bg3);padding:7px 10px;margin-bottom:4px;}
+  .dev-row.crit{border-left-color:var(--crit);} .dev-row.major{border-left-color:var(--major);}
+  .dev-row.warn{border-left-color:var(--warn);} .dev-row.clear{border-left-color:var(--clear);}
+  .dev-row input{margin-top:2px;cursor:pointer;}
+  .dev-nm{font-family:var(--mono);font-size:11px;font-weight:600;}
+  .dev-al{font-size:10px;margin-top:3px;line-height:1.35;}
+  .dev-al.crit{color:var(--crit);} .dev-al.major{color:var(--major);} .dev-al.warn{color:var(--warn);} .dev-al.clear{color:var(--success);}
+  .tierpill{display:inline-block;font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;margin-top:4px;
+            background:rgba(15,155,142,.12);color:var(--accent);border:1px solid rgba(15,155,142,.3);}
+  .catbadge{font-size:8.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:3px;text-transform:uppercase;}
+  .cb-tech{background:rgba(236,72,153,.15);color:var(--cat-tech);border:1px solid rgba(236,72,153,.35);}
+  .cb-app{background:rgba(59,130,246,.15);color:var(--cat-app);border:1px solid rgba(59,130,246,.35);}
+  .cb-geo{background:rgba(15,155,142,.15);color:var(--cat-geo);border:1px solid rgba(15,155,142,.35);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+         background:var(--bg2);border:1px solid var(--accent);border-radius:8px;padding:10px 18px;font-size:12px;
+         box-shadow:0 8px 30px rgba(0,0,0,.5);transition:all .25s;z-index:100;pointer-events:none;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast b{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<div class="strip">
+  <div class="title">NOC · <span>Dependency Stack</span></div>
+  <div class="stat crit"><span class="dotc" style="background:var(--crit)"></span><b>2</b> root failures</div>
+  <div class="stat warn"><span class="dotc" style="background:var(--warn)"></span><b>7</b> impacted</div>
+  <div class="stat ok"><span class="dotc" style="background:var(--clear)"></span><b>133</b> healthy</div>
+  <div class="spacer"></div>
+  <div class="refresh"><span class="pulse"></span>auto 30s · 04:12:38</div>
+</div>
+
+<div class="body">
+  <div class="stackwrap">
+    <div class="hint">Trouble flows <b>down</b> to the foundation — the lowest red is the source. Lines light up only for affected paths. ▼</div>
+    <div class="stack" id="stack">
+      <svg class="conns" id="conns"></svg>
+
+      <div class="lane geo">
+        <div class="lane-lbl">Geographic<span class="sub">sites / context</span></div>
+        <div class="chips" id="laneGeo"></div>
+      </div>
+      <div class="lane app">
+        <div class="lane-lbl">Application<span class="sub">user-facing services</span></div>
+        <div class="chips" id="laneApp"></div>
+      </div>
+      <div class="lane tech">
+        <div class="lane-lbl">Technology<span class="sub">foundation · infra</span></div>
+        <div class="chips" id="laneTech"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- shared device panel -->
+  <div class="panel" id="panel">
+    <div class="panel-hd">
+      <div style="flex:1;min-width:0"><div class="nm" id="pName"></div><div class="sub" id="pSub"></div></div>
+      <button class="panel-x" onclick="closePanel()">✕</button>
+    </div>
+    <div class="actionbar" id="pActions" style="display:none">
+      <button class="abtn" onclick="selAlerting()">Select alerting</button>
+      <button class="abtn" onclick="deselAll()">Deselect</button>
+      <span class="selcount" id="pSel"></span>
+      <button class="abtn" id="pAck" disabled onclick="doAction('Acknowledged')">Acknowledge</button>
+      <button class="abtn danger" id="pClr" disabled onclick="doAction('Cleared')">Clear Alerts</button>
+    </div>
+    <div class="panel-body" id="pBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="mock-tag">MOCKUP · Option 2 · dummy data</div>
+
+<script>
+const GROUPS = {
+  coreNet:  {name:'Core Network', cat:'Technology', tier:'P1', loc:'Topeka', team:'Network', sev:'crit',  down:'sw-top-01'},
+  vmware:   {name:'VMware · Topeka', cat:'Technology', tier:'P1', loc:'Topeka', team:'VMware', sev:'crit',  down:'esxi-top-04'},
+  lifecad:  {name:'LifeCad', cat:'App', tier:'P2', loc:'Topeka', team:'AppOps', sev:'major', down:''},
+  billing:  {name:'Billing', cat:'App', tier:'P1', loc:'Topeka', team:'AppOps', sev:'major', down:''},
+  mcs:      {name:'MCS', cat:'App', tier:'P1', loc:'Topeka', team:'Wintel', sev:'crit',  down:''},
+  citrix:   {name:'Citrix', cat:'App', tier:'P2', loc:'Topeka', team:'Citrix', sev:'warn',  down:''},
+  vdi:      {name:'VDI Pool', cat:'App', tier:'P2', loc:'Topeka', team:'Citrix', sev:'major', down:''},
+  oracle:   {name:'Oracle Prod', cat:'App', tier:'P1', loc:'Topeka', team:'DBA', sev:'major', down:''},
+};
+const EDGES = [['lifecad','coreNet'],['mcs','coreNet'],['citrix','coreNet'],['billing','lifecad'],['vdi','vmware'],['mcs','vmware']];
+const DEVICES = {
+  coreNet:[{n:'sw-top-01',s:'crit',a:'Switch unreachable — ICMP + SNMP timeout'},{n:'sw-top-02',s:'clear',a:''}],
+  vmware: [{n:'esxi-top-04',s:'crit',a:'Host not responding'},{n:'esxi-top-03',s:'clear',a:''},{n:'esxi-top-05',s:'clear',a:''}],
+  lifecad:[{n:'LIFECAD-APP01',s:'major',a:'HTTP 503 — backend unreachable'},{n:'LIFECAD-APP02',s:'major',a:'HTTP 503 — backend unreachable'}],
+  billing:[{n:'BILLING-01',s:'major',a:'Job queue backing up'},{n:'BILLING-02',s:'clear',a:''}],
+  mcs:    [{n:'MCS-01',s:'crit',a:'Down — datastore inaccessible'},{n:'MCS-02',s:'crit',a:'Down — datastore inaccessible'},{n:'MCS-03',s:'clear',a:''}],
+  citrix: [{n:'CTX-VDA-11',s:'warn',a:'Registration delayed'},{n:'CTX-VDA-12',s:'clear',a:''}],
+  vdi:    [{n:'VDI-POOL-A',s:'major',a:'50% capacity offline'}],
+  oracle: [{n:'ORA-PRD-01',s:'major',a:'Tablespace 92% full'}],
+};
+const HEALTHY={Technology:31,App:38}; // collapsed counts (mock)
+const SITES=[{n:'Topeka',down:true},{n:'Candor',down:false},{n:'VMC',down:false},{n:'AWS',down:false}];
+
+const isDown=id=>GROUPS[id].sev!=='clear';
+const deps=id=>EDGES.filter(e=>e[0]===id).map(e=>e[1]);
+const isRoot=id=>isDown(id)&&!deps(id).some(isDown);
+function catShort(c){return c==='Technology'?'TECH':c==='App'?'APP':'GEO';}
+function catClass(c){return c==='Technology'?'cb-tech':c==='App'?'cb-app':'cb-geo';}
+
+function chipHtml(id){
+  const g=GROUPS[id]; const root=isRoot(id); const b=deps(id).some(isDown);
+  return `<div class="chip ${g.sev} ${root?'root':''} ${root&&!b?'iso':''}" data-id="${id}" onclick="openPanel('${id}')">
+    ${root?`<span class="rootflag">${b?'ROOT':'ROOT · ISO'}</span>`:''}
+    <div class="chip-top"><span class="dotc" style="background:var(--${g.sev==='crit'?'crit':g.sev==='major'?'major':'warn'})"></span>
+      <span class="chip-nm">${g.name}</span></div>
+    <div class="chip-dev ${g.sev}">${g.down?g.down+' down':(DEVICES[id]||[]).filter(d=>d.s!=='clear').length+' device(s) alerting'}</div>
+  </div>`;
+}
+function render(){
+  document.getElementById('laneGeo').innerHTML =
+    SITES.map(s=>`<div class="site ${s.down?'down':''}"><span class="dotc" style="background:var(--${s.down?'crit':'clear'})"></span>${s.n}</div>`).join('')
+    + `<div class="healthy-pill"><span class="dotc"></span>4 sites clear</div>`;
+  const appDown=Object.keys(GROUPS).filter(id=>GROUPS[id].cat==='App'&&isDown(id));
+  const techDown=Object.keys(GROUPS).filter(id=>GROUPS[id].cat==='Technology'&&isDown(id));
+  // order app so core-net dependents sit left, vmware dependents right
+  const appOrder=['billing','lifecad','mcs','citrix','vdi','oracle'].filter(x=>appDown.includes(x));
+  document.getElementById('laneApp').innerHTML = appOrder.map(chipHtml).join('')
+    + `<div class="healthy-pill"><span class="dotc"></span>+${HEALTHY.App} healthy</div>`;
+  document.getElementById('laneTech').innerHTML = ['coreNet','vmware'].filter(x=>techDown.includes(x)).map(chipHtml).join('')
+    + `<div class="healthy-pill"><span class="dotc"></span>+${HEALTHY.Technology} healthy</div>`;
+  requestAnimationFrame(drawConns);
+}
+function drawConns(){
+  const stack=document.getElementById('stack'); const sr=stack.getBoundingClientRect();
+  const svg=document.getElementById('conns'); svg.setAttribute('width',sr.width); svg.setAttribute('height',sr.height);
+  const rectOf=id=>{const el=stack.querySelector(`.chip[data-id="${id}"]`); if(!el)return null;
+    const r=el.getBoundingClientRect(); return {x:r.left-sr.left,y:r.top-sr.top,w:r.width,h:r.height};};
+  let p=`<defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+     <path d="M0,0 L9,4.5 L0,9 Z" fill="#ff5a5a"/></marker></defs>`;
+  EDGES.forEach(([from,to])=>{
+    if(!isDown(from)||!isDown(to))return;
+    const a=rectOf(from), c=rectOf(to); if(!a||!c)return;
+    // arrow from dependent (a) DOWN to dependency/root (c)
+    const x1=a.x+a.w/2, y1=a.y+a.h, x2=c.x+c.w/2, y2=c.y;
+    const my=(y1+y2)/2;
+    p+=`<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"
+        fill="none" stroke="#ff5a5a" stroke-width="1.7" opacity=".75" marker-end="url(#ah)"/>`;
+  });
+  svg.innerHTML=p;
+}
+window.addEventListener('resize',()=>requestAnimationFrame(drawConns));
+
+// shared panel
+let selDevs=new Set(), panelGroup=null;
+function openPanel(id){
+  panelGroup=id; selDevs.clear();
+  const g=GROUPS[id]; const devs=DEVICES[id]||[];
+  document.getElementById('pName').textContent=g.name;
+  document.getElementById('pSub').innerHTML=`${devs.length} device(s) · ${catShort(g.cat)} · ${g.loc} · ${g.team}`;
+  const order=['crit','major','warn','clear']; let h='';
+  order.forEach(s=>{const rows=devs.filter(d=>d.s===s); if(!rows.length)return;
+    const lbl={crit:'Critical',major:'Major',warn:'Warning',clear:'Clear'}[s];
+    h+=`<div class="sev-hd" style="color:var(--${s==='clear'?'clear':s})">${lbl} — ${rows.length}</div>`;
+    rows.forEach(d=>{const al=d.s!=='clear';
+      h+=`<div class="dev-row ${d.s}">${al?`<input type="checkbox" onchange="toggleDev('${d.n}',this.checked)">`:'<span style="width:13px"></span>'}
+        <div style="flex:1;min-width:0"><div class="dev-nm">${d.n}</div>
+        ${d.a?`<div class="dev-al ${d.s}">${d.a}</div>`:`<div class="dev-al clear">✓ healthy</div>`}
+        <span class="tierpill">${g.tier}</span></div></div>`;});});
+  document.getElementById('pBody').innerHTML=h;
+  document.getElementById('pActions').style.display=devs.some(d=>d.s!=='clear')?'flex':'none';
+  updateSel(); document.getElementById('panel').classList.add('open');
+}
+function closePanel(){document.getElementById('panel').classList.remove('open');panelGroup=null;selDevs.clear();}
+function toggleDev(n,c){c?selDevs.add(n):selDevs.delete(n);updateSel();}
+function selAlerting(){(DEVICES[panelGroup]||[]).forEach(d=>{if(d.s!=='clear')selDevs.add(d.n);});
+  document.querySelectorAll('#pBody input').forEach(cb=>cb.checked=true);updateSel();}
+function deselAll(){selDevs.clear();document.querySelectorAll('#pBody input').forEach(cb=>cb.checked=false);updateSel();}
+function updateSel(){const n=selDevs.size;document.getElementById('pSel').textContent=n?`${n} selected`:'';
+  document.getElementById('pAck').disabled=n===0;document.getElementById('pClr').disabled=n===0;}
+function doAction(w){const n=selDevs.size;showToast(`${w} <b>${n}</b> alarm${n!==1?'s':''} in OpManager <b>(mock)</b>`);deselAll();}
+let tT;function showToast(html){const t=document.getElementById('toast');t.innerHTML=html;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),2600);}
+
+render();
+</script>
+</body>
+</html>

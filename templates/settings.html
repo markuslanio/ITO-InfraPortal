@@ -1,0 +1,627 @@
+{% extends "base.html" %}
+{% block title %}Settings — Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+<style>
+.st-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+.st-title  { font-size:22px; font-weight:700; color:var(--text); margin:0; }
+.st-sub    { font-size:13px; color:var(--text3); margin:4px 0 0; }
+
+/* Tabs (reuses .v2-tab-bar / .v2-tab / .v2-tab-panel from base.html — those
+   rules are not scoped to ui-v2, so they render correctly in classic mode too) */
+.st-tab-bar { margin-bottom:20px; }
+
+.st-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:16px; }
+.st-card h3 { color:var(--accent); margin:0 0 14px; font-size:15px; }
+.st-card-sub { font-size:12px; color:var(--text3); margin:-10px 0 16px; }
+
+.st-field { margin-bottom:14px; }
+.st-field label { display:block; font-size:11px; color:var(--text3); margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; }
+.st-input, .st-select {
+    width:100%; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); padding:8px 10px; border-radius:6px;
+    font-size:13px; box-sizing:border-box; font-family:inherit;
+}
+.st-input:focus, .st-select:focus { outline:none; border-color:var(--accent); }
+.st-hint { font-size:11px; color:var(--text4); margin-top:4px; }
+.st-row  { display:flex; gap:8px; align-items:flex-end; }
+.st-row .st-field { flex:1; margin-bottom:0; }
+
+.st-list { display:flex; flex-direction:column; gap:6px; }
+.st-list-row {
+    display:flex; align-items:center; gap:8px;
+    background:var(--bg3); border:1px solid var(--border);
+    border-radius:6px; padding:8px 10px; font-size:13px;
+}
+.st-list-row .name { flex:1; color:var(--text); }
+.st-mini-btn {
+    background:none; border:1px solid var(--border); color:var(--text4);
+    cursor:pointer; font-size:11px; padding:2px 6px; border-radius:4px;
+    line-height:1; transition:all .15s; font-family:inherit;
+}
+.st-mini-btn:hover { color:var(--text); border-color:var(--accent); }
+.st-mini-btn.danger:hover { color:var(--danger); border-color:var(--danger); }
+.st-empty { color:var(--text4); font-style:italic; font-size:13px; text-align:center; padding:20px 0; }
+
+.st-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+@media (max-width:800px) { .st-grid-2 { grid-template-columns:1fr; } }
+
+/* Env editor */
+.env-group { margin-bottom:18px; }
+.env-group-title { font-size:11px; font-weight:700; color:var(--text4); text-transform:uppercase; letter-spacing:.06em; margin:0 0 8px; }
+.env-row { display:grid; grid-template-columns:220px 1fr; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); }
+.env-row:last-child { border-bottom:none; }
+.env-key { font-family:Consolas,monospace; font-size:12px; color:var(--text2); word-break:break-all; }
+.env-key .secret-tag { font-size:9px; color:var(--warning); border:1px solid rgba(255,170,0,.35); background:rgba(255,170,0,.1); padding:1px 5px; border-radius:8px; margin-left:6px; vertical-align:middle; }
+.env-val-input {
+    width:100%; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); padding:6px 9px; border-radius:5px;
+    font-size:12px; font-family:Consolas,monospace; box-sizing:border-box;
+}
+.env-val-input:focus { outline:none; border-color:var(--accent); }
+.env-val-input.changed { border-color:var(--accent); background:rgba(15,155,142,.06); }
+.env-warn-box {
+    background:rgba(255,170,0,.08); border:1px solid rgba(255,170,0,.3); border-radius:8px;
+    padding:12px 16px; margin-bottom:18px; font-size:12px; color:var(--text2); line-height:1.6;
+}
+.env-warn-box strong { color:var(--warning); }
+.env-actions { display:flex; align-items:center; gap:12px; margin-top:16px; position:sticky; bottom:0; background:var(--bg2); padding-top:12px; }
+.env-status { font-size:12px; color:var(--text3); }
+
+.st-btn {
+    background:var(--accent); color:#fff; border:none; padding:9px 18px;
+    border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit; transition:background .15s;
+}
+.st-btn:hover { background:var(--accent-dark); }
+.st-btn:disabled { background:var(--text4); cursor:not-allowed; }
+.st-btn-ghost {
+    background:none; border:1px solid var(--border); color:var(--text3);
+    padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-family:inherit;
+}
+.st-btn-ghost:hover { color:var(--text); border-color:var(--accent); }
+
+.st-toast {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+    padding:10px 20px; font-size:13px; color:var(--text); z-index:9999;
+    box-shadow:0 4px 16px rgba(0,0,0,.25); display:none;
+}
+.st-toast.show { display:block; }
+.st-toast.error { border-color:var(--danger); color:var(--danger); }
+
+/* ── Scheduler tab (ported from scheduler.html) ── */
+.sched-stats  { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+.sched-stat   { background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+                padding:12px 20px; min-width:110px; text-align:center; }
+.sched-stat .sv { font-size:26px; font-weight:700; line-height:1; }
+.sched-stat .sl { font-size:11px; color:var(--text3); margin-top:4px; }
+.sv.ok   { color:var(--success); }
+.sv.err  { color:var(--danger); }
+.sv.warn { color:var(--warning); }
+.sv.mute { color:var(--text4); }
+.sched-group       { background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+                     margin-bottom:16px; overflow:hidden; }
+.sched-group-head  { display:flex; align-items:center; gap:12px; padding:12px 18px;
+                     background:var(--bg3); cursor:pointer; user-select:none;
+                     border-bottom:1px solid var(--border); }
+.sched-group-head:hover { background:var(--surface); }
+.sched-group-name  { font-size:13px; font-weight:600; color:var(--text2); flex:1; }
+.sched-group-badge { font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600; }
+.sg-err  { background:rgba(255,68,68,.12); color:var(--danger); border:1px solid rgba(255,68,68,.25); }
+.sg-ok   { background:rgba(34,204,102,.10); color:var(--success); border:1px solid rgba(34,204,102,.25); }
+.sg-warn { background:rgba(255,170,0,.10); color:var(--warning); border:1px solid rgba(255,170,0,.25); }
+.sg-mute { background:rgba(136,136,136,.10); color:var(--text4); border:1px solid var(--border); }
+.sg-chevron { color:var(--text4); font-size:11px; transition:transform .2s; }
+.sched-group.collapsed .sg-chevron { transform:rotate(-90deg); }
+.sched-group.collapsed .sched-group-body { display:none; }
+.sched-table       { width:100%; border-collapse:collapse; font-size:13px; }
+.sched-table th    { text-align:left; padding:8px 16px; font-size:11px; font-weight:600;
+                     color:var(--text4); border-bottom:1px solid var(--border); background:var(--bg3); }
+.sched-table td    { padding:10px 16px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.sched-table tr:last-child td { border-bottom:none; }
+.sched-table tr:hover td { background:rgba(15,155,142,.04); }
+.sched-table tr.paused td { opacity:.55; }
+.job-status { display:inline-flex; align-items:center; gap:5px; padding:3px 8px;
+              border-radius:10px; font-size:11px; font-weight:600; white-space:nowrap; }
+.js-ok   { background:rgba(34,204,102,.10); color:var(--success); border:1px solid rgba(34,204,102,.25); }
+.js-err  { background:rgba(255,68,68,.10);  color:var(--danger);  border:1px solid rgba(255,68,68,.25); }
+.js-pend { background:rgba(136,136,136,.10); color:var(--text4); border:1px solid var(--border); }
+.js-paused { background:rgba(255,170,0,.10); color:var(--warning); border:1px solid rgba(255,170,0,.25); }
+.interval-display { display:flex; align-items:center; gap:6px; }
+.interval-val     { font-size:12px; color:var(--text3); font-family:monospace; }
+.interval-edit    { display:none; align-items:center; gap:6px; }
+.interval-edit input { width:68px; padding:3px 7px; font-size:12px; background:var(--bg3);
+                       border:1px solid var(--border); border-radius:4px; color:var(--text);
+                       font-family:monospace; }
+.interval-edit input:focus { border-color:var(--accent); outline:none; }
+.act-btn { background:var(--surface); color:var(--text3); border:1px solid var(--border);
+           padding:4px 10px; border-radius:5px; cursor:pointer; font-size:11px;
+           transition:background .15s, color .15s; white-space:nowrap; }
+.act-btn:hover { background:var(--bg3); color:var(--text); }
+.act-btn.run   { color:var(--accent); border-color:rgba(15,155,142,.35); }
+.act-btn.run:hover { background:rgba(15,155,142,.12); }
+.act-btn.pause { color:var(--warning); border-color:rgba(255,170,0,.35); }
+.act-btn.pause:hover { background:rgba(255,170,0,.12); }
+.act-btn.resume { color:var(--success); border-color:rgba(34,204,102,.35); }
+.act-btn.resume:hover { background:rgba(34,204,102,.12); }
+.act-btn.danger { color:var(--danger); border-color:rgba(255,68,68,.35); }
+.act-btn.small { padding:2px 7px; font-size:10px; }
+.act-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.err-detail { font-size:11px; color:var(--danger); max-width:280px;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.err-detail:hover { white-space:normal; word-break:break-all; }
+.spin-sm { display:inline-block; width:12px; height:12px; border:2px solid var(--accent);
+           border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite;
+           vertical-align:middle; margin-left:4px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.refresh-note { font-size:11px; color:var(--text4); display:flex; align-items:center; gap:6px; }
+.refresh-dot  { width:6px; height:6px; border-radius:50%; background:var(--success); animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="st-header">
+    <div>
+      <h1 class="st-title">⚙️ Settings</h1>
+      <p class="st-sub">Site-wide configuration — background jobs, Jira teams, dropdown lists, and environment variables.</p>
+    </div>
+  </div>
+
+  <div class="v2-tab-bar st-tab-bar" id="stTopTabs">
+    <button class="v2-tab active" data-tab="tab-scheduler" onclick="stSwitchTab('tab-scheduler', this)">Scheduler</button>
+    <button class="v2-tab" data-tab="tab-jira" onclick="stSwitchTab('tab-jira', this)">Jira Teams</button>
+    <button class="v2-tab" data-tab="tab-lookup" onclick="stSwitchTab('tab-lookup', this)">Lookup Lists</button>
+    <button class="v2-tab" data-tab="tab-env" onclick="stSwitchTab('tab-env', this)">Environment</button>
+    <button class="v2-tab" data-tab="tab-criticality" onclick="stSwitchTab('tab-criticality', this)">🚨 Criticality</button>
+  </div>
+
+  <div class="st-top-panels">
+
+  <!-- ══════════════════ SCHEDULER TAB ══════════════════ -->
+  <div class="v2-tab-panel active" id="tab-scheduler">
+    <div class="st-header" style="margin-bottom:16px;">
+      <div class="refresh-note">
+        <div class="refresh-dot"></div>
+        <span id="refreshNote">Auto-refreshing every 30s</span>
+      </div>
+    </div>
+
+    {% if load_error %}
+    <div class="error-box">Failed to load scheduler: {{ load_error }}</div>
+    {% endif %}
+
+    <div class="sched-stats">
+      <div class="sched-stat"><div class="sv mute">{{ total }}</div><div class="sl">Total Jobs</div></div>
+      <div class="sched-stat"><div class="sv ok">{{ total - errors - paused - never_run }}</div><div class="sl">Running OK</div></div>
+      <div class="sched-stat"><div class="sv {% if errors > 0 %}err{% else %}ok{% endif %}">{{ errors }}</div><div class="sl">Errors</div></div>
+      <div class="sched-stat"><div class="sv {% if paused > 0 %}warn{% else %}mute{% endif %}">{{ paused }}</div><div class="sl">Paused</div></div>
+      <div class="sched-stat"><div class="sv mute">{{ never_run }}</div><div class="sl">Never Run</div></div>
+    </div>
+
+    {% for group_name, jobs in grouped_jobs.items() %}
+    {% set grp_errors = jobs | selectattr("last_status", "equalto", "error") | list | length %}
+    {% set grp_paused = jobs | selectattr("paused") | list | length %}
+    <div class="sched-group" id="grp-{{ group_name | replace(' ', '_') }}">
+      <div class="sched-group-head" onclick="toggleGroup(this)">
+        <span class="sched-group-name">{{ group_name }}</span>
+        <span class="sched-group-badge {% if grp_errors > 0 %}sg-err{% elif grp_paused > 0 %}sg-warn{% else %}sg-ok{% endif %}">
+          {{ jobs | length }} job{{ 's' if jobs | length != 1 else '' }}
+          {% if grp_errors > 0 %} · {{ grp_errors }} error{{ 's' if grp_errors != 1 else '' }}{% endif %}
+          {% if grp_paused > 0 %} · {{ grp_paused }} paused{% endif %}
+        </span>
+        <span class="sg-chevron">▼</span>
+      </div>
+      <div class="sched-group-body">
+        <table class="sched-table">
+          <thead>
+            <tr>
+              <th style="width:220px">Job</th><th style="width:90px">Status</th>
+              <th style="width:140px">Last Run</th><th style="width:140px">Next Run</th>
+              <th style="width:80px">Interval</th><th style="width:50px">Runs</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for job in jobs %}
+          <tr id="row-{{ job.id }}" {% if job.paused %}class="paused"{% endif %}>
+            <td>
+              <div style="font-weight:500;color:var(--text)">{{ job.label }}</div>
+              {% if job.last_error and job.last_status == 'error' %}
+              <div class="err-detail" title="{{ job.last_error }}">{{ job.last_error }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if job.paused %}<span class="job-status js-paused">⏸ Paused</span>
+              {% elif job.last_status == 'ok' %}<span class="job-status js-ok">✓ OK</span>
+              {% elif job.last_status == 'error' %}<span class="job-status js-err">✗ Error</span>
+              {% else %}<span class="job-status js-pend">— Never</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:var(--text3);font-family:monospace">{{ job.last_run or '—' }}</td>
+            <td style="font-size:12px;color:var(--text3);font-family:monospace" id="next-{{ job.id }}">
+              {% if job.paused %}—{% else %}{{ job.next_run or '—' }}{% endif %}
+            </td>
+            <td>
+              {% if job.trigger and job.trigger.type == 'interval' %}
+              <div class="interval-display" id="iview-{{ job.id }}">
+                <span class="interval-val" id="ival-{{ job.id }}">
+                  {% set m = job.db_interval or job.trigger.minutes or job.default_minutes %}
+                  {% if m %}{% if m >= 60 %}{{ (m // 60) }}h{% if m % 60 != 0 %} {{ m % 60 }}m{% endif %}{% else %}{{ m }}m{% endif %}{% else %}—{% endif %}
+                </span>
+                <button class="act-btn small" onclick="showIntervalEdit('{{ job.id }}', {{ job.db_interval or job.trigger.minutes or job.default_minutes or 0 }})" title="Edit interval">✎</button>
+              </div>
+              <div class="interval-edit" id="iedit-{{ job.id }}">
+                <input type="number" id="imin-{{ job.id }}" min="1" max="14400" placeholder="min">
+                <button class="act-btn small run" onclick="saveInterval('{{ job.id }}')">✓</button>
+                <button class="act-btn small" onclick="cancelIntervalEdit('{{ job.id }}')">✕</button>
+              </div>
+              {% elif job.trigger and job.trigger.type == 'cron' %}
+              <span class="interval-val">cron</span>
+              {% else %}<span class="interval-val">—</span>{% endif %}
+            </td>
+            <td style="color:var(--text3);font-size:12px">{{ job.run_count }}</td>
+            <td>
+              <div class="act-row">
+                <button class="act-btn run" onclick="runNow('{{ job.id }}', this)">▶ Run Now</button>
+                {% if job.paused %}
+                <button class="act-btn resume" onclick="setPaused('{{ job.id }}', false, this)">▶ Resume</button>
+                {% else %}
+                <button class="act-btn pause" onclick="setPaused('{{ job.id }}', true, this)">⏸ Pause</button>
+                {% endif %}
+                {% if job.db_interval %}
+                <button class="act-btn small danger" onclick="resetInterval('{{ job.id }}')">Reset</button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ══════════════════ JIRA TEAMS TAB ══════════════════ -->
+  <div class="v2-tab-panel" id="tab-jira">
+    <div class="st-card" style="margin-bottom:20px;">
+      <strong style="color:var(--text)">How to find a Team ID:</strong>
+      <ol style="margin:8px 0 0 18px;padding:0;font-size:13px;color:var(--text2);line-height:1.7">
+        <li>Go to <a href="https://home.atlassian.com/o/2d58600f-43cd-4055-8f51-1ed98b352967/people/?screen=SEARCH&viewTab=all" target="_blank" style="color:var(--accent)">Atlassian Teams</a></li>
+        <li>Click on any team, copy the UUID from the URL</li>
+        <li>Paste it below along with the team's display name</li>
+      </ol>
+    </div>
+    <div class="st-grid-2">
+      <div class="st-card">
+        <h3>➕ Add Team</h3>
+        <div class="st-field"><label>Team Name</label><input class="st-input" id="jc-inp-name" placeholder="e.g. ITO Windows"></div>
+        <div class="st-field">
+          <label>Team ID (UUID)</label>
+          <input class="st-input" id="jc-inp-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          <div class="st-hint">From the team's URL on home.atlassian.com</div>
+        </div>
+        <button class="st-btn" onclick="jcAddTeam()">Add Team</button>
+      </div>
+      <div class="st-card">
+        <h3>📋 Saved Teams</h3>
+        <div class="st-list" id="jc-team-list"><div class="st-empty">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ LOOKUP LISTS TAB ══════════════════ -->
+  <div class="v2-tab-panel" id="tab-lookup">
+    <div class="st-card">
+      <h3>Manage dropdown options</h3>
+      <p class="st-card-sub">These values populate select dropdowns elsewhere in the portal — changes apply immediately, no code deploy needed.</p>
+      <div class="st-field" style="max-width:280px;">
+        <label>List</label>
+        <select class="st-select" id="lk-list-select" onchange="lkLoadList()">
+          <option value="owner_teams">Owner Team (Criticality → Device Groups)</option>
+        </select>
+      </div>
+      <div class="st-row" style="margin-bottom:16px;max-width:420px;">
+        <div class="st-field"><label>Add value</label><input class="st-input" id="lk-new-value" placeholder="e.g. Cloud Ops" onkeydown="if(event.key==='Enter'){event.preventDefault();lkAddValue();}"></div>
+        <button class="st-btn" onclick="lkAddValue()">Add</button>
+      </div>
+      <div class="st-list" id="lk-list"><div class="st-empty">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ ENVIRONMENT TAB ══════════════════ -->
+  <div class="v2-tab-panel" id="tab-env">
+    <div class="env-warn-box">
+      <strong>⚠ Handle with care.</strong> This edits <code>.env</code> directly on the server. Secret values (passwords, tokens, API keys) are masked and are only overwritten if you type a new value. Saving takes a backup of the current file first, then <strong>recycles the IIS app pool</strong> to apply the change — this briefly interrupts the site for everyone currently signed in.
+    </div>
+    <div class="st-card">
+      <div id="env-groups"><div class="st-empty">Loading...</div></div>
+      <div class="env-actions">
+        <button class="st-btn" id="env-save-btn" onclick="envSave()">Save Changes & Recycle App Pool</button>
+        <button class="st-btn-ghost" onclick="envLoad()">Discard / Reload</button>
+        <span class="env-status" id="env-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ CRITICALITY TAB ══════════════════ -->
+  <div class="v2-tab-panel" id="tab-criticality">
+    {% include "_criticality_content.html" %}
+  </div>
+
+  </div><!-- /st-top-panels -->
+
+</div>
+
+<div class="st-toast" id="st-toast"></div>
+
+<script>
+function stSwitchTab(tabId, btn) {
+    document.querySelectorAll('#stTopTabs .v2-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.st-top-panels > .v2-tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    history.replaceState(null, '', '#' + tabId.replace(/^tab-/, ''));
+}
+
+// Deep-link support — old /scheduler, /jira-config, /criticality routes redirect here with a #fragment
+(function () {
+    const frag = location.hash.replace('#', '');
+    if (!frag) return;
+    const btn = document.querySelector(`#stTopTabs [data-tab="tab-${frag}"]`);
+    if (btn) stSwitchTab('tab-' + frag, btn);
+})();
+
+function stShowToast(msg, isError) {
+    const t = document.getElementById('st-toast');
+    t.textContent = msg;
+    t.className = 'st-toast show' + (isError ? ' error' : '');
+    setTimeout(() => t.className = 'st-toast', 3500);
+}
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escJs(s)   { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+/* ── Scheduler tab JS (ported) ─────────────────────────────────────────── */
+function toggleGroup(head) { head.closest('.sched-group').classList.toggle('collapsed'); }
+document.querySelectorAll('#tab-scheduler .sched-group').forEach(g => {
+  if (!g.querySelector('.js-err') && !g.querySelector('.js-paused')) g.classList.add('collapsed');
+});
+
+async function runNow(jobId, btn) {
+  btn.disabled = true; btn.innerHTML = '▶ Running<span class="spin-sm"></span>';
+  try {
+    const r = await fetch(`/infraportal/api/scheduler/run/${jobId}`, {method:'POST'});
+    const d = await r.json();
+    stShowToast(d.status === 'started' ? `Started ${jobId}` : `Error: ${d.status}`);
+    btn.innerHTML = '▶ Run Now'; btn.disabled = false;
+    setTimeout(() => refreshStatus(), 3000);
+  } catch(e) { stShowToast('Request failed', true); btn.innerHTML = '▶ Run Now'; btn.disabled = false; }
+}
+
+async function setPaused(jobId, paused, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch('/infraportal/api/scheduler/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: jobId, action: paused ? 'pause' : 'resume'})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') { stShowToast(paused ? `Paused ${jobId}` : `Resumed ${jobId}`); setTimeout(() => location.reload(), 800); }
+    else { stShowToast('Failed: ' + (d.error || d.status), true); btn.disabled = false; }
+  } catch(e) { stShowToast('Request failed', true); btn.disabled = false; }
+}
+
+function showIntervalEdit(jobId, currentMinutes) {
+  document.getElementById('iview-' + jobId).style.display = 'none';
+  const edit = document.getElementById('iedit-' + jobId);
+  edit.style.display = 'flex';
+  const inp = document.getElementById('imin-' + jobId);
+  inp.value = currentMinutes || ''; inp.focus();
+}
+function cancelIntervalEdit(jobId) {
+  document.getElementById('iedit-' + jobId).style.display = 'none';
+  document.getElementById('iview-' + jobId).style.display = 'flex';
+}
+async function saveInterval(jobId) {
+  const minutes = parseInt(document.getElementById('imin-' + jobId).value);
+  if (!minutes || minutes < 1) { stShowToast('Enter a valid number of minutes', true); return; }
+  try {
+    const r = await fetch('/infraportal/api/scheduler/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: jobId, action: 'set_interval', minutes})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      stShowToast(`Interval updated to ${minutes}m`);
+      const ivalEl = document.getElementById('ival-' + jobId);
+      if (ivalEl) ivalEl.textContent = minutes >= 60 ? `${Math.floor(minutes/60)}h${minutes%60?` ${minutes%60}m`:''}` : `${minutes}m`;
+      cancelIntervalEdit(jobId);
+    } else { stShowToast('Failed: ' + (d.error || d.status), true); }
+  } catch(e) { stShowToast('Request failed', true); }
+}
+async function resetInterval(jobId) {
+  try {
+    const r = await fetch('/infraportal/api/scheduler/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({job_id: jobId, action: 'reset_interval'})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') { stShowToast('Interval reset to default'); setTimeout(() => location.reload(), 800); }
+    else { stShowToast('Failed: ' + (d.error || d.status), true); }
+  } catch(e) { stShowToast('Request failed', true); }
+}
+async function refreshStatus() {
+  try {
+    const r = await fetch('/infraportal/api/scheduler-status');
+    const d = await r.json();
+    if (d.status !== 'ok') return;
+    d.jobs.forEach(j => {
+      const row = document.getElementById('row-' + j.id);
+      if (!row) return;
+      const nc = document.getElementById('next-' + j.id);
+      if (nc) nc.textContent = j.paused ? '—' : (j.next_run ? j.next_run.substring(0,19) : '—');
+      const sbadge = row.querySelector('.job-status');
+      if (sbadge) {
+        if (j.paused) { sbadge.className = 'job-status js-paused'; sbadge.textContent = '⏸ Paused'; }
+        else if (j.last_status === 'ok') { sbadge.className = 'job-status js-ok'; sbadge.textContent = '✓ OK'; }
+        else if (j.last_status === 'error') { sbadge.className = 'job-status js-err'; sbadge.textContent = '✗ Error'; }
+        else { sbadge.className = 'job-status js-pend'; sbadge.textContent = '— Never'; }
+      }
+    });
+  } catch(e) { /* ignore */ }
+}
+let _schedCountdown = 30;
+setInterval(() => {
+  _schedCountdown--;
+  const refNote = document.getElementById('refreshNote');
+  if (_schedCountdown <= 0) { _schedCountdown = 30; refreshStatus(); if (refNote) refNote.textContent = 'Auto-refreshing every 30s'; }
+  else if (refNote) refNote.textContent = `Next refresh in ${_schedCountdown}s`;
+}, 1000);
+
+/* ── Jira Teams tab JS (ported) ────────────────────────────────────────── */
+async function jcLoadTeams() {
+    const res  = await fetch('/infraportal/api/jira/teams');
+    const data = await res.json();
+    const list = document.getElementById('jc-team-list');
+    if (!data.teams || data.teams.length === 0) { list.innerHTML = '<div class="st-empty">No teams saved yet.</div>'; return; }
+    list.innerHTML = data.teams.map(t => `
+        <div class="st-list-row" id="jc-row-${CSS.escape(t.id)}">
+            <div class="name">${escHtml(t.name)}<div style="font-size:11px;color:var(--text4);font-family:monospace">${escHtml(t.id)}</div></div>
+            <button class="st-mini-btn danger" onclick="jcDeleteTeam('${escJs(t.id)}')" title="Remove">✕</button>
+        </div>
+    `).join('');
+}
+async function jcAddTeam() {
+    const name = document.getElementById('jc-inp-name').value.trim();
+    const id   = document.getElementById('jc-inp-id').value.trim();
+    if (!name || !id) { stShowToast('Name and ID are both required', true); return; }
+    if (!/^[0-9a-f-]{30,}$/i.test(id)) { stShowToast("ID doesn't look like a UUID — check the team URL", true); return; }
+    const res  = await fetch('/infraportal/api/jira/teams', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, name}),
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        document.getElementById('jc-inp-name').value = ''; document.getElementById('jc-inp-id').value = '';
+        stShowToast(`"${name}" saved`); jcLoadTeams();
+    } else { stShowToast('Error saving team: ' + (data.message || 'unknown'), true); }
+}
+async function jcDeleteTeam(id) {
+    const res  = await fetch(`/infraportal/api/jira/teams/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.status === 'ok') { stShowToast('Team removed'); jcLoadTeams(); }
+    else { stShowToast('Error removing team', true); }
+}
+jcLoadTeams();
+
+/* ── Lookup Lists tab JS ───────────────────────────────────────────────── */
+async function lkLoadList() {
+    const key = document.getElementById('lk-list-select').value;
+    const box = document.getElementById('lk-list');
+    box.innerHTML = '<div class="st-empty">Loading...</div>';
+    const r = await fetch(`/infraportal/api/settings/lookup/${encodeURIComponent(key)}`);
+    const d = await r.json();
+    if (!d.values || d.values.length === 0) { box.innerHTML = '<div class="st-empty">No values yet — add one above.</div>'; return; }
+    box.innerHTML = d.values.map(v => `
+        <div class="st-list-row">
+            <span class="name">${escHtml(v.value)}</span>
+            <button class="st-mini-btn danger" onclick="lkDeleteValue(${v.id})" title="Remove">✕</button>
+        </div>
+    `).join('');
+}
+async function lkAddValue() {
+    const key = document.getElementById('lk-list-select').value;
+    const inp = document.getElementById('lk-new-value');
+    const value = inp.value.trim();
+    if (!value) return;
+    const r = await fetch(`/infraportal/api/settings/lookup/${encodeURIComponent(key)}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({value})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') { inp.value = ''; stShowToast(`"${value}" added`); lkLoadList(); }
+    else { stShowToast('Failed to add — it may already exist', true); }
+}
+async function lkDeleteValue(id) {
+    const key = document.getElementById('lk-list-select').value;
+    if (!confirm('Remove this value? Existing records that already use it keep it as free text — this only affects the dropdown.')) return;
+    const r = await fetch(`/infraportal/api/settings/lookup/${encodeURIComponent(key)}/${id}/delete`, {method:'POST'});
+    const d = await r.json();
+    if (d.status === 'ok') { stShowToast('Removed'); lkLoadList(); }
+    else { stShowToast('Failed to remove', true); }
+}
+lkLoadList();
+
+/* ── Environment tab JS ────────────────────────────────────────────────── */
+const ENV_GROUP_PREFIXES = [
+    ['AZURE_', 'Azure SSO'], ['GROUP_', 'Azure SSO'], ['ENTRA_', 'Azure SSO'],
+    ['VCENTER_', 'VMware'], ['VMC_', 'VMware'], ['CANDOR_', 'VMware'],
+    ['OPMANAGER_', 'OpManager'],
+    ['AD_', 'Active Directory'],
+    ['CA_', 'Certificate Authority'], ['DC_CERT_', 'Certificate Authority'],
+    ['CITRIX_', 'Citrix'],
+    ['LANSWEEPER_', 'Lansweeper'],
+    ['JIRA_', 'Jira'], ['ATLASSIAN_', 'Jira'],
+    ['MERAKI_', 'Meraki'],
+    ['SMTP_', 'Notifications'], ['SLACK_', 'Notifications'], ['NOTIFY_', 'Notifications'],
+    ['CLAUDE_', 'AI / Claude'],
+];
+function envGroupFor(key) {
+    for (const [prefix, label] of ENV_GROUP_PREFIXES) if (key.startsWith(prefix)) return label;
+    return 'Other';
+}
+let _envEntries = [];
+async function envLoad() {
+    const box = document.getElementById('env-groups');
+    box.innerHTML = '<div class="st-empty">Loading...</div>';
+    document.getElementById('env-status').textContent = '';
+    const r = await fetch('/infraportal/api/settings/env');
+    const d = await r.json();
+    if (d.status !== 'ok') { box.innerHTML = '<div class="st-empty">Failed to load .env</div>'; return; }
+    _envEntries = d.entries;
+    const groups = {};
+    _envEntries.forEach(e => { const g = envGroupFor(e.key); (groups[g] = groups[g] || []).push(e); });
+    box.innerHTML = Object.keys(groups).sort().map(g => `
+        <div class="env-group">
+            <div class="env-group-title">${escHtml(g)}</div>
+            ${groups[g].map(e => `
+                <div class="env-row">
+                    <div class="env-key">${escHtml(e.key)}${e.is_secret ? '<span class="secret-tag">secret</span>' : ''}</div>
+                    <input class="env-val-input" data-key="${escHtml(e.key)}" data-secret="${e.is_secret ? '1':'0'}"
+                           value="${e.is_secret ? '' : escHtml(e.value)}"
+                           placeholder="${e.is_secret ? escHtml(e.masked || '(unset)') : ''}"
+                           oninput="this.classList.add('changed')">
+                </div>
+            `).join('')}
+        </div>
+    `).join('');
+}
+async function envSave() {
+    const inputs = document.querySelectorAll('#env-groups .env-val-input.changed');
+    if (inputs.length === 0) { stShowToast('No changes to save', true); return; }
+    const changes = {};
+    inputs.forEach(inp => { if (inp.value !== '') changes[inp.dataset.key] = inp.value; });
+    if (Object.keys(changes).length === 0) { stShowToast('No changes to save', true); return; }
+    const summary = Object.keys(changes).join(', ');
+    if (!confirm(`Save changes to: ${summary}\n\nThis will back up .env, write the new values, and recycle the IIS app pool — every signed-in user will be briefly interrupted. Continue?`)) return;
+
+    const btn = document.getElementById('env-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+        const r = await fetch('/infraportal/api/settings/env', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({changes, recycle: true})
+        });
+        const d = await r.json();
+        if (d.status === 'ok') {
+            document.getElementById('env-status').textContent =
+                `Saved (backup: ${d.backup.split(/[\\/]/).pop()}). ` +
+                (d.recycled ? 'App pool recycled.' : `Recycle not applied: ${d.recycle_message}`);
+            stShowToast('Environment saved');
+            envLoad();
+        } else { stShowToast('Save failed: ' + (d.message || 'unknown error'), true); }
+    } catch(e) { stShowToast('Request failed', true); }
+    btn.disabled = false; btn.textContent = 'Save Changes & Recycle App Pool';
+}
+envLoad();
+</script>
+{% endblock %}

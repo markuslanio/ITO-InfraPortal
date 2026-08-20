@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% block title %}Assets - Zinnia Infrastructure Portal{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="/infraportal/static/tableutils.css">
+{% endblock %}
+
+{% block extra_css %}
+<style>
+
+        .badge-danger   { background-color: #7a1a1a; color: #ffaaaa; }
+        .badge-warning  { background-color: #7a5a1a; color: #ffddaa; }
+        .badge-ok       { background-color: #1a4a2a; color: #aaffaa; }
+        .badge-info     { background-color: #1a2a4a; color: #aaaaff; }
+        .badge-citrix   { background-color: #0a3a4a; color: #00c8ff; }
+        .badge-vmware   { background-color: #1a3a1a; color: #88ff88; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-card { background-color: var(--bg3); border-radius: 8px; padding: 15px; text-align: center; border-left: 4px solid var(--accent); }
+        .summary-card h3 { margin: 0 0 8px 0; font-size: 11px; color: var(--text3); text-transform: uppercase; }
+        .summary-card p  { margin: 0; font-size: 28px; font-weight: bold; }
+        .summary-card.warn { border-left-color: #ffaa00; } .summary-card.warn p { color: #ffaa00; }
+        .summary-card.crit { border-left-color: #ff2222; } .summary-card.crit p { color: #ff2222; }
+        .summary-card.ok   { border-left-color: #22cc66; } .summary-card.ok   p { color: #22cc66; }
+        .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; align-items: center; }
+        .filter-btn { background-color: var(--surface); color: var(--text3); border: 1px solid var(--border); padding: 5px 14px; border-radius: 15px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+        .filter-btn:hover  { background-color: var(--surface); color: var(--text); }
+        .filter-btn.active { background-color: var(--accent); color: var(--text); border-color: var(--accent); }
+        .clickable-row { cursor: pointer; }
+        .clickable-row:hover td { background-color: var(--surface) !important; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; overflow-y: auto; }
+        .modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; }
+        .modal { background: var(--bg2); border-radius: 12px; width: 100%; max-width: 860px; padding: 30px; position: relative; }
+        .modal-close { position: absolute; top: 15px; right: 20px; background: none; border: none; color: var(--text3); font-size: 22px; cursor: pointer; line-height: 1; }
+        .modal-close:hover { color: var(--text); }
+        .modal-title { color: var(--accent); margin: 0 0 4px 0; font-size: 20px; }
+        .modal-sub   { color: var(--text4); font-size: 13px; margin: 0 0 20px 0; }
+        .modal-loading { text-align: center; padding: 40px; color: var(--text3); }
+        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .modal-section { background: var(--bg3); border-radius: 8px; padding: 16px; }
+        .modal-section h4 { margin: 0 0 12px 0; color: var(--accent); font-size: 13px; text-transform: uppercase; }
+        .modal-stat { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 7px; border-bottom: 1px solid var(--bg); padding-bottom: 7px; }
+        .modal-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .modal-stat span   { color: var(--text3); }
+        .modal-stat strong { color: var(--text); max-width: 55%; text-align: right; word-break: break-word; }
+        .modal-stat strong.ok   { color: #22cc66; }
+        .modal-stat strong.warn { color: #ffaa00; }
+        .modal-stat strong.crit { color: #ff4444; }
+        .modal-full { grid-column: 1 / -1; }
+        .rec-list { list-style: none; padding: 0; margin: 0; }
+        .rec-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
+        .rec-item.critical { background: rgba(255,68,68,0.12); border-left: 3px solid #ff4444; }
+        .rec-item.warning  { background: rgba(255,170,0,0.12); border-left: 3px solid #ffaa00; }
+        .rec-item.info     { background: rgba(68,136,255,0.12); border-left: 3px solid #4488ff; }
+        .rec-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+        .rec-body { flex: 1; }
+        .rec-cat  { font-size: 11px; font-weight: bold; text-transform: uppercase; color: var(--text4); margin-bottom: 3px; }
+        .alert-item { background: rgba(255,68,68,0.1); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; border-left: 3px solid #ff4444; }
+        .alert-item.warning { border-left-color: #ffaa00; background: rgba(255,170,0,0.1); }
+        .alert-time { font-size: 11px; color: #666; margin-top: 4px; }
+        .alert-msg  { color: var(--text2); margin-top: 4px; font-size: 12px; }
+        .no-data    { color: #555555; font-style: italic; font-size: 13px; text-align: center; padding: 15px; }
+        .source-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-right: 4px; }
+        .source-badge.vmware  { background: #1a3a1a; color: #88ff88; }
+        .source-badge.citrix  { background: #0a3a4a; color: #00c8ff; }
+        .source-badge.ad      { background: #1a2a4a; color: #aaaaff; }
+        .source-badge.alerts  { background: #3a1a1a; color: #ff8888; }
+        .override-banner { background: #2a2a1a; border: 1px solid #665500; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: #ccaa44; }
+        .override-banner .reason { font-size: 12px; color: #888; margin-top: 2px; }
+        .btn-override { padding: 5px 12px; border-radius: 5px; border: 1px solid #665500; background: none; color: #ccaa44; cursor: pointer; font-size: 12px; }
+        .btn-override:hover { background: #332200; }
+        .btn-restore  { padding: 5px 12px; border-radius: 5px; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; }
+        .btn-restore:hover { background: #222233; color: var(--text); }
+        tr.suppressed td { opacity: 0.4; }
+        .ai-grade-banner { display:flex; align-items:center; gap:20px; background:var(--bg3); border-radius:10px; padding:16px 20px; margin-bottom:20px; }
+        .ai-grade-letter { font-size:52px; font-weight:900; line-height:1; min-width:60px; text-align:center; }
+        .grade-A { color:#22cc66; } .grade-B { color:#88cc22; } .grade-C { color:#ffaa00; }
+        .grade-D { color:#ff6600; } .grade-F { color:#ff2222; }
+        .ai-grade-meta { flex:1; }
+        .ai-grade-meta h3 { margin:0 0 4px 0; font-size:16px; color:var(--text); }
+        .ai-grade-meta p  { margin:0; font-size:13px; color:var(--text3); }
+        .ai-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:20px; }
+        .ai-chart-card { background:var(--bg3); border-radius:8px; padding:14px; }
+        .ai-chart-card h4 { margin:0 0 12px 0; font-size:12px; color:var(--text3); text-transform:uppercase; }
+        .bar-row { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:12px; }
+        .bar-label { width:120px; flex-shrink:0; color:var(--text3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .bar-track { flex:1; background:var(--bg); border-radius:3px; height:8px; }
+        .bar-fill  { height:8px; border-radius:3px; background:var(--accent); transition:width 0.4s; }
+        .bar-val   { width:36px; text-align:right; color:var(--text); font-weight:bold; flex-shrink:0; }
+        .ai-patterns h4 { font-size:13px; color:var(--accent); margin:0 0 10px 0; }
+        .pattern-item { background:var(--bg3); border-radius:6px; padding:10px 14px; margin-bottom:8px; border-left:3px solid #555; }
+        .pattern-item.critical { border-left-color:#ff4444; }
+        .pattern-item.warning  { border-left-color:#ffaa00; }
+        .pattern-item.info     { border-left-color:#4488ff; }
+        .pattern-title  { font-size:13px; font-weight:bold; color:var(--text); margin-bottom:3px; }
+        .pattern-detail { font-size:12px; color:var(--text3); }
+        .ai-recs h4 { font-size:13px; color:var(--accent); margin:0 0 10px 0; }
+        .rec-row { display:flex; gap:10px; align-items:flex-start; padding:9px 12px; border-radius:6px; margin-bottom:7px; font-size:13px; }
+        .rec-row.high   { background:rgba(255,68,68,0.1);  border-left:3px solid #ff4444; }
+        .rec-row.medium { background:rgba(255,170,0,0.1);  border-left:3px solid #ffaa00; }
+        .rec-row.low    { background:rgba(68,136,255,0.1); border-left:3px solid #4488ff; }
+        .ai-run-bar { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+        .ai-run-bar .btn { margin:0; }
+        .ai-ts { font-size:12px; color:var(--text4); }
+
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <div class="section">
+            <h2>🖥️ Asset Inventory</h2>
+            <div class="summary-grid" id="summary-cards">
+                <div class="summary-card"><h3>Total Assets</h3><p id="s-total"><span class="loading-spinner"></span></p></div>
+                <div class="summary-card crit"><h3>EOL OS</h3><p id="s-eol">--</p></div>
+                <div class="summary-card warn"><h3>Not Seen 30d</h3><p id="s-dead30">--</p></div>
+                <div class="summary-card warn"><h3>Not Seen 90d</h3><p id="s-dead90">--</p></div>
+                <div class="summary-card warn"><h3>Active Alerts</h3><p id="s-alerts">--</p></div>
+                <div class="summary-card ok"><h3>In VMware</h3><p id="s-vmware">--</p></div>
+                <div class="summary-card"><h3>In Citrix</h3><p id="s-citrix">--</p></div>
+            </div>
+        </div>
+        <div class="section">
+            <h2>🧠 AI Insights</h2>
+            <div class="ai-run-bar">
+                <button class="btn" id="assets-ai-btn" onclick="runAssetsAi(false)">▶ Run Analysis</button>
+                <span class="ai-ts" id="assets-ai-ts"></span>
+            </div>
+            <div id="assets-ai-content">
+                <p class="loading">Click Run Analysis to generate an AI assessment of asset and patch compliance health.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Asset List</h2>
+            <div class="filter-bar" id="type-filters">
+                <span style="font-size:12px;color:#888;margin-right:4px;">Type:</span>
+                <button class="filter-btn active" onclick="setTypeFilter('all', this)">All</button>
+            </div>
+            <div class="filter-bar">
+                <span style="font-size:12px;color:#888;margin-right:4px;">Show:</span>
+                <button class="filter-btn active" id="f-eol"    onclick="toggleFlag('eol',    this)">EOL Only</button>
+                <button class="filter-btn active" id="f-alerts" onclick="toggleFlag('alerts', this)">Has Alerts</button>
+                <button class="filter-btn active" id="f-stale"  onclick="toggleFlag('stale',  this)">Stale (90d+)</button>
+            </div>
+            <div class="timestamp" id="asset-timestamp"></div>
+            <div id="asset-table-container">
+                <p class="loading"><span class="loading-spinner"></span> Loading assets from Lansweeper...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="asset-modal" onclick="handleOverlayClick(event)">
+        <div class="modal" id="modal-content">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <div id="modal-body">
+                <div class="modal-loading"><span class="loading-spinner"></span> Loading asset details...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/infraportal/static/tableutils.js"></script>
+    <script>
+        const BASE = '/infraportal';
+        let allAssets = [], alertsIndex = {}, vmwareIndex = {}, citrixIndex = {};
+        let activeTypeFilter = 'all';
+        let flagFilters = { eol: false, alerts: false, stale: false };
+        let overrideSet = new Set();
+
+        function badge(text, cls) { return `<span class="badge badge-${cls}">${text}</span>`; }
+        function severityBadge(sev) {
+            if (!sev) return '';
+            if (sev === 'Critical') return badge(sev, 'danger');
+            if (sev === 'Trouble')  return badge(sev, 'warning');
+            return badge(sev, 'info');
+        }
+        function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function escJs(s)   { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+        function buildAlertIndex(alarms) {
+            alertsIndex = {};
+            for (const a of alarms) {
+                const dev = (a.device_name || '').split('.')[0].toUpperCase();
+                const ip  = a.ip_address;
+                if (dev) { if (!alertsIndex[dev]) alertsIndex[dev] = []; alertsIndex[dev].push(a); }
+                if (ip && ip !== dev) { if (!alertsIndex[ip]) alertsIndex[ip] = []; alertsIndex[ip].push(a); }
+            }
+        }
+
+        function getAlerts(asset) {
+            const byName = alertsIndex[(asset.name || '').toUpperCase()] || [];
+            const byIp   = asset.ip ? (alertsIndex[asset.ip] || []) : [];
+            const seen = new Set();
+            return [...byName, ...byIp].filter(a => { if (seen.has(a.alarm_id)) return false; seen.add(a.alarm_id); return true; });
+        }
+
+        async function loadAll() {
+            const [assetsRes, summaryRes, alertsRes, vmsRes, citrixRes] = await Promise.all([
+                fetch(BASE + '/api/lansweeper/assets').catch(() => null),
+                fetch(BASE + '/api/lansweeper/summary').catch(() => null),
+                fetch(BASE + '/api/alerts').catch(() => null),
+                fetch(BASE + '/api/vms').catch(() => null),
+                fetch(BASE + '/api/citrix/machines').catch(() => null),
+            ]);
+            await loadOverrides();
+            if (alertsRes) { const d = await alertsRes.json(); if (d.status === 'ok') buildAlertIndex(d.alarms); }
+            if (vmsRes)    { const d = await vmsRes.json();    if (d.status === 'ok') d.vms.forEach(vm => vmwareIndex[(vm.name||'').toUpperCase()] = vm); }
+            if (citrixRes) { const d = await citrixRes.json(); if (d.status === 'ok') (d.machines||[]).forEach(m => citrixIndex[(m.name||'').toLowerCase()] = m); }
+            if (summaryRes) {
+                const d = await summaryRes.json();
+                if (d.status === 'ok' && d.data) {
+                    document.getElementById('s-eol').textContent    = d.data.eol_count    ?? '--';
+                    document.getElementById('s-dead30').textContent = d.data.not_seen_30d ?? '--';
+                    document.getElementById('s-dead90').textContent = d.data.not_seen_90d ?? '--';
+                }
+            }
+            if (assetsRes) {
+                const d = await assetsRes.json();
+                if (d.status === 'ok') {
+                    allAssets = d.assets || [];
+                    document.getElementById('s-total').textContent = allAssets.length;
+                    let vmCount = 0, ctxCount = 0, alertCount = 0;
+                    allAssets.forEach(a => {
+                        if (vmwareIndex[(a.name||'').toUpperCase()]) vmCount++;
+                        if (citrixIndex[(a.name||'').toLowerCase()])  ctxCount++;
+                        if (getAlerts(a).length > 0) alertCount++;
+                    });
+                    document.getElementById('s-vmware').textContent = vmCount;
+                    document.getElementById('s-citrix').textContent = ctxCount;
+                    document.getElementById('s-alerts').textContent = alertCount;
+                    document.getElementById('asset-timestamp').textContent = 'Last updated: ' + d.timestamp;
+                    buildTypeFilters(allAssets);
+                    renderTable(allAssets);
+                } else {
+                    document.getElementById('asset-table-container').innerHTML = `<p style="color:#ff8888;">Error: ${d.message}</p>`;
+                }
+            }
+        }
+
+        function buildTypeFilters(assets) {
+            const counts = {};
+            assets.forEach(a => { const t = a.type||'Unknown'; counts[t] = (counts[t]||0)+1; });
+            const bar = document.getElementById('type-filters');
+            Object.entries(counts).sort((a,b) => b[1]-a[1]).forEach(([type, count]) => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn';
+                btn.textContent = `${type} (${count})`;
+                btn.onclick = () => setTypeFilter(type, btn);
+                bar.appendChild(btn);
+            });
+        }
+
+        function setTypeFilter(type, btn) {
+            activeTypeFilter = type;
+            document.querySelectorAll('#type-filters .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderTable(allAssets);
+        }
+
+        function toggleFlag(flag, btn) {
+            flagFilters[flag] = !flagFilters[flag];
+            btn.classList.toggle('active', flagFilters[flag]);
+            renderTable(allAssets);
+        }
+
+        function applyFilters(assets) {
+            return assets.filter(a => {
+                if (activeTypeFilter !== 'all' && (a.type||'Unknown') !== activeTypeFilter) return false;
+                if (flagFilters.eol    && !a.is_eol) return false;
+                if (flagFilters.alerts && getAlerts(a).length === 0) return false;
+                if (flagFilters.stale  && (a.days_since_seen == null || a.days_since_seen < 90)) return false;
+                return true;
+            });
+        }
+
+        function renderTable(assets) {
+            const filtered = applyFilters(assets);
+            const columns  = ['Name','IP','Type','OS','State','Last Seen','EOL','Alerts','VMware','Citrix'];
+            const rows = filtered.map(a => {
+                const alerts   = getAlerts(a);
+                const critCnt  = alerts.filter(x => x.severity==='Critical').length;
+                const suppressed = overrideSet.has(a.name);
+                const alertCell  = alerts.length===0 ? badge('None','ok') : critCnt>0 ? badge(critCnt+' Critical','danger') : badge(alerts.length+' Active','warning');
+                const staleCell  = a.days_since_seen==null ? '--'
+                    : a.days_since_seen>90 ? `<span style="color:#ff8888">${a.days_since_seen}d ago</span>`
+                    : a.days_since_seen>30 ? `<span style="color:#ffaa00">${a.days_since_seen}d ago</span>`
+                    : `<span style="color:#22cc66">${a.days_since_seen}d ago</span>`;
+                const nameCell = suppressed
+                    ? `<span style="color:var(--text4);cursor:pointer" onclick="openModal('${escJs(a.name||'')}')">${escHtml(a.name||'')} <span style="font-size:10px;color:#665500;border:1px solid #665500;border-radius:3px;padding:1px 4px">unimportant</span></span>`
+                    : `<span style="color:var(--accent);cursor:pointer;font-weight:bold" onclick="openModal('${escJs(a.name||'')}')">${escHtml(a.name||'')}</span>`;
+                return [nameCell, a.ip||'', a.type||'', a.os||'', a.state||'', staleCell,
+                    a.is_eol ? badge('EOL','danger') : '',
+                    alertCell,
+                    vmwareIndex[(a.name||'').toUpperCase()] ? '<span class="source-badge vmware">✓ VMware</span>' : '',
+                    citrixIndex[(a.name||'').toLowerCase()]  ? '<span class="source-badge citrix">✓ Citrix</span>' : ''];
+            });
+            document.getElementById('asset-table-container').innerHTML = '<div id="at-wrap"></div>';
+            new SmartTable('at-wrap', { filename: 'zinnia-assets-'+new Date().toISOString().slice(0,10), title: 'Asset Inventory' }).setData(columns, rows);
+        }
+
+        async function loadOverrides() {
+            try {
+                const res = await fetch(BASE + '/api/asset-overrides');
+                const d   = await res.json();
+                if (d.status === 'ok') overrideSet = new Set(d.overrides.map(o => o.device_name));
+            } catch(e) {}
+        }
+
+        async function markUnimportant(name) {
+            const reason = prompt(`Reason for marking "${name}" as unimportant (optional):`);
+            if (reason === null) return;
+            try {
+                const res = await fetch(BASE+'/api/asset/'+encodeURIComponent(name)+'/override', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({flag:'unimportant',reason:reason.trim()}) });
+                const d   = await res.json();
+                if (d.status==='ok') { overrideSet.add(name); openModal(name); renderTable(allAssets); }
+                else alert('Error: '+d.message);
+            } catch(e) { alert('Error: '+e.message); }
+        }
+
+        async function restoreAsset(name) {
+            try {
+                const res = await fetch(BASE+'/api/asset/'+encodeURIComponent(name)+'/override', { method:'DELETE' });
+                const d   = await res.json();
+                if (d.status==='ok') { overrideSet.delete(name); openModal(name); renderTable(allAssets); }
+                else alert('Error: '+d.message);
+            } catch(e) { alert('Error: '+e.message); }
+        }
+
+        async function openModal(name) {
+            document.getElementById('asset-modal').classList.add('open');
+            document.getElementById('modal-body').innerHTML = `<div class="modal-loading"><span class="loading-spinner"></span> Loading details for ${escHtml(name)}...</div>`;
+            try {
+                const res = await fetch(BASE+'/api/asset/'+encodeURIComponent(name));
+                const d   = await res.json();
+                if (d.status !== 'ok') throw new Error(d.message);
+                renderModal(d.asset);
+            } catch(e) {
+                document.getElementById('modal-body').innerHTML = `<p style="color:#ff8888">Error: ${e.message}</p>`;
+            }
+        }
+
+        function closeModal() { document.getElementById('asset-modal').classList.remove('open'); }
+        function handleOverlayClick(e) { if (e.target===document.getElementById('asset-modal')) closeModal(); }
+        document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+
+        async function ackAssetModalSelected(assetName) {
+            const ids = [...document.querySelectorAll('.asset-alarm-cb:checked')].map(cb => cb.dataset.id);
+            if (!ids.length) { alert('No alerts checked.'); return; }
+            try {
+                const res = await fetch(BASE+'/api/alerts/acknowledge', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({alarm_ids:ids}) });
+                const d   = await res.json();
+                if (d.status==='ok') openModal(assetName);
+                else alert('Error: '+d.message);
+            } catch(e) { alert('Error: '+e.message); }
+        }
+
+        function stat(label, value, cls) {
+            if (value==null || value==='') return '';
+            return `<div class="modal-stat"><span>${label}</span><strong class="${cls||''}">${value}</strong></div>`;
+        }
+
+        function renderModal(a) {
+            const ls     = a.sources?.lansweeper || {};
+            const vm     = a.sources?.vmware || {};
+            const ctx    = a.sources?.citrix || null;
+            const ad     = a.sources?.active_directory || {};
+            const alarms = a.sources?.opmanager || [];
+            let sourceBadges = '';
+            if (vm.name)           sourceBadges += `<span class="source-badge vmware">✓ VMware</span>`;
+            if (ctx?.catalog_name) sourceBadges += `<span class="source-badge citrix">✓ Citrix</span>`;
+            if (ad?.name)          sourceBadges += `<span class="source-badge ad">✓ AD</span>`;
+            if (alarms.length)     sourceBadges += `<span class="source-badge alerts">⚠ ${alarms.length} Alert${alarms.length>1?'s':''}</span>`;
+            const diskPct   = a.used_disk_pct;
+            const diskLabel = diskPct!=null ? `${a.free_disk_gb}GB free / ${a.total_disk_gb}GB total (${diskPct}% used)` : null;
+            const diskCls   = diskPct>85?'crit':diskPct>70?'warn':'ok';
+            const recIcons  = {critical:'🔴',warning:'🟡',info:'ℹ️'};
+            const recHtml   = !(a.recommendations||[]).length ? '<p class="no-data">No immediate actions identified.</p>'
+                : `<ul class="rec-list">${(a.recommendations||[]).map(r=>`<li class="rec-item ${r.priority}"><span class="rec-icon">${recIcons[r.priority]||'•'}</span><div class="rec-body"><div class="rec-cat">${escHtml(r.category)}</div><div>${escHtml(r.text)}</div></div></li>`).join('')}</ul>`;
+            const alarmsHtml = !alarms.length ? '<p class="no-data">No active alerts.</p>'
+                : `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;color:#888">${alarms.length} active alert(s)</span><button class="btn" style="padding:5px 12px;font-size:12px;margin:0" onclick="ackAssetModalSelected('${escJs(a.name||'')}')">✓ Acknowledge Checked</button></div>`
+                + alarms.slice(0,10).map(al=>`<div class="alert-item ${al.severity==='Critical'?'':'warning'}" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" class="asset-alarm-cb" data-id="${al.alarm_id}" style="margin-top:3px;accent-color:var(--accent);flex-shrink:0"><div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px">${escHtml(al.event_type||'')}</strong>${severityBadge(al.severity)}</div><div class="alert-msg">${escHtml(al.message||'')}</div><div class="alert-time">${escHtml(al.time||'')}${al.acknowledged?' · Acknowledged':''}</div></div></div>`).join('');
+            const ov = a.override;
+            const overrideBanner = ov ? `<div class="override-banner"><div><strong>⚠ Marked as Unimportant</strong>${ov.reason?`<div class="reason">${escHtml(ov.reason)}</div>`:''}</div><button class="btn-restore" onclick="restoreAsset('${escJs(a.name||'')}')">↩ Restore</button></div>` : '';
+            const overrideBtn    = ov ? '' : `<button class="btn-override" onclick="markUnimportant('${escJs(a.name||'')}')">⊘ Mark Unimportant</button>`;
+
+            document.getElementById('modal-body').innerHTML = `
+                <h2 class="modal-title">${escHtml(a.name||'Unknown')}</h2>
+                <p class="modal-sub">${a.ip||''} ${a.fqdn||a.os||''} &nbsp;${sourceBadges} &nbsp;${overrideBtn}</p>
+                ${overrideBanner}
+                <div class="modal-grid">
+                    <div class="modal-section"><h4>🖥️ Identity</h4>
+                        ${stat('IP Address',a.ip)}${stat('FQDN',ls.fqdn)}${stat('Domain',ls.domain)}${stat('Type',a.type)}
+                        ${stat('Manufacturer',a.manufacturer)}${stat('Model',a.model)}${stat('State',a.state)}
+                        ${stat('First Seen',ls.first_seen?ls.first_seen.slice(0,10):null)}
+                        ${stat('Last Seen',ls.last_seen?ls.last_seen.slice(0,10):null)}
+                        ${stat('Days Since Seen',a.days_since_seen!=null?`<span class="${a.days_since_seen>90?'crit':a.days_since_seen>30?'warn':'ok'}">${a.days_since_seen}d</span>`:null)}
+                    </div>
+                    <div class="modal-section"><h4>🛡️ OS &amp; Patch</h4>
+                        ${stat('OS',a.os,a.is_eol?'crit':'')}${stat('OS Version',a.os_version)}
+                        ${stat('EOL',a.is_eol?'⛔ End of Life':'✅ Supported',a.is_eol?'crit':'ok')}
+                        ${stat('Patch State',a.state)}
+                        ${stat('Scanner',ls.scanner_types?ls.scanner_types.join(', '):null)}
+                        ${stat('Last Scan',ls.last_scan?ls.last_scan.slice(0,10):null)}
+                    </div>
+                    <div class="modal-section"><h4>⚙️ Hardware</h4>
+                        ${stat('CPU',a.cpu)}${stat('CPU Cores',a.cpu_cores)}
+                        ${stat('CPU GHz',a.cpu_ghz?a.cpu_ghz+' GHz':null)}
+                        ${stat('RAM',a.ram_mb?Math.round(a.ram_mb/1024)+' GB (VMware)':null)}
+                        ${stat('Disk',diskLabel,diskCls)}${stat('Disk Volumes',a.disk_count>0?a.disk_count:null)}
+                    </div>
+                    <div class="modal-section"><h4>☁️ VMware</h4>
+                        ${vm.name?`${stat('Power State',a.power_state,a.power_state==='POWERED_ON'?'ok':'warn')}${stat('Environment',a.environment)}${stat('Host',a.host)}${stat('Cluster',a.cluster)}${stat('vCPUs',a.cpu_count)}${stat('VMware Tools',a.vmware_tools)}${stat('Snapshots',a.snapshots>0?`<span class="${a.snapshots>3?'warn':''}">${a.snapshots}</span>`:'0')}`:'<p class="no-data">Not found in VMware inventory.</p>'}
+                    </div>
+                    <div class="modal-section"><h4>🖥️ Citrix</h4>
+                        ${ctx&&ctx.catalog_name?`${stat('Catalog',a.citrix_catalog)}${stat('Delivery Group',a.citrix_dg)}${stat('Reg State',a.citrix_reg_state,a.citrix_reg_state==='Registered'?'ok':'crit')}${stat('Sessions',a.citrix_sessions)}`:'<p class="no-data">Not in Citrix catalog.</p>'}
+                    </div>
+                    <div class="modal-section"><h4>🏢 Active Directory</h4>
+                        ${ad&&ad.name?`${stat('AD Status','⚠️ Stale Computer','warn')}${stat('Last Login',ad.last_login)}${stat('Days Inactive',ad.days_inactive,ad.days_inactive>180?'crit':'warn')}${stat('OS (AD)',ad.os)}`:'<p class="no-data">Not flagged as stale in AD.</p>'}
+                    </div>
+                    <div class="modal-section modal-full"><h4>⚡ Recommendations</h4>${recHtml}</div>
+                    <div class="modal-section modal-full"><h4>🚨 Active OpManager Alerts</h4>${alarmsHtml}${alarms.length>10?`<p style="font-size:12px;color:#888;margin-top:8px">Showing 10 of ${alarms.length} alerts.</p>`:''}</div>
+                </div>`;
+        }
+
+        loadAll().then(() => {
+            const assetParam = new URLSearchParams(window.location.search).get('asset');
+            if (assetParam) openModal(assetParam);
+        });
+
+        // ── Assets AI Lens ────────────────────────────────────────────────────
+        let _assetsAiPoller = null;
+
+        async function runAssetsAi(refresh) {
+            document.getElementById('assets-ai-btn').textContent = '⏳ Running...';
+            document.getElementById('assets-ai-btn').disabled = true;
+            document.getElementById('assets-ai-content').innerHTML = '<p class="loading"><span class="loading-spinner"></span> Analysing asset inventory — this takes ~15 seconds...</p>';
+            const res  = await fetch(BASE + '/api/assets/ai-analysis', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({refresh: !!refresh}) });
+            const data = await res.json();
+            if (data.status === 'ok') { paintAssetsAi(data.result, data.timestamp, data.cached); resetAssetsAiBtn(); return; }
+            if (data.status === 'running') { _assetsAiPoller = setInterval(pollAssetsAi, 3000); }
+        }
+
+        async function pollAssetsAi() {
+            const res  = await fetch(BASE + '/api/assets/ai-analysis/status');
+            const data = await res.json();
+            if (data.status === 'ok')    { clearInterval(_assetsAiPoller); paintAssetsAi(data.result, data.timestamp, data.cached); resetAssetsAiBtn(); }
+            if (data.status === 'error') { clearInterval(_assetsAiPoller); document.getElementById('assets-ai-content').innerHTML = '<p style="color:#ff8888">Error: ' + data.message + '</p>'; resetAssetsAiBtn(); }
+        }
+
+        function resetAssetsAiBtn() {
+            document.getElementById('assets-ai-btn').textContent = '↻ Refresh Analysis';
+            document.getElementById('assets-ai-btn').disabled = false;
+            document.getElementById('assets-ai-btn').onclick = () => runAssetsAi(true);
+        }
+
+        function paintAssetsAi(r, ts, cached) {
+            document.getElementById('assets-ai-ts').textContent = (cached ? 'Cached · ' : '') + (ts || '');
+            const gradeClass = 'grade-' + (r.grade || '?');
+            let html = '<div class="ai-grade-banner">';
+            html += '<div class="ai-grade-letter ' + gradeClass + '">' + (r.grade || '?') + '</div>';
+            html += '<div class="ai-grade-meta"><h3>' + escHtml(r.grade_note || '') + '</h3><p>' + escHtml(r.summary || '') + '</p></div></div>';
+
+            // Charts
+            html += '<div class="ai-charts">';
+            html += assetsBarChart('📡 Asset Visibility', r.chart_visibility || {});
+            html += assetsBarChart('🩹 Patch Compliance', r.chart_patch || {});
+            html += assetsBarChart('⚠️ EOL Status', r.chart_eol || {});
+            html += '</div>';
+
+            // Patterns
+            if ((r.patterns || []).length) {
+                html += '<div class="ai-patterns"><h4>🔍 Detected Patterns</h4>';
+                for (const p of r.patterns) {
+                    html += '<div class="pattern-item ' + (p.severity || 'info') + '"><div class="pattern-title">' + escHtml(p.title || '') + '</div><div class="pattern-detail">' + escHtml(p.detail || '') + '</div></div>';
+                }
+                html += '</div>';
+            }
+
+            // Recommendations
+            if ((r.recommendations || []).length) {
+                html += '<div class="ai-recs"><h4>✅ Recommendations</h4>';
+                const icons = {high:'🔴', medium:'🟡', low:'ℹ️'};
+                for (const rec of r.recommendations) {
+                    html += '<div class="rec-row ' + (rec.priority || 'low') + '">';
+                    html += '<span>' + (icons[rec.priority] || 'ℹ️') + '</span>';
+                    html += '<div><div>' + escHtml(rec.action || '') + '</div>';
+                    if (rec.devices) html += '<div style="font-size:11px;color:var(--text4);margin-top:3px">' + escHtml(rec.devices) + '</div>';
+                    html += '</div></div>';
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('assets-ai-content').innerHTML = html;
+        }
+
+        function assetsBarChart(title, data) {
+            const entries = Object.entries(data).filter(([,v]) => v > 0);
+            if (!entries.length) return '';
+            const max = Math.max(...entries.map(([,v]) => v), 1);
+            let html = '<div class="ai-chart-card"><h4>' + title + '</h4>';
+            for (const [label, val] of entries) {
+                const pct = Math.round((val / max) * 100);
+                html += '<div class="bar-row"><span class="bar-label" title="' + label + '">' + label + '</span>';
+                html += '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>';
+                html += '<span class="bar-val">' + val + '</span></div>';
+            }
+            return html + '</div>';
+        }
+
+        // Auto-load if cached
+        (async () => {
+            const res  = await fetch(BASE + '/api/assets/ai-analysis/status');
+            const data = await res.json();
+            if (data.status === 'ok') { paintAssetsAi(data.result, data.timestamp, true); resetAssetsAiBtn(); }
+        })();
+    </script>
+{% endblock %}

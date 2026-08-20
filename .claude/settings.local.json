@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "PowerShell(Get-Process -Id 25308 -ErrorAction SilentlyContinue)"
+    ]
+  }
+}

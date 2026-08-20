@@ -1,0 +1,1361 @@
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse, RedirectResponse
+from dotenv import load_dotenv
+from routers import jira
+import os
+import io
+import csv
+import re
+import threading
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+
+load_dotenv()
+
+from routers.database import init_db
+init_db()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = FastAPI(title="Zinnia Infrastructure Portal")
+
+app.mount("/static",             StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.mount("/infraportal/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static_prefixed")
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+
+from routers.scheduler import start_scheduler
+start_scheduler()
+
+from routers.auth import (
+    login_handler, callback_handler, logout_handler, unauthorized_handler,
+    require_auth_check, get_current_user
+)
+
+# ── Auth routes ───────────────────────────────────────────────────────────────
+
+@app.get("/infraportal/auth/login")
+async def auth_login(request: Request):
+    return await login_handler(request)
+
+@app.get("/infraportal/auth/callback")
+async def auth_callback(request: Request):
+    return await callback_handler(request)
+
+@app.get("/infraportal/auth/logout")
+async def auth_logout(request: Request):
+    return await logout_handler(request)
+
+@app.get("/infraportal/auth/unauthorized")
+async def auth_unauthorized(request: Request):
+    return await unauthorized_handler(request, templates)
+
+# ── Page routes ───────────────────────────────────────────────────────────────
+
+@app.get("/infraportal")
+async def infraportal_redirect():
+    return RedirectResponse(url="/infraportal/")
+
+def _ctx(request, user, active_page):
+    """Build common template context including user groups."""
+    from routers.auth import get_user_groups
+    groups = list(get_user_groups(request))
+    return {"request": request, "user": user, "user_groups": groups, "active_page": active_page}
+
+@app.get("/")
+@app.get("/infraportal/")
+async def dashboard(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("dashboard.html", _ctx(request, user, "dashboard"))
+
+@app.get("/vmware")
+@app.get("/infraportal/vmware")
+async def vmware_page(request: Request):
+    user, redirect = require_auth_check(request, "vmware")
+    if redirect: return redirect
+    return templates.TemplateResponse("vmware.html", _ctx(request, user, "vmware"))
+
+@app.get("/analysis")
+@app.get("/infraportal/analysis")
+async def analysis_page(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("analysis.html", _ctx(request, user, "analysis"))
+
+@app.get("/alerts")
+@app.get("/infraportal/alerts")
+async def alerts_page(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("alerts.html", _ctx(request, user, "alerts"))
+
+@app.get("/active-directory")
+@app.get("/infraportal/active-directory")
+async def ad_page(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("active_directory.html", _ctx(request, user, "active-directory"))
+
+@app.get("/certificates")
+@app.get("/infraportal/certificates")
+async def certificates_page(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("certificates.html", _ctx(request, user, "certificates"))
+
+@app.get("/my-dashboard")
+@app.get("/infraportal/my-dashboard")
+async def my_dashboard_page(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("my_dashboard.html", _ctx(request, user, "my-dashboard"))
+
+@app.get("/infraportal/jira-config")
+async def jira_config_page(request: Request):
+    user, _ = require_auth_check(request, "admin")
+    if not user:
+        return RedirectResponse("/infraportal/auth/login")
+    return templates.TemplateResponse("jira_config.html", _ctx(request, user, "jira-config"))
+
+@app.get("/citrix")
+@app.get("/infraportal/citrix")
+async def citrix_page(request: Request):
+    user, redirect = require_auth_check(request, "citrix")
+    if redirect: return redirect
+    return templates.TemplateResponse("citrix.html", _ctx(request, user, "citrix"))
+
+@app.get("/assets")
+@app.get("/infraportal/assets")
+async def assets_page(request: Request):
+    user, redirect = require_auth_check(request)
+    if redirect: return redirect
+    return templates.TemplateResponse("assets.html", _ctx(request, user, "assets"))
+
+@app.get("/network")
+@app.get("/infraportal/network")
+async def network_page(request: Request):
+    user, redirect = require_auth_check(request, "network")
+    if redirect: return redirect
+    return templates.TemplateResponse("network.html", _ctx(request, user, "network"))
+
+# ── VMware API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/vms")
+@app.get("/infraportal/api/vms")
+async def api_get_vms(refresh: bool = False):
+    try:
+        from routers.vmware import get_all_vms
+        from routers.cache import cache
+        vms, errors, timestamp = get_all_vms(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(vms), "vms": vms, "errors": errors, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/hosts")
+@app.get("/infraportal/api/hosts")
+async def api_get_hosts(refresh: bool = False):
+    try:
+        from routers.vmware import get_all_hosts
+        from routers.cache import cache
+        hosts, errors, timestamp = get_all_hosts(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(hosts), "hosts": hosts, "errors": errors, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/detailed-vms")
+@app.get("/infraportal/api/detailed-vms")
+async def api_get_detailed_vms(refresh: bool = False):
+    try:
+        from routers.vmware import stream_detailed_vms
+        return StreamingResponse(stream_detailed_vms(force_refresh=refresh), media_type="text/event-stream")
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/detailed-hosts")
+@app.get("/infraportal/api/detailed-hosts")
+async def api_get_detailed_hosts(refresh: bool = False):
+    try:
+        from routers.vmware_deep import stream_detailed_hosts
+        return StreamingResponse(stream_detailed_hosts(force_refresh=refresh), media_type="text/event-stream")
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/untagged-vms")
+@app.get("/infraportal/api/untagged-vms")
+async def api_get_untagged_vms(refresh: bool = False):
+    try:
+        from routers.vmware import stream_untagged_vms
+        return StreamingResponse(stream_untagged_vms(force_refresh=refresh), media_type="text/event-stream")
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/vm-storage")
+@app.get("/infraportal/api/vm-storage")
+async def api_get_vm_storage(refresh: bool = False):
+    try:
+        from routers.vmware import stream_vm_storage
+        return StreamingResponse(stream_vm_storage(force_refresh=refresh), media_type="text/event-stream")
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/vm-storage-summary")
+@app.get("/infraportal/api/vm-storage-summary")
+async def api_get_vm_storage_summary():
+    try:
+        from routers.cache import cache
+        data, timestamp = cache.get("vm_storage")
+        if data is None:
+            return {"status": "ok", "low_disk_count": 0, "total_count": 0, "available": False}
+        low_disk = sum(1 for v in data.get("vms", []) if v.get("has_low_disk"))
+        return {"status": "ok", "low_disk_count": low_disk, "total_count": data.get("count", 0), "available": True}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── OpManager API ─────────────────────────────────────────────────────────────
+
+@app.get("/api/alerts")
+@app.get("/infraportal/api/alerts")
+async def api_get_alerts(refresh: bool = False):
+    try:
+        from routers.opmanager import get_alarms
+        from routers.cache import cache
+        from routers.database import save_alert_history
+        # Bug #5 fix: serve from cache on normal page loads — scheduler refreshes every 5 min.
+        # Only hit OpManager when the user explicitly clicks Refresh or cache is empty.
+        if not refresh:
+            cached, ts = cache.get("opm_alarms")
+            if cached is not None:
+                age = cache.age_string(ts)
+                return {"status": "ok", "count": len(cached), "alarms": cached, "timestamp": age}
+        alarms, timestamp = get_alarms(force_refresh=refresh)
+        save_alert_history(alarms)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(alarms), "alarms": alarms, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/devices")
+@app.get("/infraportal/api/devices")
+async def api_get_devices(refresh: bool = False):
+    try:
+        from routers.opmanager import get_devices
+        from routers.cache import cache
+        devices, timestamp = get_devices(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(devices), "devices": devices, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── AI Analysis API ───────────────────────────────────────────────────────────
+
+# Background analysis state — shared across requests
+_analysis_state: dict = {"status": "idle", "result": None, "error": None}
+
+def _run_analysis_background():
+    """Run the full analysis in a background thread. Updates _analysis_state when done."""
+    global _analysis_state
+    try:
+        from routers.cache import cache
+        from routers.analysis import analyze_infrastructure, generate_grade_deepdives
+        from routers.vmware import get_all_vms, get_all_hosts
+        from routers.opmanager import get_alarms
+        from routers.database import get_recurring_alerts, get_disk_trends, get_powered_off_vms
+        from routers.active_directory import get_ad_analysis_for_ai
+        from routers.ca_analysis import get_ca_analysis_for_ai
+        from routers.citrix import get_citrix_analysis_for_ai
+
+        vms, _, _   = get_all_vms()
+        hosts, _, _ = get_all_hosts()
+
+        untagged_data, _ = cache.get("untagged_vms")
+        untagged = untagged_data["vms"] if untagged_data else []
+
+        storage_data, _ = cache.get("vm_storage")
+        storage = storage_data["vms"] if storage_data else []
+
+        detailed_data, _ = cache.get("detailed_vms")
+        detailed_vms = detailed_data["vms"] if detailed_data else vms
+
+        alarms, _   = get_alarms()
+        recurring   = get_recurring_alerts(min_occurrences=3)
+        trends      = get_disk_trends()
+        powered_off = get_powered_off_vms(days=30)
+        ad_data     = get_ad_analysis_for_ai()
+        cert_data   = get_ca_analysis_for_ai()
+        citrix_data = get_citrix_analysis_for_ai()
+
+        analysis = analyze_infrastructure(
+            detailed_vms, hosts, untagged, storage,
+            alarms=alarms, recurring_alerts=recurring,
+            disk_trends=trends, powered_off_vms=powered_off,
+            ad_data=ad_data, cert_data=cert_data, citrix_data=citrix_data,
+        )
+
+        grades = {}
+        grades_section = re.search(r'\[GRADES\](.*?)(\[|$)', analysis, re.DOTALL)
+        if grades_section:
+            for line in grades_section.group(1).split('\n'):
+                m = re.match(r'^([A-Z_]+):\s*([A-F])\s*[-–]?\s*(.*)', line.strip())
+                if m:
+                    grades[m.group(1)] = {"letter": m.group(2), "note": m.group(3).strip()}
+
+        if grades:
+            deepdives = generate_grade_deepdives(analysis, grades)
+            cache.set("last_analysis_deepdives", deepdives)
+
+        cache.set("last_analysis", {"text": analysis})
+        from routers.database import save_analysis
+        save_analysis(analysis)
+
+        _, ts = cache.get("last_analysis")
+        age = cache.age_string(ts)
+        _analysis_state["result"] = {"analysis": analysis, "timestamp": age}
+        _analysis_state["status"] = "done"
+
+    except Exception as e:
+        _analysis_state["status"] = "error"
+        _analysis_state["error"] = str(e)
+
+
+@app.get("/api/analyze")
+@app.get("/infraportal/api/analyze")
+async def api_analyze(refresh: bool = False):
+    global _analysis_state
+    from routers.cache import cache
+
+    # Always serve cached result when not explicitly refreshing
+    if not refresh:
+        cached, ts = cache.get("last_analysis")
+        if cached:
+            age = cache.age_string(ts)
+            return {"status": "ok", "analysis": cached["text"], "timestamp": age, "cached": True}
+
+    # Fresh analysis — fire off background thread and return immediately
+    # so IIS doesn't time out the connection while Claude is thinking
+    if _analysis_state["status"] != "running":
+        _analysis_state["status"] = "running"
+        _analysis_state["result"] = None
+        _analysis_state["error"]  = None
+        t = threading.Thread(target=_run_analysis_background, daemon=True)
+        t.start()
+
+    return {"status": "running"}
+
+
+@app.get("/api/analyze/status")
+@app.get("/infraportal/api/analyze/status")
+async def api_analyze_status():
+    """Poll this endpoint after triggering a fresh analysis."""
+    global _analysis_state
+    if _analysis_state["status"] == "running":
+        return {"status": "running"}
+    if _analysis_state["status"] == "error":
+        return {"status": "error", "message": _analysis_state["error"]}
+    if _analysis_state["status"] == "done" and _analysis_state["result"]:
+        r = _analysis_state["result"]
+        _analysis_state["status"] = "idle"  # reset so next run can start
+        return {"status": "ok", "analysis": r["analysis"], "timestamp": r["timestamp"], "cached": False}
+    # idle or no result yet
+    from routers.cache import cache
+    cached, ts = cache.get("last_analysis")
+    if cached:
+        age = cache.age_string(ts)
+        return {"status": "ok", "analysis": cached["text"], "timestamp": age, "cached": True}
+    return {"status": "running"}  # still starting up
+
+@app.get("/api/analyze/deepdive/{grade}")
+@app.get("/infraportal/api/analyze/deepdive/{grade}")
+async def api_deepdive(grade: str):
+    from routers.cache import cache
+    cached, _ = cache.get("last_analysis_deepdives")
+    if not cached:
+        return {"status": "error", "message": "No deep dives available. Run analysis first."}
+    key = grade.upper()
+    if key not in cached:
+        return {"status": "error", "message": f"No deep dive found for grade: {key}"}
+    return {"status": "ok", "deepdive": cached[key]}
+
+@app.get("/api/scheduler-status")
+@app.get("/infraportal/api/scheduler-status")
+async def scheduler_status():
+    try:
+        from routers.scheduler import scheduler, _job_history
+
+        JOB_LABELS = {
+            "job_basic_vms":          "VMware — Basic VM list",
+            "job_basic_hosts":        "VMware — Basic host list",
+            "job_detailed_vms":       "VMware — Detailed VMs",
+            "job_disk_snapshots":     "VMware — Disk snapshots",
+            "job_untagged_vms":       "VMware — Untagged VMs",
+            "job_detailed_hosts":     "VMware — Detailed hosts",
+            "job_opmanager_alerts":   "OpManager — Alerts",
+            "job_opmanager_devices":  "OpManager — Devices",
+            "job_jira_prefetch":      "Jira — Ticket prefetch",
+            "job_ad_summary":         "Active Directory — Summary",
+            "job_ad_reports":         "Active Directory — Detail reports",
+            "job_ad_gpo":             "Active Directory — GPO analysis",
+            "job_cert_summary":       "Certificates — Summary",
+            "job_cert_expiring":      "Certificates — Expiring",
+            "job_cert_dc_certs":      "Certificates — DC Kerberos",
+            "job_citrix_summary":     "Citrix — Summary",
+            "job_lansweeper_summary": "Lansweeper — Asset summary",
+            "job_lansweeper_patch":   "Lansweeper — Patch status",
+            "job_lansweeper_assets":  "Lansweeper — Asset list",
+            "job_ai_analysis":        "AI Analysis — Daily run",
+        }
+
+        jobs = []
+        for job in scheduler.get_jobs():
+            history = _job_history.get(job.id, {})
+            jobs.append({
+                "id":          job.id,
+                "label":       JOB_LABELS.get(job.id, job.id),
+                "next_run":    str(job.next_run_time) if job.next_run_time else None,
+                "last_run":    history.get("last_run"),
+                "last_status": history.get("last_status"),
+                "last_error":  history.get("last_error"),
+                "run_count":   history.get("run_count", 0),
+            })
+
+        # Sort: running jobs with errors first, then by label
+        jobs.sort(key=lambda j: (0 if j["last_status"] == "error" else 1, j["label"]))
+
+        return {"status": "ok", "jobs": jobs, "total": len(jobs)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Export API ────────────────────────────────────────────────────────────────
+
+@app.post("/api/export/csv")
+@app.post("/infraportal/api/export/csv")
+async def export_csv(request: Request):
+    try:
+        body = await request.json()
+        columns  = body.get("columns", [])
+        rows     = body.get("rows", [])
+        filename = body.get("filename", "export")
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(columns)
+        for row in rows:
+            writer.writerow(row)
+        output.seek(0)
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode()),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}.csv"}
+        )
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/export/excel")
+@app.post("/infraportal/api/export/excel")
+async def export_excel(request: Request):
+    try:
+        body = await request.json()
+        columns  = body.get("columns", [])
+        rows     = body.get("rows", [])
+        filename = body.get("filename", "export")
+        title    = body.get("title", "Export")
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        assert ws is not None
+        ws.title = title[:31]
+
+        header_font      = Font(bold=True, color="FFFFFF")
+        header_fill      = PatternFill(start_color="0F9B8E", end_color="0F9B8E", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        for col_idx, col_name in enumerate(columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font      = header_font
+            cell.fill      = header_fill
+            cell.alignment = header_alignment
+
+        for row_idx, row in enumerate(rows, 2):
+            for col_idx, value in enumerate(row, 1):
+                ws.cell(row=row_idx, column=col_idx, value=value)
+
+        for col in ws.columns:
+            first_cell = col[0]
+            if hasattr(first_cell, "column_letter"):
+                max_length = max(len(str(cell.value or "")) for cell in col if hasattr(cell, "value"))
+                ws.column_dimensions[first_cell.column_letter].width = min(max_length + 4, 50)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}.xlsx"}
+        )
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Active Directory API ──────────────────────────────────────────────────────
+
+@app.get("/api/ad/summary")
+@app.get("/infraportal/api/ad/summary")
+async def api_ad_summary(refresh: bool = False):
+    try:
+        from routers.active_directory import get_ad_summary
+        from routers.cache import cache
+        data, timestamp = get_ad_summary(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "data": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ad/stale-users")
+@app.get("/infraportal/api/ad/stale-users")
+async def api_ad_stale_users(refresh: bool = False):
+    try:
+        from routers.active_directory import get_stale_users
+        from routers.cache import cache
+        data, timestamp = get_stale_users(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "users": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ad/pwd-never-expires")
+@app.get("/infraportal/api/ad/pwd-never-expires")
+async def api_ad_pwd_never_expires(refresh: bool = False):
+    try:
+        from routers.active_directory import get_pwd_never_expires
+        from routers.cache import cache
+        data, timestamp = get_pwd_never_expires(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "users": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ad/domain-admins")
+@app.get("/infraportal/api/ad/domain-admins")
+async def api_ad_domain_admins(refresh: bool = False):
+    try:
+        from routers.active_directory import get_domain_admins
+        from routers.cache import cache
+        data, timestamp = get_domain_admins(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "admins": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ad/empty-groups")
+@app.get("/infraportal/api/ad/empty-groups")
+async def api_ad_empty_groups(refresh: bool = False):
+    try:
+        from routers.active_directory import get_empty_groups
+        from routers.cache import cache
+        data, timestamp = get_empty_groups(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "groups": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ad/stale-computers")
+@app.get("/infraportal/api/ad/stale-computers")
+async def api_ad_stale_computers(refresh: bool = False):
+    try:
+        from routers.active_directory import get_stale_computers
+        from routers.cache import cache
+        data, timestamp = get_stale_computers(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "computers": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ad/gpo-analysis")
+@app.get("/infraportal/api/ad/gpo-analysis")
+async def api_ad_gpo_analysis(refresh: bool = False):
+    try:
+        from routers.active_directory import get_gpo_analysis
+        from routers.cache import cache
+        data, timestamp = get_gpo_analysis(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "data": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Certificates / CA API ─────────────────────────────────────────────────────
+
+@app.get("/api/ca/summary")
+@app.get("/infraportal/api/ca/summary")
+async def api_ca_summary(refresh: bool = False):
+    try:
+        from routers.ca_analysis import get_cert_summary
+        from routers.cache import cache
+        data, timestamp = get_cert_summary(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "data": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ca/expiring")
+@app.get("/infraportal/api/ca/expiring")
+async def api_ca_expiring(refresh: bool = False):
+    try:
+        from routers.ca_analysis import get_expiring_certs
+        from routers.cache import cache
+        data, timestamp = get_expiring_certs(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "certs": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ca/manual")
+@app.get("/infraportal/api/ca/manual")
+async def api_ca_manual(refresh: bool = False):
+    try:
+        from routers.ca_analysis import get_manual_certs
+        from routers.cache import cache
+        data, timestamp = get_manual_certs(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "certs": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ca/dc-certs")
+@app.get("/infraportal/api/ca/dc-certs")
+async def api_ca_dc_certs(refresh: bool = False):
+    try:
+        from routers.ca_analysis import get_dc_kerberos_certs
+        from routers.cache import cache
+        data, timestamp = get_dc_kerberos_certs(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "certs": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ca/all")
+@app.get("/infraportal/api/ca/all")
+async def api_ca_all(refresh: bool = False):
+    try:
+        from routers.ca_analysis import get_all_issued
+        from routers.cache import cache
+        data, timestamp = get_all_issued(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "certs": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Citrix API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/citrix/summary")
+@app.get("/infraportal/api/citrix/summary")
+async def api_citrix_summary(refresh: bool = False):
+    try:
+        from routers.citrix import get_citrix_summary
+        from routers.cache import cache
+        data, timestamp = get_citrix_summary(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "data": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/citrix/machines")
+@app.get("/infraportal/api/citrix/machines")
+async def api_citrix_machines(refresh: bool = False):
+    try:
+        from routers.citrix import get_citrix_machines
+        from routers.cache import cache
+        data, timestamp = get_citrix_machines(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "machines": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/citrix/sessions")
+@app.get("/infraportal/api/citrix/sessions")
+async def api_citrix_sessions(refresh: bool = False):
+    try:
+        from routers.citrix import get_citrix_sessions
+        from routers.cache import cache
+        data, timestamp = get_citrix_sessions(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "sessions": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/citrix/delivery-groups")
+@app.get("/infraportal/api/citrix/delivery-groups")
+async def api_citrix_delivery_groups(refresh: bool = False):
+    try:
+        from routers.citrix import get_citrix_delivery_groups
+        from routers.cache import cache
+        data, timestamp = get_citrix_delivery_groups(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "delivery_groups": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/citrix/catalogs")
+@app.get("/infraportal/api/citrix/catalogs")
+async def api_citrix_catalogs(refresh: bool = False):
+    try:
+        from routers.citrix import get_citrix_catalogs
+        from routers.cache import cache
+        data, timestamp = get_citrix_catalogs(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "count": len(data), "catalogs": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/citrix/sessions/{session_id}/logoff")
+@app.post("/infraportal/api/citrix/sessions/{session_id}/logoff")
+async def api_citrix_logoff(session_id: str):
+    try:
+        from routers.citrix import logoff_session
+        status, text = logoff_session(session_id)
+        if status in (200, 204):
+            return {"status": "ok", "message": "Session logged off successfully"}
+        return {"status": "error", "message": f"API returned {status}: {text}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/citrix/sessions/{session_id}/shadow")
+@app.get("/infraportal/api/citrix/sessions/{session_id}/shadow")
+async def api_citrix_shadow(session_id: str):
+    try:
+        from routers.citrix import get_shadow_url
+        status, content = get_shadow_url(session_id)
+        if status == 200:
+            from fastapi.responses import Response
+            return Response(
+                content=content,
+                media_type="application/x-ica",
+                headers={"Content-Disposition": f"attachment; filename=shadow_{session_id}.ica"}
+            )
+        return {"status": "error", "message": f"Shadow not available: {status}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/citrix/master-images")
+@app.get("/infraportal/api/citrix/master-images")
+async def api_citrix_master_images():
+    try:
+        from routers.citrix import get_master_images
+        images = get_master_images()
+        return {"status": "ok", "count": len(images), "images": images}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Meraki API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/meraki/summary")
+@app.get("/infraportal/api/meraki/summary")
+async def api_meraki_summary():
+    try:
+        from routers.meraki import get_summary
+        return get_summary()
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/meraki/networks")
+@app.get("/infraportal/api/meraki/networks")
+async def api_meraki_networks():
+    try:
+        from routers.meraki import get_networks
+        return get_networks()
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/meraki/devices")
+@app.get("/infraportal/api/meraki/devices")
+async def api_meraki_devices(org: str = None, network_id: str = None, device_type: str = None):
+    try:
+        from routers.meraki import get_devices
+        return get_devices(org=org, network_id=network_id, device_type=device_type)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/meraki/uplinks")
+@app.get("/infraportal/api/meraki/uplinks")
+async def api_meraki_uplinks():
+    try:
+        from routers.meraki import get_uplinks
+        return get_uplinks()
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/meraki/clients")
+@app.get("/infraportal/api/meraki/clients")
+async def api_meraki_clients(network_id: str = None, limit: int = 200):
+    try:
+        from routers.meraki import get_clients
+        return get_clients(network_id=network_id, limit=limit)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/meraki/lookup")
+@app.get("/infraportal/api/meraki/lookup")
+async def api_meraki_lookup(q: str = ""):
+    try:
+        from routers.meraki import lookup_endpoint
+        return lookup_endpoint(q)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/meraki/refresh")
+@app.post("/infraportal/api/meraki/refresh")
+async def api_meraki_refresh():
+    try:
+        from routers.meraki import job_meraki_refresh
+        job_meraki_refresh()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Lansweeper API ────────────────────────────────────────────────────────────
+
+@app.get("/api/lansweeper/summary")
+@app.get("/infraportal/api/lansweeper/summary")
+async def api_lansweeper_summary(refresh: bool = False):
+    try:
+        from routers.lansweeper import get_asset_summary
+        from routers.cache import cache
+        data, timestamp = get_asset_summary(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "data": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/lansweeper/patch-status")
+@app.get("/infraportal/api/lansweeper/patch-status")
+async def api_lansweeper_patch_status(refresh: bool = False):
+    try:
+        from routers.lansweeper import get_patch_status
+        from routers.cache import cache
+        data, timestamp = get_patch_status(force_refresh=refresh)
+        age = cache.age_string(timestamp)
+        return {"status": "ok", "data": data, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/lansweeper/assets")
+@app.get("/infraportal/api/lansweeper/assets")
+async def api_lansweeper_assets(refresh: bool = False):
+    try:
+        from routers.cache import cache
+        from routers.database import load_lansweeper_assets, save_lansweeper_assets
+
+        # 1. In-memory cache (fastest — set by scheduler every 6h)
+        cached, ts = cache.get("ls_asset_list")
+        if cached and not refresh:
+            age = cache.age_string(ts)
+            return {"status": "ok", "count": len(cached), "assets": cached, "timestamp": age}
+
+        # 2. DB fallback — survives app pool recycles, avoids hitting Lansweeper on every cold start
+        if not refresh:
+            db_assets, db_ts = load_lansweeper_assets()
+            if db_assets is not None:
+                cache.set("ls_asset_list", db_assets)  # warm in-memory cache for subsequent requests
+                age = cache.age_string(db_ts)
+                return {"status": "ok", "count": len(db_assets), "assets": db_assets, "timestamp": age}
+
+        # 3. Live fetch — only when refresh=True or both caches are empty (first ever run)
+        from routers.lansweeper import _fetch_all_assets, _basic, _os_group, _days_ago, _EOL_OS
+        fields = [
+            "assetBasicInfo.name", "assetBasicInfo.type", "assetBasicInfo.typeGroup",
+            "assetBasicInfo.ipAddress", "assetBasicInfo.domain",
+            "assetBasicInfo.firstSeen", "assetBasicInfo.lastSeen",
+            "assetBasicInfo.scannerTypes",
+            "operatingSystem.name",
+            "assetCustom.stateName", "assetCustom.manufacturer", "assetCustom.model",
+        ]
+        raw = _fetch_all_assets(fields)
+        assets = []
+        for item in raw:
+            b = _basic(item)
+            os_name = (item.get("operatingSystem") or {}).get("name", "")
+            og = _os_group(b.get("type"), os_name)
+            assets.append({
+                "name":            b.get("name"),
+                "ip":              b.get("ipAddress"),
+                "type":            b.get("typeGroup") or b.get("type"),
+                "os":              og,
+                "domain":          b.get("domain"),
+                "state":           (item.get("assetCustom") or {}).get("stateName"),
+                "manufacturer":    (item.get("assetCustom") or {}).get("manufacturer"),
+                "model":           (item.get("assetCustom") or {}).get("model"),
+                "last_seen":       b.get("lastSeen"),
+                "first_seen":      b.get("firstSeen"),
+                "days_since_seen": _days_ago(b.get("lastSeen")),
+                "scanner_types":   b.get("scannerTypes") or [],
+                "is_eol":          og in _EOL_OS,
+            })
+        cache.set("ls_asset_list", assets)
+        save_lansweeper_assets(assets)
+        _, ts = cache.get("ls_asset_list")
+        age = cache.age_string(ts)
+        return {"status": "ok", "count": len(assets), "assets": assets, "timestamp": age}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Unified Asset Detail ──────────────────────────────────────────────────────
+
+@app.get("/api/asset/{name}")
+@app.get("/infraportal/api/asset/{name}")
+async def api_asset_detail(name: str):
+    import re as _re
+    result = {"name": name, "sources": {}}
+
+    try:
+        from routers.lansweeper import get_asset_detail
+        ls_data, _ = get_asset_detail(name)
+        result["sources"]["lansweeper"] = ls_data
+        if ls_data:
+            result["ip"]              = ls_data.get("ip")
+            result["os"]              = ls_data.get("os")
+            result["os_version"]      = ls_data.get("os_version")
+            result["is_eol"]          = ls_data.get("is_eol")
+            result["type"]            = ls_data.get("type")
+            result["manufacturer"]    = ls_data.get("manufacturer")
+            result["model"]           = ls_data.get("model")
+            result["cpu"]             = ls_data.get("cpu")
+            result["cpu_cores"]       = ls_data.get("cpu_cores")
+            result["total_disk_gb"]   = ls_data.get("total_disk_gb")
+            result["free_disk_gb"]    = ls_data.get("free_disk_gb")
+            result["used_disk_pct"]   = ls_data.get("used_disk_pct")
+            result["last_seen"]       = ls_data.get("last_seen")
+            result["days_since_seen"] = ls_data.get("days_since_seen")
+            result["state"]           = ls_data.get("state")
+    except Exception as e:
+        result["sources"]["lansweeper"] = {"error": str(e)}
+
+    try:
+        from routers.cache import cache
+        vm_data, _ = cache.get("detailed_vms")
+        if vm_data:
+            vms = vm_data.get("vms", [])
+            vm = next((v for v in vms if (v.get("name") or "").upper() == name.upper()), None)
+            if vm:
+                result["sources"]["vmware"] = vm
+                result["power_state"]  = vm.get("power_state")
+                result["environment"]  = vm.get("environment")
+                result["cpu_count"]    = vm.get("cpu_count")
+                result["ram_mb"]       = vm.get("memory_size_mb")
+                result["vmware_tools"] = vm.get("tools_status")
+                result["snapshots"]    = vm.get("snapshot_count", 0)
+                result["host"]         = vm.get("host")
+                result["cluster"]      = vm.get("cluster")
+            else:
+                result["sources"]["vmware"] = None
+    except Exception as e:
+        result["sources"]["vmware"] = {"error": str(e)}
+
+    try:
+        from routers.citrix import get_citrix_machine_name_set
+        ctx_machines = get_citrix_machine_name_set()
+        ctx = ctx_machines.get(name.lower())
+        result["sources"]["citrix"] = ctx or None
+        if ctx:
+            result["citrix_catalog"]   = ctx.get("catalog_name")
+            result["citrix_dg"]        = ctx.get("delivery_group_name")
+            result["citrix_reg_state"] = ctx.get("registration_state")
+            result["citrix_sessions"]  = ctx.get("session_count", 0)
+    except Exception as e:
+        result["sources"]["citrix"] = {"error": str(e)}
+
+    try:
+        from routers.cache import cache
+        stale_data, _ = cache.get("ad_stale_computers")
+        if stale_data:
+            ad_match = next((c for c in stale_data if (c.get("name") or "").upper() == name.upper()), None)
+            result["sources"]["active_directory"] = ad_match or None
+            if ad_match:
+                result["ad_stale"]         = True
+                result["ad_days_inactive"] = ad_match.get("days_inactive")
+                result["ad_last_login"]    = ad_match.get("last_login")
+    except Exception as e:
+        result["sources"]["active_directory"] = {"error": str(e)}
+
+    try:
+        from routers.cache import cache
+        alarms_data, _ = cache.get("opm_alarms")
+        active_alerts = []
+        if alarms_data:
+            for alarm in alarms_data:
+                dev      = alarm.get("device_name", "")
+                short    = _re.split(r'\.', dev)[0].upper()
+                ip       = alarm.get("ip_address")
+                asset_ip = result.get("ip")
+                if short == name.upper() or (asset_ip and ip and ip == asset_ip):
+                    active_alerts.append(alarm)
+        result["sources"]["opmanager"]   = active_alerts
+        result["active_alert_count"]     = len(active_alerts)
+        result["critical_alert_count"]   = sum(1 for a in active_alerts if a.get("severity") == "Critical")
+    except Exception as e:
+        result["sources"]["opmanager"] = {"error": str(e)}
+
+    recommendations = []
+    if result.get("is_eol"):
+        recommendations.append({
+            "priority": "critical", "category": "Patching",
+            "text": f"OS is end-of-life ({result.get('os')}). Schedule upgrade immediately.",
+        })
+    if (result.get("days_since_seen") or 0) > 30:
+        recommendations.append({
+            "priority": "warning", "category": "Availability",
+            "text": f"Asset not seen in {result['days_since_seen']} days. Verify it is still active.",
+        })
+    if (result.get("used_disk_pct") or 0) > 85:
+        recommendations.append({
+            "priority": "warning", "category": "Storage",
+            "text": f"Disk usage at {result['used_disk_pct']}%. Consider cleanup or expansion.",
+        })
+    if result.get("snapshots") and result["snapshots"] > 3:
+        recommendations.append({
+            "priority": "warning", "category": "VMware",
+            "text": f"{result['snapshots']} snapshots detected. Remove stale snapshots to reclaim disk.",
+        })
+    if result.get("ad_stale"):
+        recommendations.append({
+            "priority": "info", "category": "Active Directory",
+            "text": f"Computer account stale in AD ({result.get('ad_days_inactive')} days). Verify machine is active or disable the account.",
+        })
+    if result.get("critical_alert_count", 0) > 0:
+        recommendations.append({
+            "priority": "critical", "category": "Alerts",
+            "text": f"{result['critical_alert_count']} active critical alert(s) from OpManager. Immediate investigation required.",
+        })
+    if result.get("citrix_reg_state") == "Unregistered":
+        recommendations.append({
+            "priority": "warning", "category": "Citrix",
+            "text": "Machine is unregistered in Citrix. Check VDA service and connectivity to Cloud Connector.",
+        })
+
+    result["recommendations"] = recommendations
+
+    try:
+        from routers.database import get_asset_override
+        result["override"] = get_asset_override(name)
+    except Exception:
+        result["override"] = None
+
+    return {"status": "ok", "asset": result}
+
+# ── Asset Override API ────────────────────────────────────────────────────────
+
+@app.post("/api/asset/{name}/override")
+@app.post("/infraportal/api/asset/{name}/override")
+async def api_set_asset_override(name: str, request: Request):
+    try:
+        from routers.database import save_asset_override
+        body   = await request.json()
+        flag   = body.get("flag", "unimportant")
+        reason = body.get("reason", "")
+        set_by = body.get("set_by", "portal")
+        save_asset_override(name, flag=flag, reason=reason, set_by=set_by)
+        return {"status": "ok", "device_name": name, "flag": flag}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.delete("/api/asset/{name}/override")
+@app.delete("/infraportal/api/asset/{name}/override")
+async def api_delete_asset_override(name: str):
+    try:
+        from routers.database import delete_asset_override
+        delete_asset_override(name)
+        return {"status": "ok", "device_name": name}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/asset-overrides")
+@app.get("/infraportal/api/asset-overrides")
+async def api_list_asset_overrides():
+    try:
+        from routers.database import list_asset_overrides
+        return {"status": "ok", "overrides": list_asset_overrides()}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Alerts API ────────────────────────────────────────────────────────────────
+
+@app.post("/api/alerts/acknowledge")
+@app.post("/infraportal/api/alerts/acknowledge")
+async def api_acknowledge_alerts(request: Request):
+    try:
+        from routers.opmanager import acknowledge_alarms_bulk
+        body = await request.json()
+        alarm_ids = body.get("alarm_ids", [])
+        if not alarm_ids:
+            return {"status": "error", "message": "No alarm IDs provided"}
+        success, failed, errors = acknowledge_alarms_bulk(alarm_ids)
+        return {"status": "ok", "success": success, "failed": failed, "errors": errors}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/alerts/clear")
+@app.post("/infraportal/api/alerts/clear")
+async def api_clear_alerts(request: Request):
+    try:
+        from routers.opmanager import clear_alarms_bulk
+        body = await request.json()
+        alarm_ids = body.get("alarm_ids", [])
+        if not alarm_ids:
+            return {"status": "error", "message": "No alarm IDs provided"}
+        success, failed, errors = clear_alarms_bulk(alarm_ids)
+        return {"status": "ok", "success": success, "failed": failed, "errors": errors}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Chat API ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/chat")
+@app.post("/infraportal/api/chat")
+async def api_chat(request: Request):
+    try:
+        from routers.analysis import _call_claude
+        body     = await request.json()
+        messages = body.get("messages", [])
+        if not messages:
+            return {"status": "error", "message": "No messages provided"}
+        # Bug #4 fix: use shared _call_claude() retry helper (retries on 500/529)
+        # instead of a bare client.messages.create() that silently fails.
+        response = _call_claude(
+            model      = "claude-sonnet-4-20250514",
+            max_tokens = 1500,
+            messages   = messages,
+        )
+        return {"status": "ok", "response": response}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Jira API ──────────────────────────────────────────────────────────────────
+
+@app.get("/infraportal/api/jira/search")
+def api_jira_search(device: str, force_live: bool = False):
+    """Search open ITSD tickets matching a device name.
+    force_live=true bypasses all caches and goes direct to Jira API.
+    """
+    tickets = jira.search_tickets_by_device(device, force_live=force_live)
+    return {"device": device, "count": len(tickets), "tickets": tickets}
+
+@app.get("/infraportal/api/jira/teams/search")
+async def api_jira_teams_search(q: str = ""):
+    """Search Atlassian teams by name. Used by the create ticket modal."""
+    try:
+        teams = jira.search_teams(q)
+        return {"status": "ok", "teams": teams}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# ── Jira team config (DB-stored team list) ────────────────────────────────────
+
+@app.get("/infraportal/api/jira/teams")
+async def api_jira_teams_list():
+    """Return all DB-stored Jira teams."""
+    try:
+        from routers.database import list_jira_teams
+        return {"status": "ok", "teams": list_jira_teams()}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/infraportal/api/jira/teams")
+async def api_jira_teams_save(request: Request):
+    """Add or update a team. Body: { id, name, sort_order? }"""
+    try:
+        from routers.database import save_jira_team
+        body = await request.json()
+        team_id = body.get("id", "").strip()
+        name    = body.get("name", "").strip()
+        order   = int(body.get("sort_order", 0))
+        if not team_id or not name:
+            return {"status": "error", "message": "id and name are required"}
+        ok = save_jira_team(team_id, name, order)
+        return {"status": "ok" if ok else "error"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.delete("/infraportal/api/jira/teams/{team_id:path}")
+async def api_jira_teams_delete(team_id: str):
+    """Delete a team by ID."""
+    try:
+        from routers.database import delete_jira_team
+        ok = delete_jira_team(team_id)
+        return {"status": "ok" if ok else "error"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/infraportal/api/jira/teams/reorder")
+async def api_jira_teams_reorder(request: Request):
+    """Update team display order. Body: { ids: [...] }"""
+    try:
+        from routers.database import reorder_jira_teams
+        body = await request.json()
+        ok = reorder_jira_teams(body.get("ids", []))
+        return {"status": "ok" if ok else "error"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/infraportal/api/jira/create")
+async def api_jira_create(request: Request):
+    """Create an ITSD ticket. Body: { summary, description, priority, device_name, alarm_id, team_id }"""
+    try:
+        body   = await request.json()
+        result = jira.create_ticket(
+            summary     = body.get("summary", ""),
+            description = body.get("description", ""),
+            priority    = body.get("priority", "Medium"),
+            device_name = body.get("device_name", ""),
+            alarm_id    = body.get("alarm_id", ""),
+            team_id     = body.get("team_id", ""),
+        )
+        if result:
+            return {"status": "ok", "key": result["key"], "url": result["url"]}
+        return {"status": "error", "message": "Ticket creation failed — check logs"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/infraportal/api/jira/diagnose")
+async def api_jira_diagnose():
+    """
+    Investigate customfield_11600 (Team) to find allowed values and IDs.
+    Hit once: /infraportal/api/jira/diagnose
+    """
+    from routers.jira import _post, _get, _cfg
+    import requests
+    from requests.auth import HTTPBasicAuth
+    from routers.jira import VERIFY_SSL
+    cfg = _cfg()
+    auth = HTTPBasicAuth(os.getenv("JIRA_EMAIL",""), os.getenv("JIRA_API_TOKEN",""))
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    base = cfg["base_url"]
+    result = {}
+
+    # ── 1. Field contexts for customfield_11600 ───────────────────────────────
+    r1 = requests.get(
+        f"{base}/rest/api/3/field/customfield_11600/context",
+        auth=auth, headers=headers, timeout=10, verify=VERIFY_SSL
+    )
+    result["field_contexts"] = {
+        "status": r1.status_code,
+        "body": r1.json() if r1.ok else r1.text[:500],
+    }
+
+    # ── 2. Options/allowed values for each context ────────────────────────────
+    context_options = []
+    if r1.ok:
+        for ctx in r1.json().get("values", []):
+            ctx_id = ctx.get("id")
+            r2 = requests.get(
+                f"{base}/rest/api/3/field/customfield_11600/context/{ctx_id}/option",
+                auth=auth, headers=headers, timeout=10, verify=VERIFY_SSL,
+                params={"maxResults": 100}
+            )
+            context_options.append({
+                "context_id":   ctx_id,
+                "context_name": ctx.get("name"),
+                "status":       r2.status_code,
+                "options":      r2.json() if r2.ok else r2.text[:500],
+            })
+    result["field_options"] = context_options
+
+    # ── 3. createmeta for ITSD — check what customfield_11600 expects ─────────
+    r3 = requests.get(
+        f"{base}/rest/api/3/issue/createmeta/{cfg['helpdesk']}/issuetypes",
+        auth=auth, headers=headers, timeout=10, verify=VERIFY_SSL
+    )
+    result["itsd_issuetypes"] = {
+        "status": r3.status_code,
+        "body": r3.json() if r3.ok else r3.text[:300],
+    }
+
+    # Get fields for Incident type specifically
+    incident_id = None
+    if r3.ok:
+        for it in r3.json().get("issueTypes", []):
+            if it.get("name") == "Incident":
+                incident_id = it.get("id")
+                break
+    if incident_id:
+        r4 = requests.get(
+            f"{base}/rest/api/3/issue/createmeta/{cfg['helpdesk']}/issuetypes/{incident_id}",
+            auth=auth, headers=headers, timeout=10, verify=VERIFY_SSL,
+            params={"maxResults": 100}
+        )
+        fields = {}
+        if r4.ok:
+            raw = r4.json()
+            # createmeta returns either {"fields": [...]} or a list directly
+            field_list = raw.get("fields", raw) if isinstance(raw, dict) else raw
+            if isinstance(field_list, dict):
+                field_list = list(field_list.values())
+            for f in field_list:
+                if not isinstance(f, dict):
+                    continue
+                fname = f.get("name","")
+                fkey  = f.get("key","") or f.get("fieldId","")
+                if "11600" in fkey or "team" in fname.lower() or "workgroup" in fname.lower():
+                    fields[fkey] = {
+                        "name":           fname,
+                        "required":       f.get("required"),
+                        "schema":         f.get("schema"),
+                        "allowedValues":  f.get("allowedValues", [])[:50],
+                        "autoCompleteUrl":f.get("autoCompleteUrl"),
+                    }
+        result["incident_team_fields"] = {"status": r4.status_code, "fields": fields}
+
+    # ── 4. Try fetching a real ITSD ticket that has a team set ────────────────
+    r5 = _post("/search/jql", payload={
+        "jql":        f'project = {cfg["helpdesk"]} AND "Team" is not EMPTY ORDER BY updated DESC',
+        "startAt":    0,
+        "maxResults": 3,
+        "fields":     ["summary", "customfield_11600", "customfield_15997", "assignee", "status"],
+    })
+    ticket_samples = []
+    if r5:
+        for issue in r5.get("issues", []):
+            f = issue.get("fields", {})
+            ticket_samples.append({
+                "key":                issue["key"],
+                "summary":            f.get("summary"),
+                "customfield_11600":  f.get("customfield_11600"),
+                "customfield_15997":  f.get("customfield_15997"),
+            })
+    result["tickets_with_team"] = ticket_samples
+
+    # ── 5. Same for ITO ───────────────────────────────────────────────────────
+    r6 = _post("/search/jql", payload={
+        "jql":        f'project = {cfg["ito"]} AND "Team" is not EMPTY ORDER BY updated DESC',
+        "startAt":    0,
+        "maxResults": 3,
+        "fields":     ["summary", "customfield_11600", "customfield_15997", "assignee", "status"],
+    })
+    ito_samples = []
+    if r6:
+        for issue in r6.get("issues", []):
+            f = issue.get("fields", {})
+            ito_samples.append({
+                "key":               issue["key"],
+                "summary":           f.get("summary"),
+                "customfield_11600": f.get("customfield_11600"),
+                "customfield_15997": f.get("customfield_15997"),
+            })
+    result["ito_tickets_with_team"] = ito_samples
+
+    return {"status": "ok", "data": result}
+    """Create an ITSD ticket. Body: { summary, description, priority, device_name, alarm_id }"""
+    try:
+        body   = await request.json()
+        result = jira.create_ticket(
+            summary     = body.get("summary", ""),
+            description = body.get("description", ""),
+            priority    = body.get("priority", "Medium"),
+            device_name = body.get("device_name", ""),
+            alarm_id    = body.get("alarm_id", ""),
+            team        = body.get("team", ""),
+        )
+        if result:
+            return {"status": "ok", "key": result["key"], "url": result["url"]}
+        return {"status": "error", "message": "Ticket creation failed — check logs"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
