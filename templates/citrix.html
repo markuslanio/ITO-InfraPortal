@@ -87,6 +87,19 @@
 .btn-sm.danger:hover { background:#aa2222; }
 .btn-sm.warn { background:#7a5a00; }
 .btn-sm.warn:hover { background:#aa8800; }
+
+/* ── Needs Attention panel ── */
+.attn-panel { background: var(--bg2); border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; border: 1px solid var(--border); }
+.attn-panel.has-issues { border-color: rgba(255,170,0,.35); }
+.attn-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.attn-head-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text3); }
+.attn-count { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(255,170,0,.12); color: var(--warning); }
+.attn-count.zero { background: rgba(34,204,102,.12); color: var(--success); }
+.attn-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.attn-row:last-child { border-bottom: none; }
+.attn-name { font-weight: 600; color: var(--text); min-width: 160px; }
+.attn-meta { color: var(--text4); font-size: 11px; flex: 1; }
+.attn-empty { color: var(--text4); font-size: 13px; padding: 6px 4px; }
 </style>
 {% endblock %}
 
@@ -132,6 +145,15 @@
 
     <!-- Alert banners -->
     <div id="ctx-alerts"></div>
+
+    <!-- Needs Attention — machines that are off, in maintenance, unregistered, or faulted -->
+    <div class="attn-panel" id="attn-panel">
+        <div class="attn-head">
+            <span class="attn-head-label">⚡ Needs Attention</span>
+            <span class="attn-count zero" id="attn-count">—</span>
+        </div>
+        <div id="attn-body"><p class="loading">Checking machine health...</p></div>
+    </div>
 
     <!-- Delivery Groups + Machine Catalogs side by side -->
     <div class="two-col">
@@ -253,6 +275,58 @@ async function loadSummary(refresh) {
     }
 }
 
+// ── Needs Attention ───────────────────────────────────────────────────────────
+// Surfaces the specific machines behind the alert-banner counts above, so a
+// NOC/helpdesk user can see what's actually broken without digging into tabs.
+// "Powered off" is only flagged for XenApp/MultiSession (server) machines —
+// pooled VDI desktops are routinely power-managed and being off is expected
+// there, so including them would just be noise.
+async function loadNeedsAttention(refresh) {
+    const [machinesRes, dgRes] = await Promise.all([
+        fetch(apiUrl('/api/citrix/machines', refresh)),
+        fetch(apiUrl('/api/citrix/delivery-groups', refresh)),
+    ]);
+    const machinesData = await machinesRes.json();
+    const dgData = await dgRes.json();
+    const body = document.getElementById('attn-body');
+    const countEl = document.getElementById('attn-count');
+    const panel = document.getElementById('attn-panel');
+    if (machinesData.status === 'error') {
+        body.innerHTML = '<div class="alert-box alert-crit">❌ ' + escHtml(machinesData.message) + '</div>';
+        return;
+    }
+
+    const serverDgNames = new Set(
+        (dgData.delivery_groups || []).filter(dg => dg.session_support === 'MultiSession').map(dg => dg.name)
+    );
+
+    const problems = [];
+    (machinesData.machines || []).forEach(m => {
+        const reasons = [];
+        if (m.registration_state === 'Unregistered') reasons.push({label: 'Unregistered', cls: 'danger'});
+        if (m.in_maintenance_mode) reasons.push({label: m.maintenance_reason ? 'Maintenance: ' + m.maintenance_reason : 'Maintenance mode', cls: 'warn'});
+        if (m.fault_state && !['None','Unknown',''].includes(m.fault_state)) reasons.push({label: 'Fault: ' + m.fault_state, cls: 'danger'});
+        if (m.power_state === 'Off' && serverDgNames.has(m.delivery_group_name)) reasons.push({label: 'Powered off', cls: 'danger'});
+        if (reasons.length) problems.push({machine: m, reasons});
+    });
+
+    countEl.textContent = problems.length;
+    countEl.className = 'attn-count' + (problems.length === 0 ? ' zero' : '');
+    panel.classList.toggle('has-issues', problems.length > 0);
+
+    if (!problems.length) {
+        body.innerHTML = '<div class="attn-empty">✅ No machines currently need attention.</div>';
+        return;
+    }
+
+    body.innerHTML = problems.slice(0, 25).map(p => {
+        const badges = p.reasons.map(r => badge(r.label, r.cls)).join(' ');
+        const meta = [p.machine.delivery_group_name, p.machine.catalog_name].filter(Boolean).join(' · ');
+        return '<div class="attn-row"><span class="attn-name">' + escHtml(p.machine.name) + '</span>'
+            + '<span class="attn-meta">' + escHtml(meta) + '</span>' + badges + '</div>';
+    }).join('') + (problems.length > 25 ? '<div class="attn-meta" style="padding:8px 4px">+ ' + (problems.length - 25) + ' more — see the Machines tab below.</div>' : '');
+}
+
 // ── Delivery Groups ───────────────────────────────────────────────────────────
 async function loadDeliveryGroups(refresh) {
     const res  = await fetch(apiUrl('/api/citrix/delivery-groups', refresh));
@@ -342,6 +416,8 @@ function switchReportTab(tab) {
             + '<button class="btn" onclick="loadMachines(false)">🖥️ All Machines</button>'
             + '<button class="btn" onclick="loadMachines(false,\'Unregistered\')">⚠️ Unregistered</button>'
             + '<button class="btn" onclick="loadMachines(false,\'maintenance\')">🔧 In Maintenance</button>'
+            + '<button class="btn" onclick="loadMachines(false,\'poweredoff\')">⏻ Powered Off</button>'
+            + '<button class="btn" onclick="loadMachines(false,\'fault\')">🚨 Faulted</button>'
             + '</div><div id="machines-results"><p class="loading">Click a button to load machine data.</p></div>';
     } else if (tab === 'sessions') {
         content.innerHTML = '<div class="btn-group">'
@@ -370,6 +446,8 @@ async function loadMachines(refresh, filter) {
     let title = 'All Machines';
     if (filter === 'Unregistered') { machines = machines.filter(m => m.registration_state === 'Unregistered'); title = 'Unregistered Machines'; }
     else if (filter === 'maintenance') { machines = machines.filter(m => m.in_maintenance_mode); title = 'Machines In Maintenance'; }
+    else if (filter === 'poweredoff') { machines = machines.filter(m => m.power_state === 'Off'); title = 'Powered Off Machines'; }
+    else if (filter === 'fault') { machines = machines.filter(m => m.fault_state && !['None','Unknown',''].includes(m.fault_state)); title = 'Faulted Machines'; }
 
     document.getElementById('machines-results').innerHTML = '<p>' + title + ': <strong>' + machines.length + '</strong></p><div id="machines-table"></div>';
     new SmartTable('machines-table', { filename: 'zinnia-citrix-machines', title })
@@ -560,11 +638,13 @@ function paintCtxAiLens(r) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadSummary(false);
+loadNeedsAttention(false);
 loadDeliveryGroups(false);
 loadCatalogs(false);
 switchReportTab('machines');
 
 setInterval(() => { if (_allSessions.length > 0 || _sessionMode) loadSessions(true, _sessionMode); }, 60000);
 setInterval(() => { loadSummary(true); }, 300000);
+setInterval(() => { loadNeedsAttention(true); }, 300000);
 </script>
 {% endblock %}
