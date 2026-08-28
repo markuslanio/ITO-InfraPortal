@@ -166,16 +166,15 @@
   <div class="st-header">
     <div>
       <h1 class="st-title">⚙️ Settings</h1>
-      <p class="st-sub">Site-wide configuration — background jobs, Jira teams, dropdown lists, and environment variables.</p>
+      <p class="st-sub">Site-wide configuration — background jobs, Jira teams, environment variables, and NOC page config.</p>
     </div>
   </div>
 
   <div class="v2-tab-bar st-tab-bar" id="stTopTabs">
     <button class="v2-tab active" data-tab="tab-scheduler" onclick="stSwitchTab('tab-scheduler', this)">Scheduler</button>
     <button class="v2-tab" data-tab="tab-jira" onclick="stSwitchTab('tab-jira', this)">Jira Teams</button>
-    <button class="v2-tab" data-tab="tab-lookup" onclick="stSwitchTab('tab-lookup', this)">Lookup Lists</button>
     <button class="v2-tab" data-tab="tab-env" onclick="stSwitchTab('tab-env', this)">Environment</button>
-    <button class="v2-tab" data-tab="tab-criticality" onclick="stSwitchTab('tab-criticality', this)">🚨 Criticality</button>
+    <button class="v2-tab" data-tab="tab-criticality" onclick="stSwitchTab('tab-criticality', this)">NOC Page Config</button>
   </div>
 
   <div class="st-top-panels">
@@ -308,25 +307,6 @@
         <h3>📋 Saved Teams</h3>
         <div class="st-list" id="jc-team-list"><div class="st-empty">Loading...</div></div>
       </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════ LOOKUP LISTS TAB ══════════════════ -->
-  <div class="v2-tab-panel" id="tab-lookup">
-    <div class="st-card">
-      <h3>Manage dropdown options</h3>
-      <p class="st-card-sub">These values populate select dropdowns elsewhere in the portal — changes apply immediately, no code deploy needed.</p>
-      <div class="st-field" style="max-width:280px;">
-        <label>List</label>
-        <select class="st-select" id="lk-list-select" onchange="lkLoadList()">
-          <option value="owner_teams">Owner Team (Criticality → Device Groups)</option>
-        </select>
-      </div>
-      <div class="st-row" style="margin-bottom:16px;max-width:420px;">
-        <div class="st-field"><label>Add value</label><input class="st-input" id="lk-new-value" placeholder="e.g. Cloud Ops" onkeydown="if(event.key==='Enter'){event.preventDefault();lkAddValue();}"></div>
-        <button class="st-btn" onclick="lkAddValue()">Add</button>
-      </div>
-      <div class="st-list" id="lk-list"><div class="st-empty">Loading...</div></div>
     </div>
   </div>
 
@@ -513,43 +493,6 @@ async function jcDeleteTeam(id) {
     else { stShowToast('Error removing team', true); }
 }
 jcLoadTeams();
-
-/* ── Lookup Lists tab JS ───────────────────────────────────────────────── */
-async function lkLoadList() {
-    const key = document.getElementById('lk-list-select').value;
-    const box = document.getElementById('lk-list');
-    box.innerHTML = '<div class="st-empty">Loading...</div>';
-    const r = await fetch(`/infraportal/api/settings/lookup/${encodeURIComponent(key)}`);
-    const d = await r.json();
-    if (!d.values || d.values.length === 0) { box.innerHTML = '<div class="st-empty">No values yet — add one above.</div>'; return; }
-    box.innerHTML = d.values.map(v => `
-        <div class="st-list-row">
-            <span class="name">${escHtml(v.value)}</span>
-            <button class="st-mini-btn danger" onclick="lkDeleteValue(${v.id})" title="Remove">✕</button>
-        </div>
-    `).join('');
-}
-async function lkAddValue() {
-    const key = document.getElementById('lk-list-select').value;
-    const inp = document.getElementById('lk-new-value');
-    const value = inp.value.trim();
-    if (!value) return;
-    const r = await fetch(`/infraportal/api/settings/lookup/${encodeURIComponent(key)}`, {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({value})
-    });
-    const d = await r.json();
-    if (d.status === 'ok') { inp.value = ''; stShowToast(`"${value}" added`); lkLoadList(); }
-    else { stShowToast('Failed to add — it may already exist', true); }
-}
-async function lkDeleteValue(id) {
-    const key = document.getElementById('lk-list-select').value;
-    if (!confirm('Remove this value? Existing records that already use it keep it as free text — this only affects the dropdown.')) return;
-    const r = await fetch(`/infraportal/api/settings/lookup/${encodeURIComponent(key)}/${id}/delete`, {method:'POST'});
-    const d = await r.json();
-    if (d.status === 'ok') { stShowToast('Removed'); lkLoadList(); }
-    else { stShowToast('Failed to remove', true); }
-}
-lkLoadList();
 
 /* ── Environment tab JS ────────────────────────────────────────────────── */
 const ENV_GROUP_PREFIXES = [

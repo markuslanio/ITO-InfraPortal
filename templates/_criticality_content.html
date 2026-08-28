@@ -322,8 +322,8 @@
   <!-- V2 page header -->
   <div class="v2-page-header">
     <div>
-      <div class="v2-page-title">Service Criticality Configuration</div>
-      <div class="v2-page-meta">OPM groups · Dependencies · Geographic locations · Inventory · Critical asset registry</div>
+      <div class="v2-page-title">NOC Page Config</div>
+      <div class="v2-page-meta">Drives dependency mapping and device tiering on the Wallboard/Alerts pages — OPM groups, dependencies, locations, device groups, plus the underlying device registry and inventory browser.</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="v2-btn" onclick="openAddModal()">+ Add Device</button>
@@ -350,14 +350,15 @@
     <button class="v2-tab" onclick="switchTab('locations', this)">
       Locations <span class="v2-tab-count" id="tabCountLocations">0</span>
     </button>
+    <button class="v2-tab" onclick="switchTab('groups', this)">
+      Device Groups <span class="v2-tab-count" id="tabCountGroups">0</span>
+    </button>
+    <span style="width:1px;background:var(--border);margin:0 2px;"></span>
     <button class="v2-tab" onclick="switchTab('registry', this)">
       Registry <span class="v2-tab-count" id="tabCountRegistry">0</span>
     </button>
     <button class="v2-tab" onclick="switchTab('inventory', this)">
       Inventory <span class="v2-tab-count" id="tabCountInventory">0</span>
-    </button>
-    <button class="v2-tab" onclick="switchTab('groups', this)">
-      Device Groups <span class="v2-tab-count" id="tabCountGroups">0</span>
     </button>
   </div>
 
@@ -460,6 +461,11 @@
 
   <!-- Registry tab -->
   <div class="v2-tab-panel" id="tab-registry">
+    <p style="color:var(--text4);font-size:11.5px;margin:0 0 10px;">
+      The per-device criticality record — tier, escalation contacts, blast radius. Device Groups' "Sync from OPM" and
+      "Auto-create" actions write here automatically; use this tab directly only when a specific device needs a
+      one-off tier override outside any group's pattern.
+    </p>
     <div class="v2-table-wrap">
       <div class="v2-toolbar">
         <input class="v2-search" id="regSearch" placeholder="Search device…" oninput="filterRegistry()">
@@ -487,6 +493,11 @@
 
   <!-- Inventory tab -->
   <div class="v2-tab-panel" id="tab-inventory">
+    <p style="color:var(--text4);font-size:11.5px;margin:0 0 10px;">
+      A read-only, cross-source browser (OpManager, Lansweeper, VMware, Active Directory) for finding a device to
+      register or add to a group — it's the same data feeding the device picker inside Device Groups. Nothing here
+      is saved directly; "+ Register" hands off to the Registry tab's edit form.
+    </p>
     <div class="v2-table-wrap">
       <div class="v2-toolbar">
         <input class="v2-search" id="invSearch" placeholder="Search device, OS, OU…" oninput="filterInventory()" style="min-width:180px;">
@@ -542,6 +553,7 @@
         </select>
         <button class="v2-ghost-btn" style="font-size:10px;padding:3px 9px;" onclick="resetGroupFilters()">Clear</button>
         <span class="v2-toolbar-spacer"></span>
+        <button class="v2-ghost-btn" onclick="openOwnerTeamsModal()" title="Add or remove values in the Owner Team dropdown">Manage Owner Teams</button>
         <button class="v2-ghost-btn" id="btnSyncAllOpm" onclick="syncAllFromOpm()" title="Re-sync device membership for all OPM-linked groups">↻ Sync All from OPM</button>
         <button class="v2-ghost-btn" id="btnAutoCreateOpm" onclick="autoCreateFromOpm()" title="Create one device group per OPM group">Auto-create from OPM</button>
         <button class="v2-btn" onclick="openGroupModal()">+ Add Group</button>
@@ -934,6 +946,31 @@
   </div>
 </div>
 
+<!-- Owner Teams modal — moved here from Settings → Lookup Lists, since this is the
+     only thing that tab ever managed and it's Device Groups' own team dropdown. -->
+<div class="cr-modal-overlay" id="ownerTeamsModal">
+  <div class="cr-modal" style="max-width:420px;">
+    <div class="cr-modal-head">
+      <div class="cr-modal-title">Manage Owner Teams</div>
+      <button class="cr-modal-close" onclick="closeOwnerTeamsModal()">✕</button>
+    </div>
+    <div class="cr-modal-body">
+      <p style="font-size:11.5px;color:var(--text4);margin:0 0 12px;">
+        Populates the Owner Team dropdown on devices and device groups — changes apply immediately, no code deploy needed.
+      </p>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input class="cr-input" id="ownerTeamNewValue" placeholder="e.g. Cloud Ops" style="flex:1;"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();otAddValue();}">
+        <button class="v2-btn" onclick="otAddValue()">Add</button>
+      </div>
+      <div id="ownerTeamsList"><div class="cr-empty">Loading…</div></div>
+    </div>
+    <div class="cr-modal-footer">
+      <button class="v2-ghost-btn" onclick="closeOwnerTeamsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
 <script>
 const BASE = '/infraportal';
@@ -1065,7 +1102,9 @@ function renderInventoryMerged() {
           <td>${ouCell}</td>
           <td>${grpBadge}</td>
           <td style="white-space:nowrap;">
-            <button class="cr-action-btn" onclick="openAddModal(${JSON.stringify(d.name)})">+ Register</button>
+            ${_entries.some(e => e.device_name === d.name)
+                ? `<button class="cr-action-btn" onclick="openEditModal(${JSON.stringify(d.name)})">Edit</button>`
+                : `<button class="cr-action-btn" onclick="openAddModal(${JSON.stringify(d.name)})">+ Register</button>`}
           </td>
         </tr>`;
     }).join('');
@@ -1239,6 +1278,47 @@ async function confirmBulkDelete() {
     } finally {
         btn.disabled = false; btn.textContent = 'Remove All';
     }
+}
+
+// ── Owner Teams modal (ported from Settings → Lookup Lists — owner_teams was
+// the only list that tab ever managed, and it's Device Groups' own field) ──────
+function openOwnerTeamsModal() {
+    document.getElementById('ownerTeamsModal').classList.add('open');
+    otLoadList();
+}
+function closeOwnerTeamsModal() {
+    document.getElementById('ownerTeamsModal').classList.remove('open');
+}
+async function otLoadList() {
+    const box = document.getElementById('ownerTeamsList');
+    box.innerHTML = '<div class="cr-empty">Loading…</div>';
+    const r = await fetch(`${BASE}/api/settings/lookup/owner_teams`);
+    const d = await r.json();
+    if (!d.values || !d.values.length) { box.innerHTML = '<div class="cr-empty">No values yet — add one above.</div>'; return; }
+    box.innerHTML = d.values.map(v => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;">
+            <span>${esc(v.value)}</span>
+            <button class="cr-action-btn del" onclick="otDeleteValue(${v.id})" title="Remove">✕</button>
+        </div>
+    `).join('');
+}
+async function otAddValue() {
+    const inp = document.getElementById('ownerTeamNewValue');
+    const value = inp.value.trim();
+    if (!value) return;
+    const r = await fetch(`${BASE}/api/settings/lookup/owner_teams`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({value})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') { inp.value = ''; otLoadList(); loadOwnerTeams(); }
+    else alert('Failed to add — it may already exist.');
+}
+async function otDeleteValue(id) {
+    if (!confirm('Remove this team? Devices/groups that already use it keep it as free text — this only affects the dropdown.')) return;
+    const r = await fetch(`${BASE}/api/settings/lookup/owner_teams/${id}/delete`, {method:'POST'});
+    const d = await r.json();
+    if (d.status === 'ok') { otLoadList(); loadOwnerTeams(); }
+    else alert('Failed to remove.');
 }
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
@@ -2753,7 +2833,7 @@ document.getElementById('addGroupName').addEventListener('keydown', e => {
     if (e.key === 'Escape') closeAddGroupModal();
 });
 
-// Owner Team options are managed on the Settings page (Lookup Lists tab) —
+// Owner Team options are managed via the "Manage Owner Teams" modal above —
 // fetch them so new teams show up without a template edit + deploy.
 // The hardcoded <option> list above stays as an instant fallback if this fetch fails.
 async function loadOwnerTeams() {
