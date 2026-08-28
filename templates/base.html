@@ -639,6 +639,9 @@
                 <a href="/infraportal/vdi-cost" class="v2-navlink{% if active_page == 'vdi-cost' %} active{% endif %}">
                     <span class="v2-nl-ic">$</span><span class="v2-nl-label">VDI Cost Report</span>
                 </a>
+                <a href="/infraportal/my-dashboard" class="v2-navlink{% if active_page == 'my-dashboard' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9646;</span><span class="v2-nl-label">My Dashboard</span>
+                </a>
             </div>
         </div>
 
@@ -676,8 +679,6 @@
                     <div class="v2-dd-email">{{ user.email }}</div>
                 </div>
                 <div class="v2-dd-items">
-                    <a href="/infraportal/my-dashboard" class="v2-dd-item">📊 My Dashboard</a>
-                    <hr class="v2-dd-divider">
                     <div class="v2-dd-item" onclick="toggleThemeUnified()">
                         <span id="v2-theme-icon">☀️</span>
                         <span id="v2-theme-label">Light Mode</span>

@@ -264,8 +264,6 @@ const CATALOG = [
     wide: false,
     fetch: () => fetch('/infraportal/api/ca/expiring').then(r=>r.json()),
     render: renderCerts,
-    link: '/infraportal/certificates',
-    linkLabel: 'Certs →',
   },
   {
     id: 'ad_risk',
