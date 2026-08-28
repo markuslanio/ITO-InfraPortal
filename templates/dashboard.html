@@ -195,6 +195,63 @@
 .btn-drawer-ai:disabled { opacity: .5; cursor: default; }
 
 .hidden { display: none !important; }
+
+/* ── AI Analysis (merged in from the old standalone Analysis page) ───────── */
+.aia-wrap { margin-top: 26px; }
+.aia-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.aia-header h2 { margin: 0; font-size: 16px; color: var(--accent); }
+.aia-bar { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.aia-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text4); flex-shrink: 0; }
+.aia-dot.ok { background: var(--success); }
+.aia-dot.running { background: var(--warning); animation: v2blink 1s infinite; }
+.aia-dot.err { background: var(--danger); }
+.aia-label { font-size: 13px; font-weight: 600; }
+.aia-ts { font-size: 11px; color: var(--text4); font-family: var(--v2-mono); }
+
+.exec-summary { background-color: var(--bg3); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; border-left: 4px solid var(--accent); line-height: 1.6; font-size: 13px; color: var(--text2); white-space: pre-wrap; }
+
+.grade-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.grade-card { background-color: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; border-top: 3px solid var(--text4); cursor: pointer; transition: transform 0.15s; position: relative; }
+.grade-card:hover { transform: translateY(-2px); }
+.grade-card:hover::after { content: 'Click for deep dive'; position: absolute; bottom: 5px; left: 0; right: 0; font-size: 9px; color: var(--text4); }
+.grade-card h3 { margin: 0 0 6px; font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; }
+.grade-letter { font-size: 32px; font-weight: 800; line-height: 1; }
+.grade-card p { font-size: 10.5px; color: var(--text4); margin: 6px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grade-a { color: var(--success); border-top-color: var(--success); }
+.grade-b { color: #88cc22; border-top-color: #88cc22; }
+.grade-c { color: var(--warning); border-top-color: var(--warning); }
+.grade-d { color: #cc6622; border-top-color: #cc6622; }
+.grade-f { color: var(--danger); border-top-color: var(--danger); }
+
+.aia-wrap .v2-acc-body pre { font-family: inherit; font-size: 12.5px; }
+
+.progress-container { margin-top: 4px; }
+.progress-label { color: var(--text3); font-size: 13px; margin-bottom: 8px; }
+.progress-bar-wrap { background-color: var(--surface); border-radius: 10px; height: 22px; overflow: hidden; position: relative; }
+.progress-bar-fill { height: 100%; background-color: var(--accent); border-radius: 10px; transition: width 0.3s ease; }
+.progress-bar-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+
+/* Deep-dive modal (ported from the old Analysis page, unchanged visuals) */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.hidden { display: none; }
+.modal { background: var(--bg2); border-radius: 14px; width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+.modal-header { padding: 22px 26px 14px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg2); z-index: 1; }
+.modal-grade-badge { width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; flex-shrink: 0; }
+.modal-title { flex: 1; }
+.modal-title h2 { margin: 0 0 3px; font-size: 16px; }
+.modal-title p { margin: 0; font-size: 12px; color: var(--text4); }
+.modal-close { background: none; border: none; color: var(--text4); font-size: 22px; cursor: pointer; padding: 2px 8px; border-radius: 6px; }
+.modal-close:hover { color: var(--text); background: var(--surface); }
+.modal-body { padding: 22px 26px; }
+.modal-section { margin-bottom: 20px; }
+.modal-section h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.modal-section p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text2); }
+.action-list { list-style: none; padding: 0; margin: 0; }
+.action-list li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bg3); font-size: 13px; line-height: 1.5; color: var(--text2); }
+.action-list li:last-child { border-bottom: none; }
+.action-num { background: var(--accent); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; flex-shrink: 0; margin-top: 1px; }
+.modal-loading { text-align: center; padding: 36px; color: var(--text4); font-size: 13px; }
+.positive-box { background: rgba(34,204,102,.08); border-left: 3px solid var(--success); border-radius: 6px; padding: 10px 14px; font-size: 12.5px; line-height: 1.6; color: var(--text2); }
 </style>
 {% endblock %}
 
@@ -561,6 +618,43 @@
 </div>{# end #tech-view #}
 
 
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     AI ANALYSIS — merged in from the old standalone /analysis page.
+     Shown regardless of Executive/Technical view since it's a separate,
+     on-demand layer (Claude-generated grades + narrative), not another
+     way of looking at the same live findings.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="aia-wrap">
+  <div class="aia-header"><h2>AI Analysis</h2></div>
+  <div class="aia-bar" id="aia-bar">
+    <span class="aia-dot" id="aia-dot"></span>
+    <span class="aia-label" id="aia-label">No analysis loaded</span>
+    <span class="aia-ts" id="aia-ts"></span>
+    <span style="flex:1"></span>
+    <button class="v2-ghost-btn" id="aia-btn-cached" onclick="runAnalysis(false)">⚡ Cached</button>
+    <button class="v2-btn" id="aia-btn-fresh" onclick="runAnalysis(true)">↻ Fresh</button>
+  </div>
+  <div id="aia-results"></div>
+</div>
+
+<!-- Deep Dive Modal -->
+<div class="modal-overlay hidden" id="deepdive-overlay" onclick="closeModal(event)">
+  <div class="modal" id="deepdive-modal">
+    <div class="modal-header">
+      <div class="modal-grade-badge" id="modal-badge"></div>
+      <div class="modal-title">
+        <h2 id="modal-title">Loading...</h2>
+        <p id="modal-note"></p>
+      </div>
+      <button class="modal-close" onclick="closeDeepDive()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="modal-loading">Loading deep dive...</div>
+    </div>
+  </div>
+</div>
+
+
 <!-- ── Detail drawer ───────────────────────────────────────────────────────── -->
 <div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
 <div class="detail-drawer" id="detail-drawer">
@@ -708,6 +802,255 @@ function esc(s) {
 }
 function humanKey(k) {
   return k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AI ANALYSIS — merged in from the old standalone /analysis page.
+// ══════════════════════════════════════════════════════════════════════════
+const BASE = '/infraportal';
+
+function gradeClass(letter) {
+  const map = {'A':'grade-a','B':'grade-b','C':'grade-c','D':'grade-d','F':'grade-f'};
+  return map[letter] || 'grade-c';
+}
+function gradeBgColor(letter) {
+  const map = {'A':'#0d2a1a','B':'#1a2a0d','C':'#2a220d','D':'#2a150d','F':'#2a0d0d'};
+  return map[letter] || 'var(--bg)';
+}
+function gradeTextColor(letter) {
+  const map = {'A':'#22cc66','B':'#88cc22','C':'#ccaa22','D':'#cc6622','F':'#cc2222'};
+  return map[letter] || '#cccccc';
+}
+function parseGrades(text) {
+  const grades = {};
+  for (const line of text.split('\n')) {
+    const m = line.match(/^([A-Z_]+):\s*([A-F])\s*[-–]?\s*(.*)/);
+    if (m) grades[m[1]] = {letter: m[2], note: m[3].trim()};
+  }
+  return grades;
+}
+function parseSection(text, marker) {
+  const start = text.indexOf('[' + marker + ']');
+  if (start === -1) return null;
+  const end = text.indexOf('[', start + marker.length + 2);
+  const content = end === -1 ? text.slice(start + marker.length + 2) : text.slice(start + marker.length + 2, end);
+  return content.trim();
+}
+function buildAccordion(id, icon, title, content, openByDefault) {
+  return `<div class="v2-accordion${openByDefault ? ' v2-open' : ''}" id="${id}">
+    <div class="v2-acc-hdr" onclick="v2ToggleAcc('${id}')">
+      <span class="v2-acc-title">${icon} ${title}</span>
+      <span class="v2-acc-chev">▾</span>
+    </div>
+    <div class="v2-acc-body"><pre>${esc(content)}</pre></div>
+  </div>`;
+}
+async function openDeepDive(gradeKey, letter, label, note) {
+  const overlay = document.getElementById('deepdive-overlay');
+  const badge = document.getElementById('modal-badge');
+  const title = document.getElementById('modal-title');
+  const noteEl = document.getElementById('modal-note');
+  const body = document.getElementById('modal-body');
+  badge.textContent = letter;
+  badge.style.background = gradeBgColor(letter);
+  badge.style.color = gradeTextColor(letter);
+  badge.style.border = `2px solid ${gradeTextColor(letter)}`;
+  title.textContent = label;
+  noteEl.textContent = note;
+  body.innerHTML = '<div class="modal-loading">⏳ Loading deep dive...</div>';
+  overlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  try {
+    const res = await fetch(`${BASE}/api/analyze/deepdive/${gradeKey}`);
+    const data = await res.json();
+    if (data.status !== 'ok') { body.innerHTML = `<div class="error-box">⚠️ ${esc(data.message)}</div>`; return; }
+    const d = data.deepdive;
+    let html = '';
+    html += `<div class="modal-section"><h4>📊 Why this grade?</h4><p>${esc(d.why || 'No explanation available.')}</p></div>`;
+    if (d.top5?.length) {
+      html += `<div class="modal-section"><h4>🎯 Top ${d.top5.length} actions to raise this grade</h4><ul class="action-list">`;
+      d.top5.forEach((a, i) => { html += `<li><span class="action-num">${i+1}</span><span>${esc(a)}</span></li>`; });
+      html += `</ul></div>`;
+    }
+    if (d.positive) html += `<div class="modal-section"><h4>✅ What's going well</h4><div class="positive-box">${esc(d.positive)}</div></div>`;
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = `<div class="error-box">⚠️ Error: ${esc(err.message)}</div>`;
+  }
+}
+function closeDeepDive() {
+  document.getElementById('deepdive-overlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+function closeModal(e) {
+  if (e.target === document.getElementById('deepdive-overlay')) closeDeepDive();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDeepDive(); });
+document.addEventListener('click', e => {
+  const card = e.target.closest('.grade-card');
+  if (card) openDeepDive(card.dataset.key, card.dataset.letter, card.dataset.label, card.dataset.note);
+});
+
+function renderAnalysis(raw) {
+  const exec = parseSection(raw, 'EXECUTIVE_SUMMARY');
+  const gradesRaw = parseSection(raw, 'GRADES');
+  const immediate = parseSection(raw, 'IMMEDIATE_ACTIONS');
+  const warnings = parseSection(raw, 'WARNINGS');
+  const recommendations = parseSection(raw, 'RECOMMENDATIONS');
+  const alertAnalysis = parseSection(raw, 'ALERT_ANALYSIS');
+  const trends = parseSection(raw, 'TRENDS');
+  let html = '';
+  if (exec) html += `<div class="exec-summary">${esc(exec)}</div>`;
+  if (gradesRaw) {
+    const grades = parseGrades(gradesRaw);
+    // Certificates grade dropped — Certs is being retired as a portal section.
+    const gradeLabels = {
+      'OVERALL':'Overall','CPU_AND_COMPUTE':'CPU & Compute','STORAGE':'Storage',
+      'VM_ORGANIZATION':'VM Organization','PATCHING_AND_TOOLS':'Patching & Tools',
+      'PATCH_COMPLIANCE':'Patch Compliance','ALERT_HEALTH':'Alert Health',
+      'ACTIVE_DIRECTORY':'Active Directory','CITRIX_HEALTH':'Citrix',
+    };
+    html += '<div class="grade-cards">';
+    for (const [key, label] of Object.entries(gradeLabels)) {
+      const g = grades[key] || {letter: '?', note: 'Not yet graded'};
+      const note = g.note.length > 60 ? g.note.slice(0,57) + '…' : g.note;
+      html += `<div class="grade-card ${gradeClass(g.letter)}"
+        data-key="${key}" data-letter="${g.letter}"
+        data-label="${esc(label)}" data-note="${esc(g.note)}">
+        <h3>${label}</h3>
+        <div class="grade-letter">${g.letter}</div>
+        <p>${esc(note)}</p>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  if (immediate)       html += buildAccordion('aia-acc-immediate', '🚨', 'Immediate Actions Required', immediate, true);
+  if (warnings)        html += buildAccordion('aia-acc-warnings',  '⚠️', 'Warnings', warnings, true);
+  if (alertAnalysis)   html += buildAccordion('aia-acc-alerts',    '📡', 'Alert Analysis', alertAnalysis, false);
+  if (trends)          html += buildAccordion('aia-acc-trends',    '📈', 'Trend Analysis', trends, false);
+  if (recommendations) html += buildAccordion('aia-acc-recs',      '💡', 'Recommendations', recommendations, false);
+  document.getElementById('aia-results').innerHTML = html;
+}
+
+function updateAnalysisBar(status, timestamp) {
+  const dot = document.getElementById('aia-dot');
+  const label = document.getElementById('aia-label');
+  const ts = document.getElementById('aia-ts');
+  if (status === 'ok') {
+    dot.className = 'aia-dot ok';
+    label.textContent = 'Analysis complete';
+    ts.textContent = timestamp || '';
+  } else if (status === 'running') {
+    dot.className = 'aia-dot running';
+    label.textContent = 'Analysis running…';
+    ts.textContent = '';
+  } else if (status === 'err') {
+    dot.className = 'aia-dot err';
+    label.textContent = 'Analysis failed';
+    ts.textContent = '';
+  } else {
+    dot.className = 'aia-dot';
+    label.textContent = 'No analysis loaded — click Run to start';
+    ts.textContent = '';
+  }
+}
+
+async function loadCachedAnalysis() {
+  try {
+    const res = await fetch(BASE + '/api/analyze');
+    const data = await res.json();
+    if (data.status === 'ok' && data.analysis) {
+      renderAnalysis(data.analysis);
+      window._lastAnalysis = data.analysis;
+      updateAnalysisBar('ok', data.timestamp || '');
+    }
+  } catch (e) { /* leave "No analysis loaded" state */ }
+}
+loadCachedAnalysis();
+
+async function runAnalysis(forceRefresh=false) {
+  const btnCached = document.getElementById('aia-btn-cached');
+  const btnFresh = document.getElementById('aia-btn-fresh');
+  btnCached.disabled = true; btnFresh.disabled = true;
+  updateAnalysisBar('running', '');
+
+  const steps = [
+    'Step 1 of 4: Collecting VMware &amp; OpManager data...',
+    'Step 2 of 4: Collecting Active Directory &amp; Citrix data...',
+    'Step 3 of 4: Running threshold and cross-reference analysis...',
+    'Step 4 of 4: Claude AI is analyzing &amp; generating deep dives...',
+  ];
+  const stepWidths = ['10%', '35%', '60%', '80%'];
+  let stepIdx = 0;
+
+  function showProgress(idx) {
+    document.getElementById('aia-results').innerHTML = `
+      <div class="progress-container">
+        <div class="progress-label">${steps[idx]}</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="progress-fill" style="width:${stepWidths[idx]}"></div>
+          <div class="progress-bar-text">Analyzing...</div>
+        </div>
+      </div>`;
+  }
+  showProgress(0);
+
+  function finish() {
+    btnCached.disabled = false; btnFresh.disabled = false;
+  }
+
+  try {
+    const kickoff = await fetch(BASE + '/api/analyze?refresh=' + forceRefresh);
+    const kickData = await kickoff.json();
+    if (kickData.status === 'error') {
+      document.getElementById('aia-results').innerHTML = `<div class="error-box">⚠️ Error: ${esc(kickData.message)}</div>`;
+      updateAnalysisBar('err', ''); finish(); return;
+    }
+    if (kickData.status === 'ok' && kickData.analysis) {
+      renderAnalysis(kickData.analysis);
+      window._lastAnalysis = kickData.analysis;
+      updateAnalysisBar('ok', kickData.timestamp || '');
+      finish(); return;
+    }
+  } catch (err) {
+    document.getElementById('aia-results').innerHTML = `<div class="error-box">⚠️ Error: ${esc(err.message)}</div>`;
+    updateAnalysisBar('err', ''); finish(); return;
+  }
+
+  // Poll /api/analyze/status every 3 seconds until done
+  const stepIntervals = [2000, 5000, 9000, 20000];
+  let elapsed = 0;
+  const pollInterval = setInterval(async () => {
+    elapsed += 3000;
+    const newStep = stepIntervals.findIndex(t => elapsed < t);
+    const nextStep = newStep === -1 ? 3 : newStep;
+    if (nextStep !== stepIdx) { stepIdx = nextStep; showProgress(stepIdx); }
+
+    try {
+      const res = await fetch(BASE + '/api/analyze/status');
+      const data = await res.json();
+      if (data.status === 'running') return; // still going — keep polling
+
+      clearInterval(pollInterval);
+      if (data.status === 'error') {
+        document.getElementById('aia-results').innerHTML = `<div class="error-box">⚠️ Error: ${esc(data.message)}</div>`;
+        updateAnalysisBar('err', '');
+      } else if (data.status === 'ok' && data.analysis) {
+        renderAnalysis(data.analysis);
+        window._lastAnalysis = data.analysis;
+        updateAnalysisBar('ok', data.timestamp || '');
+      } else {
+        document.getElementById('aia-results').innerHTML = `<div class="error-box">⚠️ Analysis completed but returned no data. Check server logs.</div>`;
+        updateAnalysisBar('err', '');
+      }
+      finish();
+    } catch (err) {
+      clearInterval(pollInterval);
+      document.getElementById('aia-results').innerHTML = `<div class="error-box">⚠️ Error polling status: ${esc(err.message)}</div>`;
+      updateAnalysisBar('err', '');
+      finish();
+    }
+  }, 3000);
 }
 </script>
 {% endblock %}

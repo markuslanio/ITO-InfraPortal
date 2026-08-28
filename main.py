@@ -382,9 +382,8 @@ async def vmware_page(request: Request):
 @app.get("/analysis")
 @app.get("/infraportal/analysis")
 async def analysis_page(request: Request):
-    user, redirect = require_auth_check(request)
-    if redirect: return redirect
-    return templates.TemplateResponse(request, "analysis.html", _ctx(request, user, "analysis"))
+    # AI Analysis merged into the Dashboard — keep old links/bookmarks working.
+    return RedirectResponse(url="/infraportal/")
 
 @app.get("/alerts")
 @app.get("/infraportal/alerts")
