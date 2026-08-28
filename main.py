@@ -451,9 +451,8 @@ async def api_entra_refresh(request: Request):
 @app.get("/certificates")
 @app.get("/infraportal/certificates")
 async def certificates_page(request: Request):
-    user, redirect = require_auth_check(request)
-    if redirect: return redirect
-    return templates.TemplateResponse(request, "certificates.html", _ctx(request, user, "certificates"))
+    # Certificates page retired — keep old links/bookmarks working.
+    return RedirectResponse(url="/infraportal/")
 
 @app.get("/my-dashboard")
 @app.get("/infraportal/my-dashboard")

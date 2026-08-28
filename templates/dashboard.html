@@ -276,7 +276,6 @@
 {% set mon_f   = findings | selectattr("system","eq","Monitoring") | list %}
 {% set jira_f  = findings | selectattr("system","eq","Jira")       | list %}
 {% set net_f   = findings | selectattr("system","eq","Network")    | list %}
-{% set cert_f  = findings | selectattr("system","eq","Certs")      | list %}
 {% set asset_f = findings | selectattr("system","eq","Assets")     | list %}
 
 {% set vmw_disk  = vmw_f  | selectattr("category","eq","disk")     | list | length %}
@@ -409,36 +408,6 @@
       <a class="sys-link" href="/infraportal/alerts">View Alerts →</a>
     </div>
 
-    <!-- ── Certificates ─────────────────────────────────────────────── -->
-    <div class="sys-card status-{{ system_health.get('Certs','unknown') }}">
-      <div class="sys-card-head">
-        <span class="sys-name">Certificates</span>
-        <span class="sys-badge">{{ system_health.get('Certs','No data')|title }}</span>
-      </div>
-      <div class="sys-tiles">
-        <div class="sys-tile">
-          {% set c14 = metrics.certs_expiring_14 | default(0) %}
-          <div class="tile-val {% if c14 > 0 %}crit{% endif %}">{{ c14 if metrics.certs_expiring_14 is defined else '—' }}</div>
-          <div class="tile-lbl">Expiring ≤14 days</div>
-        </div>
-        <div class="sys-tile">
-          {% set c30 = metrics.certs_expiring_30 | default(0) %}
-          <div class="tile-val {% if c30 > 0 %}warn{% endif %}">{{ c30 if metrics.certs_expiring_30 is defined else '—' }}</div>
-          <div class="tile-lbl">Expiring ≤30 days</div>
-        </div>
-        <div class="sys-tile">
-          <div class="tile-val muted">{{ metrics.certs_expired | default('—') }}</div>
-          <div class="tile-lbl">Expired on Record</div>
-        </div>
-        <div class="sys-tile">
-          {% set ca = cert_f | list | length %}
-          <div class="tile-val {% if ca > 0 %}warn{% endif %}">{{ ca }}</div>
-          <div class="tile-lbl">Active Findings</div>
-        </div>
-      </div>
-      <a class="sys-link" href="/infraportal/certificates">View Certificates →</a>
-    </div>
-
     <!-- ── Assets (Lansweeper) ──────────────────────────────────────── -->
     <div class="sys-card status-{{ system_health.get('Assets','unknown') }}">
       <div class="sys-card-head">
@@ -563,7 +532,6 @@
 {% set sys_order = [
   ("Monitoring", mon_f,   "/infraportal/alerts"),
   ("VMware",     vmw_f,   "/infraportal/vmware"),
-  ("Certs",      cert_f,  "/infraportal/certificates"),
   ("Jira",       jira_f,  "/infraportal/jira-intelligence"),
   ("Auth",       ad_f,    "/infraportal/active-directory"),
   ("Assets",     asset_f, "/infraportal/assets"),

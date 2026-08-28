@@ -725,12 +725,11 @@
             <span class="v2-chat-chip" onclick="v2UseChip(this)">Top 5 fixes this week</span>
             <span class="v2-chat-chip" onclick="v2UseChip(this)">Storage risk?</span>
             <span class="v2-chat-chip" onclick="v2UseChip(this)">Which VMs are oversized?</span>
-            <span class="v2-chat-chip" onclick="v2UseChip(this)">Expiring certs?</span>
         </div>
         <div class="v2-chat-msgs" id="v2ChatMsgs">
             <div class="v2-chat-empty" id="v2ChatEmpty">
                 Ask anything about your infrastructure.<br>
-                <span style="font-size:11px;opacity:0.7">VMware · OpManager · AD · Citrix · Lansweeper · Certs</span>
+                <span style="font-size:11px;opacity:0.7">VMware · OpManager · AD · Citrix · Lansweeper</span>
             </div>
         </div>
         <div class="v2-chat-input-row">
@@ -887,7 +886,7 @@ function v2ClearChat() {
     _v2ChatHistory = [];
     _v2Context = null;
     var msgs = document.getElementById('v2ChatMsgs');
-    if (msgs) msgs.innerHTML = '<div class="v2-chat-empty" id="v2ChatEmpty">Ask anything about your infrastructure.<br><span style="font-size:11px;opacity:0.7">VMware · OpManager · AD · Citrix · Lansweeper · Certs</span></div>';
+    if (msgs) msgs.innerHTML = '<div class="v2-chat-empty" id="v2ChatEmpty">Ask anything about your infrastructure.<br><span style="font-size:11px;opacity:0.7">VMware · OpManager · AD · Citrix · Lansweeper</span></div>';
 }
 
 function v2ScrollChat() {
