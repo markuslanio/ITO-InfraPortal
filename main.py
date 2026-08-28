@@ -828,7 +828,7 @@ async def citrix_page(request: Request):
 async def citrix_app_manager_page(request: Request):
     user, redirect = require_auth_check(request, "citrix")
     if redirect: return redirect
-    return templates.TemplateResponse(request, "citrix_app_manager.html", _ctx(request, user, "citrix"))
+    return templates.TemplateResponse(request, "citrix_app_manager.html", _ctx(request, user, "app-manager"))
 
 @app.get("/assets")
 @app.get("/infraportal/assets")

@@ -103,61 +103,104 @@
         body.ui-v2 .v2-only.v2-flex { display: flex !important; }
         body.ui-v2 .v2-hide  { display: none !important; }
 
-        /* ── V2 Navbar ── */
-        .navbar-v2 {
-            display: flex;
-            background: var(--bg2); border-bottom: 1px solid var(--border);
-            height: 42px; align-items: center; padding: 0 14px;
-            position: sticky; top: 0; z-index: 500; gap: 0;
+        /* ── V2 Sidebar shell ── */
+        .v2-shell { display: flex; min-height: 100vh; }
+        .v2-sidebar {
+            width: 232px; flex: 0 0 232px; position: sticky; top: 0; height: 100vh;
+            background: var(--bg2); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow: hidden; white-space: nowrap;
+            transition: width 0.15s ease, flex-basis 0.15s ease; z-index: 500;
         }
+        .v2-sidebar.collapsed { width: 56px; flex-basis: 56px; }
+        .v2-main { flex: 1; min-width: 0; }
+
+        .v2-sb-head {
+            display: flex; align-items: center; gap: 8px; padding: 0 12px;
+            height: 42px; flex-shrink: 0; border-bottom: 1px solid var(--border);
+        }
+        .v2-sidebar.collapsed .v2-sb-head { justify-content: center; padding: 0; }
+        .v2-sidebar.collapsed .v2-brand-name { display: none; }
+        .v2-sb-collapse-btn {
+            margin-left: auto; background: none; border: none; color: var(--text4);
+            cursor: pointer; width: 22px; height: 22px; border-radius: 5px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px;
+        }
+        .v2-sb-collapse-btn:hover { background: var(--surface); color: var(--text); }
+        .v2-sidebar.collapsed .v2-sb-collapse-btn { margin-left: 0; }
+
         .v2-brand {
             display: flex; align-items: center; gap: 7px;
-            text-decoration: none; margin-right: 18px; flex-shrink: 0;
+            text-decoration: none; flex-shrink: 0; min-width: 0;
         }
         .v2-brand-name { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); white-space: nowrap; }
         .v2-brand-sub  { font-size: 11px; color: var(--text4); font-weight: 400; }
-        .v2-navgroups  { display: flex; align-items: center; flex: 1; overflow: hidden; gap: 1px; }
-        .v2-navgroup   {
-            display: flex; align-items: center; gap: 1px;
-            padding-right: 10px; margin-right: 6px;
-            border-right: 1px solid var(--border);
-        }
-        .v2-navgroup:last-child { border-right: none; padding-right: 0; margin-right: 0; }
+
+        .v2-sb-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 8px; }
+        .v2-nav-group:first-child .v2-nglabel { padding-top: 2px; }
         .v2-nglabel {
-            font-size: 9px; font-weight: 600; text-transform: uppercase;
-            letter-spacing: 0.08em; color: var(--text4); padding: 0 5px; white-space: nowrap;
+            display: flex; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer;
+            font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text4); padding: 12px 8px 5px; white-space: nowrap;
+            user-select: none;
         }
+        .v2-nglabel:hover { color: var(--text3); }
         body.ui-v2.light-mode .v2-nglabel { color: var(--text3); }
+        .v2-ng-caret { font-size: 8px; transition: transform 0.15s; flex-shrink: 0; }
+        .v2-nav-group:not(.expanded) .v2-ng-caret { transform: rotate(-90deg); }
+        .v2-nav-group-items { overflow: hidden; max-height: 400px; transition: max-height 0.15s ease; }
+        .v2-nav-group:not(.expanded) .v2-nav-group-items { max-height: 0; }
+        .v2-sidebar.collapsed .v2-nglabel span, .v2-sidebar.collapsed .v2-ng-caret { display: none; }
+        .v2-sidebar.collapsed .v2-nglabel { text-align: center; padding: 12px 0 5px; }
+        .v2-sidebar.collapsed .v2-nglabel::after { content: "\00b7\00b7\00b7"; }
+        .v2-sidebar.collapsed .v2-nav-group-items { max-height: none; }
+
         .v2-navlink {
-            display: flex; align-items: center; gap: 4px;
-            padding: 3px 8px; border-radius: 4px; font-size: 12px;
+            display: flex; align-items: center; gap: 9px;
+            padding: 7px 8px; border-radius: 6px; font-size: 12.5px;
             color: var(--text3); text-decoration: none; white-space: nowrap;
-            transition: color 0.1s, background 0.1s;
+            transition: color 0.1s, background 0.1s; margin-bottom: 1px;
         }
         .v2-navlink:hover  { color: var(--text); background: var(--surface); }
-        .v2-navlink.active { color: var(--accent); background: rgba(15,155,142,0.12); }
+        .v2-navlink.active { color: var(--accent); background: rgba(15,155,142,0.12); font-weight: 600; }
+        .v2-nl-ic { flex: 0 0 15px; font-size: 12px; text-align: center; color: var(--text4); }
+        .v2-navlink.active .v2-nl-ic { color: var(--accent); }
+        .v2-nl-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+        .v2-sidebar.collapsed .v2-nl-label, .v2-sidebar.collapsed .v2-alert-badge { display: none; }
+        .v2-sidebar.collapsed .v2-navlink { justify-content: center; }
         .v2-alert-badge {
             font-size: 9px; font-family: var(--v2-mono);
             background: rgba(255,68,68,0.15); color: var(--danger);
             border: 1px solid rgba(255,68,68,0.3);
             padding: 1px 4px; border-radius: 8px;
         }
-        .v2-navright { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+
+        .v2-sb-foot {
+            border-top: 1px solid var(--border); padding: 8px; flex-shrink: 0;
+        }
         .v2-avatar {
             width: 28px; height: 28px; border-radius: 50%;
             background: var(--accent); color: #fff;
             font-size: 11px; font-weight: bold;
             border: none; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            transition: background 0.15s;
+            transition: background 0.15s; flex-shrink: 0;
         }
         .v2-avatar:hover { background: var(--accent-dark); }
+        .v2-sb-user-btn {
+            display: flex; align-items: center; gap: 9px; width: 100%;
+            background: none; border: none; cursor: pointer; padding: 4px;
+            border-radius: 6px; font-family: inherit; text-align: left;
+        }
+        .v2-sb-user-btn:hover { background: var(--surface); }
+        .v2-sb-user-name { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; }
+        .v2-sidebar.collapsed .v2-sb-user-name { display: none; }
+        .v2-sidebar.collapsed .v2-sb-user-btn { justify-content: center; }
 
         /* ── V2 User menu & dropdown ── */
         .v2-user-menu { position: relative; }
         .v2-user-dropdown {
             display: none;
-            position: absolute; top: calc(100% + 8px); right: 0;
+            position: absolute; bottom: calc(100% + 8px); left: 0;
             background: var(--bg2); border: 1px solid var(--border);
             border-radius: 10px; min-width: 220px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.25);
@@ -508,70 +551,124 @@
 <body class="ui-v2">
 
 <!-- ══════════════════════════════════════════════════════
-     NAVBAR
+     SIDEBAR + MAIN SHELL
      ══════════════════════════════════════════════════════ -->
-<nav class="navbar-v2">
-    <a class="v2-brand" href="/infraportal/">
-        <svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-            <circle cx="11" cy="11" r="4" fill="#0f9b8e"/>
-            <path d="M11 2L13 8L11 6.5L9 8Z" fill="#ef4444" opacity=".9"/>
-            <path d="M11 2L13 8L11 6.5L9 8Z" fill="#f97316" opacity=".9" transform="rotate(120 11 11)"/>
-            <path d="M11 2L13 8L11 6.5L9 8Z" fill="#facc15" opacity=".9" transform="rotate(240 11 11)"/>
-        </svg>
-        <span class="v2-brand-name">zinnia<span class="v2-brand-sub">/infra</span></span>
-    </a>
-
-    <div class="v2-navgroups">
-        <!-- Ops group -->
-        <div class="v2-navgroup">
-            <span class="v2-nglabel">Ops</span>
-            <a href="/infraportal/alerts" class="v2-navlink{% if active_page == 'alerts' %} active{% endif %}">
-                Alerts
-                <span class="v2-alert-badge" id="v2-nav-alert-badge" style="display:none">0</span>
-            </a>
-            <a href="/infraportal/noc"    class="v2-navlink{% if active_page == 'noc' %} active{% endif %}">NOC</a>
-            <a href="/infraportal/assets" class="v2-navlink{% if active_page == 'assets' %} active{% endif %}">Assets</a>
-        </div>
-        <!-- Infra group -->
-        <div class="v2-navgroup">
-            <span class="v2-nglabel">Infra</span>
-            {% if user_groups and ('bb53132b-09b1-4dfb-b715-a486d0c2774c' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
-            <a href="/infraportal/vmware" class="v2-navlink{% if active_page == 'vmware' %} active{% endif %}">VMware</a>
-            {% endif %}
-            {% if user_groups and ('933f504e-a287-465e-bf85-72dd5ba33873' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
-            <a href="/infraportal/citrix" class="v2-navlink{% if active_page == 'citrix' %} active{% endif %}">Citrix</a>
-            {% endif %}
-            {% if user_groups and ('bcd7ed0d-7b7b-4c06-85d0-788298946288' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
-            <a href="/infraportal/network" class="v2-navlink{% if active_page == 'network' %} active{% endif %}">Network</a>
-            {% endif %}
-        </div>
-        <!-- Directory group -->
-        <div class="v2-navgroup">
-            <span class="v2-nglabel">Directory</span>
-            <a href="/infraportal/active-directory" class="v2-navlink{% if active_page == 'active-directory' %} active{% endif %}">AD</a>
-            <a href="/infraportal/entra"            class="v2-navlink{% if active_page == 'entra' %} active{% endif %}">Entra / M365</a>
-            <a href="/infraportal/certificates"     class="v2-navlink{% if active_page == 'certificates' %} active{% endif %}">Certs</a>
-        </div>
-        <!-- Tools group -->
-        <div class="v2-navgroup">
-            <span class="v2-nglabel">Tools</span>
-            <a href="/infraportal/analysis"          class="v2-navlink{% if active_page == 'analysis' %} active{% endif %}">Analysis</a>
-            <a href="/infraportal/jira-intelligence" class="v2-navlink{% if active_page == 'jira-intelligence' %} active{% endif %}">Jira Intel</a>
-            <a href="/infraportal/soc-reports"       class="v2-navlink{% if active_page == 'soc-reports' %} active{% endif %}">SOC Reports</a>
-            <a href="/infraportal/my-dashboard"      class="v2-navlink{% if active_page == 'my-dashboard' %} active{% endif %}">My Dashboard</a>
-            {% if user_groups and '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups %}
-            <a href="/infraportal/citrix/app-manager" class="v2-navlink{% if active_page == 'app-manager' %} active{% endif %}">App Cloner</a>
-            <a href="/infraportal/settings"           class="v2-navlink{% if active_page == 'settings' %} active{% endif %}">⚙️ Settings</a>
-            {% endif %}
-        </div>
+<div class="v2-shell">
+<aside class="v2-sidebar" id="v2Sidebar">
+    <div class="v2-sb-head">
+        <a class="v2-brand" href="/infraportal/">
+            <svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+                <circle cx="11" cy="11" r="4" fill="#0f9b8e"/>
+                <path d="M11 2L13 8L11 6.5L9 8Z" fill="#ef4444" opacity=".9"/>
+                <path d="M11 2L13 8L11 6.5L9 8Z" fill="#f97316" opacity=".9" transform="rotate(120 11 11)"/>
+                <path d="M11 2L13 8L11 6.5L9 8Z" fill="#facc15" opacity=".9" transform="rotate(240 11 11)"/>
+            </svg>
+            <span class="v2-brand-name">zinnia<span class="v2-brand-sub">/infra</span></span>
+        </a>
+        <button class="v2-sb-collapse-btn" id="v2SbCollapseBtn" onclick="v2ToggleSidebar()" title="Collapse sidebar">&#9664;</button>
     </div>
 
-    <div class="v2-navright">
-        {% if user %}
-        <!-- Self-contained user menu -->
+    <div class="v2-sb-scroll">
+        <a href="/infraportal/" class="v2-navlink{% if active_page == 'dashboard' %} active{% endif %}">
+            <span class="v2-nl-ic">&#8962;</span><span class="v2-nl-label">Dashboard</span>
+        </a>
+
+        <div class="v2-nav-group" data-group="noc">
+            <div class="v2-nglabel" onclick="v2ToggleGroup(this)"><span>NOC</span><span class="v2-ng-caret">&#9662;</span></div>
+            <div class="v2-nav-group-items">
+                <a href="/infraportal/alerts" class="v2-navlink{% if active_page == 'alerts' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9679;</span><span class="v2-nl-label">Alerts</span>
+                    <span class="v2-alert-badge" id="v2-nav-alert-badge" style="display:none">0</span>
+                </a>
+                <a href="/infraportal/noc" class="v2-navlink{% if active_page == 'noc' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9635;</span><span class="v2-nl-label">Wallboard</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="v2-nav-group" data-group="infra">
+            <div class="v2-nglabel" onclick="v2ToggleGroup(this)"><span>Infra</span><span class="v2-ng-caret">&#9662;</span></div>
+            <div class="v2-nav-group-items">
+                {% if user_groups and ('bb53132b-09b1-4dfb-b715-a486d0c2774c' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
+                <a href="/infraportal/vmware" class="v2-navlink{% if active_page == 'vmware' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9635;</span><span class="v2-nl-label">VMware</span>
+                </a>
+                {% endif %}
+                {% if user_groups and ('933f504e-a287-465e-bf85-72dd5ba33873' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
+                <a href="/infraportal/citrix" class="v2-navlink{% if active_page == 'citrix' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9670;</span><span class="v2-nl-label">Citrix</span>
+                </a>
+                {% endif %}
+                {% if user_groups and ('bcd7ed0d-7b7b-4c06-85d0-788298946288' in user_groups or '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups) %}
+                <a href="/infraportal/network" class="v2-navlink{% if active_page == 'network' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9737;</span><span class="v2-nl-label">Network</span>
+                </a>
+                {% endif %}
+                <a href="/infraportal/assets" class="v2-navlink{% if active_page == 'assets' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9638;</span><span class="v2-nl-label">Assets</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="v2-nav-group" data-group="directory">
+            <div class="v2-nglabel" onclick="v2ToggleGroup(this)"><span>Directory</span><span class="v2-ng-caret">&#9662;</span></div>
+            <div class="v2-nav-group-items">
+                <a href="/infraportal/active-directory" class="v2-navlink{% if active_page == 'active-directory' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9733;</span><span class="v2-nl-label">Active Directory</span>
+                </a>
+                <a href="/infraportal/entra" class="v2-navlink{% if active_page == 'entra' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9733;</span><span class="v2-nl-label">Entra / M365</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="v2-nav-group" data-group="utils">
+            <div class="v2-nglabel" onclick="v2ToggleGroup(this)"><span>Utils</span><span class="v2-ng-caret">&#9662;</span></div>
+            <div class="v2-nav-group-items">
+                <a href="/infraportal/jira-intelligence" class="v2-navlink{% if active_page == 'jira-intelligence' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9776;</span><span class="v2-nl-label">Jira Intel</span>
+                </a>
+                <a href="/infraportal/soc-reports" class="v2-navlink{% if active_page == 'soc-reports' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9776;</span><span class="v2-nl-label">SOC Reports</span>
+                </a>
+                {% if user_groups and '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups %}
+                <a href="/infraportal/citrix/app-manager" class="v2-navlink{% if active_page == 'app-manager' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9881;</span><span class="v2-nl-label">Citrix App Cloner</span>
+                </a>
+                {% endif %}
+                <a href="/infraportal/vdi-cost" class="v2-navlink{% if active_page == 'vdi-cost' %} active{% endif %}">
+                    <span class="v2-nl-ic">$</span><span class="v2-nl-label">VDI Cost Report</span>
+                </a>
+            </div>
+        </div>
+
+        {% if user_groups and '5b2f6312-5e67-426b-9bbc-4f2f5f946be7' in user_groups %}
+        <div class="v2-nav-group" data-group="admin">
+            <div class="v2-nglabel" onclick="v2ToggleGroup(this)"><span>Admin</span><span class="v2-ng-caret">&#9662;</span></div>
+            <div class="v2-nav-group-items">
+                <a href="/infraportal/settings#scheduler" class="v2-navlink{% if active_page == 'settings' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9881;</span><span class="v2-nl-label">Scheduler</span>
+                </a>
+                <a href="/infraportal/settings#jira" class="v2-navlink{% if active_page == 'settings' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9881;</span><span class="v2-nl-label">Jira Teams</span>
+                </a>
+                <a href="/infraportal/settings#criticality" class="v2-navlink{% if active_page == 'settings' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9881;</span><span class="v2-nl-label">NOC Page Config</span>
+                </a>
+                <a href="/infraportal/settings#env" class="v2-navlink{% if active_page == 'settings' %} active{% endif %}">
+                    <span class="v2-nl-ic">&#9881;</span><span class="v2-nl-label">Environment</span>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if user %}
+    <div class="v2-sb-foot">
         <div class="v2-user-menu" id="v2UserMenu">
-            <button class="v2-avatar" onclick="toggleV2UserMenu()" title="{{ user.name }}">
-                {{ (user.given_name or user.name or '?')[0] | upper }}{% if ',' in user.name %}{{ user.name.split(',')[0][0] | upper }}{% elif ' ' in user.name %}{{ user.name.split(' ')[-1][0] | upper }}{% endif %}
+            <button class="v2-sb-user-btn" onclick="toggleV2UserMenu()" title="{{ user.name }}">
+                <span class="v2-avatar">{{ (user.given_name or user.name or '?')[0] | upper }}{% if ',' in user.name %}{{ user.name.split(',')[0][0] | upper }}{% elif ' ' in user.name %}{{ user.name.split(' ')[-1][0] | upper }}{% endif %}</span>
+                <span class="v2-sb-user-name">{{ user.given_name or user.name }}</span>
             </button>
             <div class="v2-user-dropdown" id="v2UserDropdown">
                 <div class="v2-dd-header">
@@ -594,11 +691,15 @@
                 </div>
             </div>
         </div>
-        {% endif %}
     </div>
-</nav>
+    {% endif %}
+</aside>
 
+<main class="v2-main">
 {% block content %}{% endblock %}
+</main>
+</div>
+<!-- /v2-shell -->
 
 <!-- ══════════════════════════════════════════════════════
      V2 FLOATING CHAT WIDGET
@@ -665,6 +766,40 @@ function toggleThemeUnified() {
 (function() {
     const saved = localStorage.getItem('infraportal-theme');
     if (saved === 'light') applyTheme(true);
+})();
+
+// ── Sidebar: width collapse (icon rail) — persists across visits ───────────
+function v2ToggleSidebar() {
+    const sb = document.getElementById('v2Sidebar');
+    const btn = document.getElementById('v2SbCollapseBtn');
+    const collapsed = sb.classList.toggle('collapsed');
+    btn.innerHTML = collapsed ? '&#9654;' : '&#9664;';
+    localStorage.setItem('infraportal-sidebar-collapsed', collapsed);
+}
+(function() {
+    if (localStorage.getItem('infraportal-sidebar-collapsed') === 'true') {
+        const sb = document.getElementById('v2Sidebar');
+        const btn = document.getElementById('v2SbCollapseBtn');
+        if (sb) sb.classList.add('collapsed');
+        if (btn) btn.innerHTML = '&#9654;';
+    }
+})();
+
+// ── Sidebar: per-section collapse — collapsed by default each login,
+// remembered for the rest of this browser session (sessionStorage, not
+// localStorage), so it survives page-to-page navigation but resets on
+// the next sign-in, matching the auth session's own lifetime. ──────────────
+function v2ToggleGroup(label) {
+    const group = label.closest('.v2-nav-group');
+    const expanded = group.classList.toggle('expanded');
+    sessionStorage.setItem('navgroup_' + group.dataset.group, expanded);
+}
+(function() {
+    document.querySelectorAll('.v2-nav-group').forEach(function(group) {
+        if (sessionStorage.getItem('navgroup_' + group.dataset.group) === 'true') {
+            group.classList.add('expanded');
+        }
+    });
 })();
 
 // ── User menu ────────────────────────────────────────────────────────────
