@@ -1,3 +1,6 @@
 data/portal.db
 
 .env
+
+__pycache__/
+*.pyc
