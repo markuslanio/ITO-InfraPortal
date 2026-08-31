@@ -22,9 +22,6 @@ JOB_LABELS = {
     "job_ad_summary":                 "Active Directory — Summary",
     "job_ad_reports":                 "Active Directory — Detail reports",
     "job_ad_gpo":                     "Active Directory — GPO analysis",
-    "job_cert_summary":               "Certificates — Summary",
-    "job_cert_expiring":              "Certificates — Expiring",
-    "job_cert_dc_certs":              "Certificates — DC Kerberos",
     "job_citrix_summary":             "Citrix — Summary",
     "job_citrix_power_unknown_check": "Citrix — Power Unknown check",
     "job_lansweeper_summary":         "Lansweeper — Asset summary",
@@ -50,9 +47,6 @@ JOB_GROUPS = {
     "job_ad_summary":                 "Active Directory",
     "job_ad_reports":                 "Active Directory",
     "job_ad_gpo":                     "Active Directory",
-    "job_cert_summary":               "Certificates",
-    "job_cert_expiring":              "Certificates",
-    "job_cert_dc_certs":              "Certificates",
     "job_citrix_summary":             "Citrix",
     "job_citrix_power_unknown_check": "Citrix",
     "job_lansweeper_summary":         "Lansweeper",
@@ -65,7 +59,7 @@ JOB_GROUPS = {
     "job_entra_refresh":              "System",
 }
 
-GROUP_ORDER = ["VMware", "Citrix", "Active Directory", "Monitoring", "Jira", "Certificates", "Lansweeper", "Network", "System"]
+GROUP_ORDER = ["VMware", "Citrix", "Active Directory", "Monitoring", "Jira", "Lansweeper", "Network", "System"]
 
 JOB_DEFAULTS = {
     "job_basic_vms":                  {"type": "interval", "minutes": 30},
@@ -80,9 +74,6 @@ JOB_DEFAULTS = {
     "job_ad_summary":                 {"type": "interval", "minutes": 240},
     "job_ad_reports":                 {"type": "interval", "minutes": 360},
     "job_ad_gpo":                     {"type": "cron",     "cron": "Daily 03:00"},
-    "job_cert_summary":               {"type": "interval", "minutes": 240},
-    "job_cert_expiring":              {"type": "interval", "minutes": 240},
-    "job_cert_dc_certs":              {"type": "interval", "minutes": 240},
     "job_citrix_summary":             {"type": "interval", "minutes": 60},
     "job_citrix_power_unknown_check": {"type": "interval", "minutes": 15},
     "job_lansweeper_summary":         {"type": "interval", "minutes": 360},
@@ -301,46 +292,6 @@ def job_ad_reports():
     except Exception as e:
         _record_run("job_ad_reports", False, str(e))
         logger.error("Scheduler: AD reports error: " + str(e))
-
-# ── Certificate / CA jobs ─────────────────────────────────────────────────────
-
-def job_cert_summary():
-    try:
-        logger.info("Scheduler: Refreshing cert summary...")
-        from routers.ca_analysis import get_all_issued, get_cert_summary
-        # The only job that triggers the expensive full CA export over WinRM —
-        # job_cert_expiring reuses this cache instead of scanning the CA again.
-        get_all_issued(force_refresh=True)
-        get_cert_summary(force_refresh=True)
-        logger.info("Scheduler: Cert summary updated.")
-        _record_run("job_cert_summary", True)
-    except Exception as e:
-        _record_run("job_cert_summary", False, str(e))
-        logger.error("Scheduler: Cert summary error: " + str(e))
-
-def job_cert_expiring():
-    try:
-        logger.info("Scheduler: Refreshing expiring certs...")
-        from routers.ca_analysis import get_expiring_certs
-        # Recomputes the expiring-certs view but reuses the ca_all_issued cache
-        # warmed by job_cert_summary rather than re-scanning the CA over WinRM.
-        get_expiring_certs(force_refresh=True)
-        logger.info("Scheduler: Expiring certs updated.")
-        _record_run("job_cert_expiring", True)
-    except Exception as e:
-        _record_run("job_cert_expiring", False, str(e))
-        logger.error("Scheduler: Expiring certs error: " + str(e))
-
-def job_cert_dc_certs():
-    try:
-        logger.info("Scheduler: Refreshing DC Kerberos certs...")
-        from routers.ca_analysis import get_dc_kerberos_certs
-        get_dc_kerberos_certs(force_refresh=True)
-        logger.info("Scheduler: DC Kerberos certs updated.")
-        _record_run("job_cert_dc_certs", True)
-    except Exception as e:
-        _record_run("job_cert_dc_certs", False, str(e))
-        logger.error("Scheduler: DC Kerberos certs error: " + str(e))
 
 # ── Citrix jobs ───────────────────────────────────────────────────────────────
 
@@ -604,9 +555,6 @@ def _init_job_funcs():
         "job_ad_reports":                 job_ad_reports,
         "job_ad_gpo_analysis":            job_ad_gpo_analysis,
         "job_ad_gpo":                     job_ad_gpo_analysis,
-        "job_cert_summary":               job_cert_summary,
-        "job_cert_expiring":              job_cert_expiring,
-        "job_cert_dc_certs":              job_cert_dc_certs,
         "job_citrix_summary":             job_citrix_summary,
         "job_citrix_power_unknown_check": job_citrix_power_unknown_check,
         "job_lansweeper_summary":         job_lansweeper_summary,
@@ -718,14 +666,6 @@ def start_scheduler():
     scheduler.add_job(job_ad_reports,      IntervalTrigger(hours=6),      id="job_ad_reports",
                       replace_existing=True, next_run_time=_staggered())
     scheduler.add_job(job_ad_gpo_analysis, CronTrigger(hour=3, minute=0), id="job_ad_gpo",     replace_existing=True)
-
-    # Certificates
-    scheduler.add_job(job_cert_summary,  IntervalTrigger(hours=4), id="job_cert_summary",
-                      replace_existing=True, next_run_time=_staggered())
-    scheduler.add_job(job_cert_expiring, IntervalTrigger(hours=4), id="job_cert_expiring",
-                      replace_existing=True, next_run_time=_staggered())
-    scheduler.add_job(job_cert_dc_certs, IntervalTrigger(hours=4), id="job_cert_dc_certs",
-                      replace_existing=True, next_run_time=_staggered())
 
     # Citrix — summary runs near-immediately on startup to warm cache
     # Power unknown check runs every 15 min (no immediate run — waits for Citrix cache to populate first)

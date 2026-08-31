@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-FastAPI web application running on IIS via uvicorn. Aggregates data from VMware, Citrix, OpManager, Active Directory, Lansweeper, Meraki, Jira, and Certificate Authority into a unified dashboard with AI-powered analysis via Claude.
+FastAPI web application running on IIS via uvicorn. Aggregates data from VMware, Citrix, OpManager, Active Directory, Lansweeper, Meraki, and Jira into a unified dashboard with AI-powered analysis via Claude. (Certificate Authority integration exists in the code but is dormant — see the Certificates note under Project Structure.)
 
 | | |
 |---|---|
@@ -99,7 +99,7 @@ C:\Users\lanio\Coding\VMWare Project\
 │   ├── alert_reports.py         # Alert hygiene reports — stale/noisy OpManager alarms
 │   ├── active_directory.py      # AD via ldap3
 │   ├── entra.py                 # Microsoft Entra ID / M365 via Graph API
-│   ├── ca_analysis.py           # Certificate Authority data collection — page removed, jobs/data still live
+│   ├── ca_analysis.py           # Certificate Authority data collection — page and scheduler jobs removed, dormant
 │   ├── jira.py                  # Jira Cloud
 │   ├── jira_intelligence.py     # Cross-project Jira trend analysis (ITSD/TASI/ITO)
 │   ├── soc_report.py            # SOC audit report generator (TASI compliance)
@@ -137,7 +137,7 @@ C:\Users\lanio\Coding\VMWare Project\
     └── favicon.svg          # Three Zinnia petals (red/orange/yellow) on black
 ```
 
-**Removed in the UI redesign:** `templates/certificates.html` and `templates/analysis.html` are gone. `/certificates` and `/analysis` (and their `/infraportal/...` equivalents) now redirect to `/infraportal/` so old bookmarks don't 404. Certificate Authority data collection itself (`ca_analysis.py`, the `job_cert_*` scheduler jobs, the `findings.py` Certs finding generator) was deliberately left running — only the dedicated page and its nav/dashboard surfaces were retired.
+**Removed in the UI redesign:** `templates/certificates.html` and `templates/analysis.html` are gone. `/certificates` and `/analysis` (and their `/infraportal/...` equivalents) now redirect to `/infraportal/` so old bookmarks don't 404. The `job_cert_summary`/`job_cert_expiring`/`job_cert_dc_certs` scheduler jobs were later removed too (see Scheduler Jobs below), so `ca_analysis.py`'s cached cert data (`ca_all_issued`, cert summary, expiring certs, DC Kerberos certs) is now frozen at whatever it last held — nothing refreshes it anymore. `ca_analysis.py` itself, the `/api/ca/*` and `/api/certs/ai-analysis*` endpoints, and the `findings.py` Certs finding generator are still present but effectively dormant; My Dashboard's "Expiring Certs" widget will show increasingly stale data rather than an error.
 
 ---
 
@@ -186,7 +186,7 @@ Replaced the old horizontal top navbar. Consumption (what NOC/helpdesk/engineers
 
 ---
 
-## Scheduler Jobs (25 total)
+## Scheduler Jobs (22 total)
 
 Intervals configurable at runtime via the Admin → Scheduler menu item (`/infraportal/settings#scheduler`) — no restart needed.
 
@@ -204,9 +204,6 @@ Intervals configurable at runtime via the Admin → Scheduler menu item (`/infra
 | `job_ad_summary` | 1 hr | AD summary |
 | `job_ad_reports` | 4 hr | AD detail reports |
 | `job_ad_gpo_analysis` | 4 hr | GPO analysis |
-| `job_cert_summary` | 6 hr | Cert summary |
-| `job_cert_expiring` | 6 hr | Expiring certs |
-| `job_cert_dc_certs` | 6 hr | DC Kerberos certs |
 | `job_citrix_summary` | 1 hr | Citrix summary |
 | `job_citrix_power_unknown_check` | 15 min | Power unknown notifications |
 | `job_lansweeper_summary` | 6 hr | Asset summary |
