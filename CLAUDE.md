@@ -73,6 +73,8 @@ python -c "import sys; sys.path.insert(0, '.'); import main; routes = [r.path fo
 
 11. **Adding a sidebar nav item** touches three places, not one: the `<a>` in `base.html` (with its `active_page == '...'` highlight check and, if it should be gated, a `user_groups` condition), the route's `_ctx(request, user, "...")` call in `main.py` (the active_page string must match what the nav checks for — a prior mismatch here silently broke highlighting on the App Cloner page), and if it's config rather than something to consume, it belongs in Admin regardless of how related it looks to a nearby feature (see Navigation Structure below).
 
+12. **Zscaler on dev machines** — Active Directory (ldap3) and OpManager probe connections can intermittently fail with `WinError 10053`/`10054` ("connection aborted/forcibly closed") when Zscaler is inspecting/interfering with those connections. Confirmed dev-only (same jobs run clean on the production server) — not a code bug, don't go chasing it as one. No code mitigation in place yet, unlike the `verify=False` proxy bypass already done for MS Graph/Anthropic (gotcha #6).
+
 ---
 
 ## Project Structure
