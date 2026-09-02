@@ -2503,7 +2503,7 @@ Respond with ONLY a valid JSON object, no prose, no markdown fences:
 
         response = _call_claude(
             model      = "claude-sonnet-4-6",
-            max_tokens = 1500,
+            max_tokens = 4096,
             messages   = [{"role": "user", "content": prompt}],
         )
 
@@ -2601,7 +2601,7 @@ async def api_chat(request: Request):
         # instead of a bare client.messages.create() that silently fails.
         response = _call_claude(
             model      = "claude-sonnet-4-6",
-            max_tokens = 1500,
+            max_tokens = 4096,
             messages   = messages,
         )
         return {"status": "ok", "response": response}
@@ -2685,7 +2685,7 @@ def _run_vmware_analysis_background():
             '"chart_tiers":{"Production":N,"QA":N,"Dev/UAT/Test":N},'
             '"chart_envs":{"Topeka":N,"VMC on AWS":N,"Candor India":N}}'
         )
-        response = _call_claude(model="claude-sonnet-4-6", max_tokens=1500, messages=[{"role":"user","content":prompt}])
+        response = _call_claude(model="claude-sonnet-4-6", max_tokens=4096, messages=[{"role":"user","content":prompt}])
         import json as _json, re as _re
         text = response.strip()
         if text.startswith("```"):
@@ -2805,7 +2805,7 @@ def _run_citrix_analysis_background():
             '"chart_catalogs":{"OK":N,"Warnings":N,"Broken":N,"Upgrade Available":N},'
             '"chart_zones":{"Zone1":N}}'
         )
-        response = _call_claude(model="claude-sonnet-4-6", max_tokens=1500, messages=[{"role":"user","content":prompt}])
+        response = _call_claude(model="claude-sonnet-4-6", max_tokens=4096, messages=[{"role":"user","content":prompt}])
         import json as _json, re as _re
         text = response.strip()
         if text.startswith("```"):
@@ -2926,7 +2926,7 @@ def _run_ad_analysis_background():
             '"chart_gpo":{"Total":' + str(gpo_total) + ',"Orphaned":' + str(gpo_orphaned) + ',"Stale 2yr+":' + str(gpo_stale) + ',"Linked+Disabled":' + str(gpo_linked_dis) + '}}'
         )
 
-        response = _call_claude(model="claude-sonnet-4-6", max_tokens=1500, messages=[{"role": "user", "content": prompt}])
+        response = _call_claude(model="claude-sonnet-4-6", max_tokens=4096, messages=[{"role": "user", "content": prompt}])
         text = response.strip()
         if text.startswith("```"):
             text = _re.sub(r"^```[a-z]*\n?", "", text)
@@ -3048,7 +3048,7 @@ def _run_assets_analysis_background():
             '"chart_eol":{"Supported":' + str(max(0, total - eol_count)) + ',"EOL OS":' + str(eol_count) + '}}'
         )
 
-        response = _call_claude(model="claude-sonnet-4-6", max_tokens=1500, messages=[{"role": "user", "content": prompt}])
+        response = _call_claude(model="claude-sonnet-4-6", max_tokens=4096, messages=[{"role": "user", "content": prompt}])
         text = response.strip()
         if text.startswith("```"):
             text = _re.sub(r"^```[a-z]*\n?", "", text)
