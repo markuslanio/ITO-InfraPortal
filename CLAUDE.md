@@ -75,6 +75,8 @@ python -c "import sys; sys.path.insert(0, '.'); import main; routes = [r.path fo
 
 12. **Zscaler on dev machines** — Active Directory (ldap3) and OpManager probe connections can intermittently fail with `WinError 10053`/`10054` ("connection aborted/forcibly closed") when Zscaler is inspecting/interfering with those connections. Confirmed dev-only (same jobs run clean on the production server) — not a code bug, don't go chasing it as one. No code mitigation in place yet, unlike the `verify=False` proxy bypass already done for MS Graph/Anthropic (gotcha #6).
 
+13. **`web.config` `<appSettings>` silently beats `.env` in production** — `run.py` reads `C:\InfraPortal\web.config`'s `<appSettings>` and injects each into `os.environ` via `setdefault()` *before* `load_dotenv()` runs; `load_dotenv()` never overrides an already-set variable. So if a key (e.g. `CLAUDE_API_KEY`) exists in `web.config`, editing `.env` on production has **zero effect** — no error, no warning, it just keeps using the `web.config` value. Confirmed root cause of a real incident (2026-09-02: prod AI Analysis calls failed with `401 API key is invalid` after a key rotation — `.env` had the new key, `web.config` still had the old one). When rotating any secret that's also an IIS `<appSettings>` entry, update **both** files, or the rotation silently doesn't take effect on the server. There's also no auto-recycle when `.env` is hand-edited on disk (only the Admin → Environment page's save button triggers one) — `routers/analysis.py` in particular builds its Anthropic client once at import time, so a stale key stays cached in memory until the app pool is recycled regardless of which file you fixed.
+
 ---
 
 ## Project Structure
